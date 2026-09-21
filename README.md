@@ -4,10 +4,10 @@
 
 **Scrum Master:** Ryan James M. Gopio
 
-**Test Engineer:** Prince Nelson J. Aguinaldo Jr.
-
 **UI/UX Developer:** Alain Deiniel S. Montes
 
 **BackEnd Engineer:** Kathryn Chloe V. Silvestre
 
-**DevSecOps Engineer:** Marron Beroy
+**DevSecOps Engineer:** Marron E. Beroy
+
+**Test Engineer:** Prince Nelson J. Aguinaldo Jr.

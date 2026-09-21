@@ -1,7 +1,12 @@
 # BAIYOGESIC
 Software Engineering 1
 
-Test Engineer: Aguinaldo, Prince Nelson Jr., J.
-UI/UX Developer: Alain Deiniel S. Montes
-akoh toh si kc
-akoh toh si marron
+**Scrum Master:** Ryan James M. Gopio
+
+**Test Engineer:** Prince Nelson J. Aguinaldo Jr.
+
+**UI/UX Developer:** Alain Deiniel S. Montes
+
+**BackEnd Engineer:** Kathryn Chloe V. Silvestre
+
+**DevSecOps Engineer:** Marron Beroy

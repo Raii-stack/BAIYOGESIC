@@ -1,0 +1,33 @@
+{
+  "name": "baiyogesic",
+  "version": "1.0.0",
+  "description": "**Scrum Master:** Ryan James M. Gopio",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+  "test:integration": "jest tests/integration",
+  "test:e2e": "playwright test"
+},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Raii-stack/BAIYOGESIC.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Raii-stack/BAIYOGESIC/issues"
+  },
+  "homepage": "https://github.com/Raii-stack/BAIYOGESIC#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@supabase/supabase-js": "^2.118.0",
+    "dotenv": "^18.0.8",
+    "jest": "^30.5.2",
+    "supertest": "^7.3.1"
+  }
+}

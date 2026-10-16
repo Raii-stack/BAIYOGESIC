@@ -2,9 +2,12 @@
 
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const { supabase } = require('./db');
 const { asyncHandler, errorHandler } = require('./middleware/error-handler');
+const { auditContext } = require('./middleware/audit-context');
+const authRoutes = require('./routes/auth-routes');
 
 const app = express();
 const port = Number.parseInt(process.env.PORT || '3000', 10);
@@ -17,6 +20,8 @@ app.disable('x-powered-by');
 app.use(helmet());
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+app.use(cookieParser());
+app.use('/api/auth', auditContext, authRoutes);
 
 app.get('/health', asyncHandler(async (req, res) => {
   const { error } = await supabase.from('_health_check').select('*').limit(1);

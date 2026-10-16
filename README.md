@@ -28,7 +28,8 @@ user in React Context; it does not expose or persist the token in JavaScript.
 Registration sends `firstName`, `lastName`, and `email`, creating an account
 that remains pending until administrator approval.
 
-Run `npm install`, then `npm run dev`. Run `npm test` for the auth form tests
+Run `npm install`, then start the API with `npm run api:dev` and the frontend
+with `npm run dev` in separate terminals. Run `npm test` for the auth form tests
 and `npm run build` to create the production bundle.
 
 ### Possible project structure

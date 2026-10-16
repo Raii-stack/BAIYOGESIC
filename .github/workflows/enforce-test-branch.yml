@@ -1,0 +1,17 @@
+name: Enforce Test Branch Workflow
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  enforce-source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify PR originates from test branch
+        run: |
+          if [[ "${{ github.head_ref }}" != "test" ]]; then
+            echo "Error: Direct PRs to main are not allowed. Please merge your feature into 'test' first."
+            exit 1
+          fi

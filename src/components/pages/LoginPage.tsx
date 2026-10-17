@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router"
 
 import type { Errors } from "../../types/auth"
 import { emailOk } from "../../utils/validation"
-import { login } from "../../lib/auth"
+import { login, saveCurrentUser } from "../../lib/auth"
 import {
   AuthShell,
   Field,
@@ -29,7 +29,8 @@ export default function LoginPage() {
 
     setLoading(true)
     try {
-      await login(email, password)
+      const user = await login(email, password)
+      saveCurrentUser(user)
       navigate("/dashboard")
     } catch (error) {
       setSubmitError(

@@ -9,6 +9,7 @@ import CreateSalePage from "./pages/CreateSalePage"
 import EmployeeDirectoryPage from "./pages/EmployeeDirectoryPage"
 import EmployeeProfilePage from "./pages/EmployeeProfilePage"
 import InventoryPage from "./pages/InventoryPage"
+import ProfilePage from "./pages/ProfilePage"
 
 const router = createBrowserRouter([
   { path: "/", Component: LoginPage },
@@ -20,6 +21,7 @@ const router = createBrowserRouter([
   { path: "/employees", Component: EmployeeDirectoryPage },
   { path: "/employees/:employeeId", Component: EmployeeProfilePage },
   { path: "/sales/new", Component: CreateSalePage },
+  { path: "/profile", Component: ProfilePage },
   { path: "*", Component: LoginPage },
 ])
 

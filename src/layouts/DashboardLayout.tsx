@@ -6,6 +6,12 @@ import {
   DashboardLogo,
   navigationItems,
 } from "../components/dashboard/DashboardComponents"
+import {
+  getCurrentUser,
+  getUserDisplayName,
+  getUserInitials,
+  getUserRoleLabel,
+} from "../lib/auth"
 
 type DashboardLayoutProps = {
   children: ReactNode
@@ -24,6 +30,7 @@ export default function DashboardLayout({
     () => window.localStorage.getItem(sidebarPreferenceKey) === "true",
   )
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
+  const currentUser = getCurrentUser()
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -88,9 +95,9 @@ export default function DashboardLayout({
 
               return (
                 <li key={item.label}>
-                  {item.label === "Dashboard" ? (
+                  {item.label === "Dashboard" || item.label === "Profile" ? (
                     <Link
-                      to="/dashboard"
+                      to={item.label === "Profile" ? "/profile" : "/dashboard"}
                       title={sidebarCollapsed ? item.label : undefined}
                       className={className}
                       onClick={() => setMobileSidebarOpen(false)}
@@ -178,17 +185,22 @@ export default function DashboardLayout({
             <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full border-2 border-white bg-blue-700" />
           </button>
 
-          <div className="ml-auto flex shrink-0 items-center gap-3 border-l border-slate-200 pl-3 sm:pl-5">
+          <Link
+            to="/profile"
+            className="ml-auto flex shrink-0 items-center gap-3 border-l border-slate-200 pl-3 sm:pl-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 sm:rounded-md sm:pr-2"
+          >
             <div className="grid h-10 w-10 place-items-center rounded-full bg-[#0d2743] text-xs font-bold text-white">
-              SA
+              {getUserInitials(currentUser)}
             </div>
             <div className="hidden sm:block">
-              <p className="text-sm font-bold text-slate-900">Account</p>
+              <p className="text-sm font-bold text-slate-900">
+                {getUserDisplayName(currentUser)}
+              </p>
               <span className="mt-0.5 inline-block border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-blue-800">
-                Superadmin
+                {getUserRoleLabel(currentUser)}
               </span>
             </div>
-          </div>
+          </Link>
         </header>
 
         {children}

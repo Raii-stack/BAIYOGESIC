@@ -6,6 +6,8 @@ export type AuthenticatedUser = {
   status: string
 }
 
+const currentUserStorageKey = "hope-erp-current-user"
+
 type LoginResponse = {
   success: boolean
   data?: { user: AuthenticatedUser }
@@ -38,4 +40,45 @@ export async function login(email: string, password: string) {
   }
 
   return payload.data.user
+}
+
+export function saveCurrentUser(user: AuthenticatedUser) {
+  window.localStorage.setItem(currentUserStorageKey, JSON.stringify(user))
+}
+
+export function getCurrentUser(): AuthenticatedUser | null {
+  const storedUser = window.localStorage.getItem(currentUserStorageKey)
+  if (!storedUser) return null
+
+  try {
+    return JSON.parse(storedUser) as AuthenticatedUser
+  } catch {
+    window.localStorage.removeItem(currentUserStorageKey)
+    return null
+  }
+}
+
+export function getUserInitials(user: AuthenticatedUser | null) {
+  if (!user) return "SA"
+
+  const [lastName = "", firstName = ""] = user.email.split("@")[0].split(".")
+  return `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase() || "SA"
+}
+
+export function getUserDisplayName(user: AuthenticatedUser | null) {
+  if (!user) return "Account"
+
+  const [lastName, firstName] = user.email.split("@")[0].split(".")
+  if (!lastName || !firstName) return user.email
+
+  return `${firstName} ${lastName}`.replace(/\b\w/g, (letter) =>
+    letter.toUpperCase(),
+  )
+}
+
+export function getUserRoleLabel(user: AuthenticatedUser | null) {
+  if (!user) return "Superadmin"
+  if (user.role === "administrator") return "Superadmin"
+
+  return user.role.charAt(0).toUpperCase() + user.role.slice(1)
 }

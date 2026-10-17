@@ -5,7 +5,8 @@
   "description": "HOPE, Inc. ERP API and React frontend",
   "main": "server.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.js",
+    "dev:frontend": "vite",
     "start": "node server.js",
     "api:dev": "node --watch server.js",
     "build": "vite build",

@@ -98,13 +98,7 @@ export default function LoginPage() {
 
       <div className="mt-8 border-t border-slate-200 pt-6">
         <p className="text-sm text-slate-600">
-          Authorized HR or system administrator?{" "}
-          <Link
-            to="/create-account"
-            className="font-semibold text-blue-800 underline-offset-4 hover:text-blue-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
-          >
-            Create an account
-          </Link>
+          Account provisioning is available to authorized users after sign-in.
         </p>
       </div>
     </AuthShell>

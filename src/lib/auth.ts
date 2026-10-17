@@ -65,8 +65,25 @@ export async function changePassword(currentPassword: string, newPassword: strin
   return true
 }
 
+export async function logout() {
+  const response = await fetch(`${apiBaseUrl}/api/auth/logout`, {
+    method: "POST",
+    credentials: "include",
+  })
+
+  if (!response.ok) {
+    throw new Error("Unable to sign out. Please try again.")
+  }
+
+  clearCurrentUser()
+}
+
 export function saveCurrentUser(user: AuthenticatedUser) {
   window.localStorage.setItem(currentUserStorageKey, JSON.stringify(user))
+}
+
+export function clearCurrentUser() {
+  window.localStorage.removeItem(currentUserStorageKey)
 }
 
 export function getCurrentUser(): AuthenticatedUser | null {

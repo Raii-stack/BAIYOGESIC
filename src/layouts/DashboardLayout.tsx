@@ -13,6 +13,7 @@ import {
   getUserRoleLabel,
 } from "../lib/auth"
 import ChangePasswordModal from "../components/auth/ChangePasswordModal"
+import Toast from "../components/ui/Toast"
 
 type DashboardLayoutProps = {
   children: ReactNode
@@ -35,6 +36,7 @@ export default function DashboardLayout({
   const [changePasswordOpen, setChangePasswordOpen] = useState(
     () => currentUser?.mustChangePassword === true,
   )
+  const [toastMessage, setToastMessage] = useState("")
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -213,8 +215,14 @@ export default function DashboardLayout({
         open={changePasswordOpen}
         required={currentUser?.mustChangePassword === true}
         onClose={() => setChangePasswordOpen(false)}
-        onSuccess={() => setChangePasswordOpen(false)}
+        onSuccess={() => {
+          setChangePasswordOpen(false)
+          setToastMessage("Password changed successfully.")
+        }}
       />
+      {toastMessage && (
+        <Toast message={toastMessage} onDismiss={() => setToastMessage("")} />
+      )}
     </div>
   )
 }

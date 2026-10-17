@@ -1,5 +1,5 @@
-import { useMemo } from "react"
-import { Link } from "react-router"
+import { useMemo, useState } from "react"
+import { Link, useNavigate } from "react-router"
 
 import DashboardLayout from "../layouts/DashboardLayout"
 import {
@@ -7,12 +7,31 @@ import {
   getUserDisplayName,
   getUserInitials,
   getUserRoleLabel,
+  logout,
 } from "../lib/auth"
 
 export default function ProfilePage() {
+  const navigate = useNavigate()
   const user = getCurrentUser()
+  const [loggingOut, setLoggingOut] = useState(false)
+  const [logoutError, setLogoutError] = useState("")
   const name = useMemo(() => getUserDisplayName(user), [user])
   const initials = getUserInitials(user)
+
+  const signOut = async () => {
+    setLoggingOut(true)
+    setLogoutError("")
+    try {
+      await logout()
+      navigate("/", { replace: true })
+    } catch (error) {
+      setLogoutError(
+        error instanceof Error ? error.message : "Unable to sign out.",
+      )
+    } finally {
+      setLoggingOut(false)
+    }
+  }
 
   return (
     <DashboardLayout activeNavigation="Profile" searchPlaceholder="Search workspace">
@@ -118,6 +137,27 @@ export default function ProfilePage() {
                 </dd>
               </div>
             </dl>
+          </section>
+          <section className="mt-5 flex flex-col gap-4 border border-slate-300 bg-white px-6 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+            <div>
+              <p className="text-sm font-bold text-slate-900">Sign out of HOPE ERP</p>
+              <p className="mt-1 text-sm text-slate-600">
+                End your current workspace session on this device.
+              </p>
+              {logoutError && (
+                <p role="alert" className="mt-2 text-sm font-medium text-red-600">
+                  {logoutError}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={signOut}
+              disabled={loggingOut}
+              className="h-11 rounded-md border border-red-200 px-5 text-sm font-bold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loggingOut ? "Signing out…" : "Log out"}
+            </button>
           </section>
         </div>
       </main>

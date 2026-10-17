@@ -3,12 +3,11 @@ import { Link, useNavigate } from "react-router"
 
 import type { Errors } from "../../types/auth"
 import { emailOk } from "../../utils/validation"
+import { login } from "../../lib/auth"
 import {
   AuthShell,
   Field,
   Submit,
-  SuccessMessage,
-  useFakeSubmission,
 } from "../auth/AuthComponents"
 
 export default function LoginPage() {
@@ -16,16 +15,28 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<Errors>({})
-  const submission = useFakeSubmission()
+  const [loading, setLoading] = useState(false)
+  const [submitError, setSubmitError] = useState("")
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
     const nextErrors: Errors = {}
     if (!emailOk(email)) nextErrors.email = "Enter a valid work email address."
     if (!password) nextErrors.password = "Password is required."
     setErrors(nextErrors)
-    if (!Object.keys(nextErrors).length) {
-      submission.run(() => navigate("/dashboard"))
+    setSubmitError("")
+    if (Object.keys(nextErrors).length) return
+
+    setLoading(true)
+    try {
+      await login(email, password)
+      navigate("/dashboard")
+    } catch (error) {
+      setSubmitError(
+        error instanceof Error ? error.message : "Unable to sign in. Please try again.",
+      )
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -74,13 +85,13 @@ export default function LoginPage() {
             Forgot password?
           </Link>
         </div>
-        <Submit loading={submission.loading} loadingLabel="Signing you in…">
+        <Submit loading={loading} loadingLabel="Signing you in…">
           Sign in
         </Submit>
-        {submission.done && (
-          <SuccessMessage>
-            Signed in successfully. Redirecting to your workspace.
-          </SuccessMessage>
+        {submitError && (
+          <p role="alert" className="mt-4 text-sm font-medium text-red-600">
+            {submitError}
+          </p>
         )}
       </form>
 

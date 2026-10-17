@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { supabase, authSupabase } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
@@ -27,23 +28,24 @@ const register = asyncHandler(async (req, res) => {
     throw requestError('firstName, lastName, and email are required', 400);
   }
 
-  let user;
-  try {
-    user = await req.withAuditContext(normalizedEmail, async (client) => {
-      const result = await client.query(
-        `INSERT INTO public.app_user (first_name, last_name, email, status)
-         VALUES ($1, $2, $3, 'pending')
-         RETURNING id, first_name, last_name, email, status, role, is_deleted`,
-        [String(firstName).trim(), String(lastName).trim(), normalizedEmail]
-      );
+  const { data: user, error } = await supabase
+    .from('app_user')
+    .select('user_id, email, status, role')
+    .eq('email', normalizedEmail)
+    .maybeSingle();
 
-      return result.rows[0];
-    });
-  } catch (error) {
-    if (error.code === '23505') {
-      throw requestError('A user with that email already exists', 409);
-    }
-    throw error;
+  if (error) {
+    const databaseError = new Error(
+      error.code === '42501'
+        ? 'Server authentication credentials are not authorized to read app_user'
+        : 'Authentication service unavailable'
+    );
+    databaseError.statusCode = 503;
+    throw databaseError;
+  }
+
+  if (user) {
+    throw requestError('A user with that email already exists', 409);
   }
 
   res.status(201).json({ success: true, data: { user } });
@@ -57,30 +59,35 @@ const login = asyncHandler(async (req, res) => {
     throw requestError('email and password are required', 400);
   }
 
-  const user = await req.withAuditContext(normalizedEmail, async (client) => {
-    const result = await client.query(
-      `SELECT id, email, password_hash, role, status
-       FROM public.app_user
-       WHERE lower(email) = $1
-         AND is_deleted = false
-       LIMIT 1`,
-      [normalizedEmail]
-    );
+  if (!authSupabase) {
+    throw requestError('SUPABASE_SERVICE_ROLE_KEY must be configured on the server', 503);
+  }
 
-    const candidate = result.rows[0];
-    if (!candidate || typeof candidate.password_hash !== 'string') {
-      return null;
-    }
+  const { data: candidates, error } = await authSupabase
+    .from('app_user')
+    .select('user_id, empno, email, password_hash, role, status')
+    .eq('email', normalizedEmail)
+    .eq('status', 'active')
+    .limit(1);
 
-    return (await bcrypt.compare(password, candidate.password_hash)) ? candidate : null;
-  });
+  if (error) {
+    const databaseError = new Error('Authentication service unavailable');
+    databaseError.statusCode = 503;
+    throw databaseError;
+  }
+
+  const candidate = candidates && candidates[0];
+  const user = candidate && typeof candidate.password_hash === 'string'
+    && await bcrypt.compare(password, candidate.password_hash)
+    ? candidate
+    : null;
 
   if (!user) {
     throw requestError('Invalid email or password', 401);
   }
 
   const token = jwt.sign(
-    { sub: String(user.id), role: user.role },
+    { sub: String(user.user_id), empno: user.empno, role: user.role },
     getJwtSecret(),
     { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256' }
   );
@@ -96,7 +103,13 @@ const login = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: {
-      user: { id: user.id, email: user.email, role: user.role, status: user.status }
+      user: {
+        userId: user.user_id,
+        empno: user.empno,
+        email: user.email,
+        role: user.role,
+        status: user.status
+      }
     }
   });
 });

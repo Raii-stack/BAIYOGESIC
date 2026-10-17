@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react"
+import { useState, useEffect, type ReactNode } from "react"
 import { Link } from "react-router"
 
 import {
@@ -12,6 +12,7 @@ import {
   getUserInitials,
   getUserRoleLabel,
 } from "../lib/auth"
+import ChangePasswordModal from "../components/auth/ChangePasswordModal"
 
 type DashboardLayoutProps = {
   children: ReactNode
@@ -31,6 +32,9 @@ export default function DashboardLayout({
   )
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const currentUser = getCurrentUser()
+  const [changePasswordOpen, setChangePasswordOpen] = useState(
+    () => currentUser?.mustChangePassword === true,
+  )
 
   useEffect(() => {
     window.localStorage.setItem(
@@ -205,6 +209,12 @@ export default function DashboardLayout({
 
         {children}
       </div>
+      <ChangePasswordModal
+        open={changePasswordOpen}
+        required={currentUser?.mustChangePassword === true}
+        onClose={() => setChangePasswordOpen(false)}
+        onSuccess={() => setChangePasswordOpen(false)}
+      />
     </div>
   )
 }

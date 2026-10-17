@@ -4,6 +4,7 @@ export type AuthenticatedUser = {
   email: string
   role: string
   status: string
+  mustChangePassword: boolean
 }
 
 const currentUserStorageKey = "hope-erp-current-user"
@@ -40,6 +41,28 @@ export async function login(email: string, password: string) {
   }
 
   return payload.data.user
+}
+
+export async function changePassword(currentPassword: string, newPassword: string) {
+  const response = await fetch(`${apiBaseUrl}/api/auth/change-password`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentPassword, newPassword }),
+  })
+
+  let payload: { success: boolean; error?: { message?: string } } | null = null
+  try {
+    payload = (await response.json()) as { success: boolean; error?: { message?: string } }
+  } catch {
+    throw new Error("Unable to reach the authentication service.")
+  }
+
+  if (!response.ok || !payload.success) {
+    throw new Error(payload.error?.message || "Unable to update your password.")
+  }
+
+  return true
 }
 
 export function saveCurrentUser(user: AuthenticatedUser) {

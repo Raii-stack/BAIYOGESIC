@@ -65,7 +65,7 @@ const login = asyncHandler(async (req, res) => {
 
   const { data: candidates, error } = await authSupabase
     .from('app_user')
-    .select('user_id, empno, email, password_hash, role, status')
+    .select('user_id, empno, email, password_hash, role, status, must_change_password')
     .eq('email', normalizedEmail)
     .eq('status', 'active')
     .limit(1);
@@ -108,7 +108,8 @@ const login = asyncHandler(async (req, res) => {
         empno: user.empno,
         email: user.email,
         role: user.role,
-        status: user.status
+        status: user.status,
+        mustChangePassword: user.must_change_password
       }
     }
   });
@@ -125,4 +126,55 @@ const logout = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Logged out successfully' } });
 });
 
-module.exports = { register, login, logout };
+const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+
+  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+    throw requestError('currentPassword and newPassword are required', 400);
+  }
+
+  if (newPassword.length < 8) {
+    throw requestError('New password must be at least 8 characters', 400);
+  }
+
+  if (currentPassword === newPassword) {
+    throw requestError('New password must be different from the current password', 400);
+  }
+
+  if (!authSupabase) {
+    throw requestError('SUPABASE_SERVICE_ROLE_KEY must be configured on the server', 503);
+  }
+
+  const { data: user, error: readError } = await authSupabase
+    .from('app_user')
+    .select('password_hash')
+    .eq('user_id', req.user.sub)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (readError || !user) {
+    throw requestError('Authentication service unavailable', 503);
+  }
+
+  if (!await bcrypt.compare(currentPassword, user.password_hash)) {
+    throw requestError('Current password is incorrect', 401);
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  const { error: updateError } = await authSupabase
+    .from('app_user')
+    .update({
+      password_hash: passwordHash,
+      must_change_password: false,
+      updated_at: new Date().toISOString()
+    })
+    .eq('user_id', req.user.sub);
+
+  if (updateError) {
+    throw requestError('Unable to update password', 503);
+  }
+
+  res.json({ success: true, data: { message: 'Password updated successfully' } });
+});
+
+module.exports = { register, login, logout, changePassword };

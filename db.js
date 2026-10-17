@@ -2,7 +2,12 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const { SUPABASE_URL, SUPABASE_KEY, DATABASE_URL } = process.env;
+const {
+  SUPABASE_URL,
+  SUPABASE_KEY,
+  SUPABASE_SERVICE_ROLE_KEY,
+  DATABASE_URL
+} = process.env;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   throw new Error('SUPABASE_URL and SUPABASE_KEY must be configured');
@@ -19,6 +24,16 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     detectSessionInUrl: false
   }
 });
+
+const authSupabase = SUPABASE_SERVICE_ROLE_KEY
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false
+      }
+    })
+  : null;
 
 const pool = DATABASE_URL
   ? new Pool({
@@ -37,4 +52,4 @@ function requirePool() {
   return pool;
 }
 
-module.exports = { supabase, pool, requirePool };
+module.exports = { supabase, authSupabase, pool, requirePool };

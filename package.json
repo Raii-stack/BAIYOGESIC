@@ -5,7 +5,8 @@
   "description": "HOPE, Inc. ERP API and React frontend",
   "main": "server.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.js",
+    "dev:frontend": "vite",
     "start": "node server.js",
     "api:dev": "node --watch server.js",
     "build": "vite build",
@@ -26,7 +27,8 @@
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.16.3",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "react-router": "^8.4.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",

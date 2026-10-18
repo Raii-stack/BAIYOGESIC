@@ -12,6 +12,25 @@
 
 **DevSecOps Engineer:** Marron Beroy
 
+## Frontend development
+
+The React frontend uses Vite and Tailwind CSS. Copy `.env.example` to `.env.local`
+to configure the Express API. During local development, `/api` is proxied to
+`http://localhost:3000` by default; set `VITE_API_PROXY_TARGET` if the backend
+runs elsewhere. Set `VITE_API_BASE_URL` to the API origin when the frontend and
+backend are hosted on different origins and the backend is configured for
+credentialed CORS; otherwise, route `/api` through a same-origin reverse proxy.
+
+Authentication uses `POST /api/auth/register`, `POST /api/auth/login`, and
+`POST /api/auth/logout`. The backend sets and clears an HttpOnly `access_token`
+cookie, so the frontend sends requests with credentials and keeps the signed-in
+user in React Context; it does not expose or persist the token in JavaScript.
+Registration sends `firstName`, `lastName`, and `email`, creating an account
+that remains pending until administrator approval.
+
+Run `npm install`, then start the API with `npm run api:dev` and the frontend
+with `npm run dev` in separate terminals. Run `npm test` for the auth form tests
+and `npm run build` to create the production bundle.
 
 ### Possible project structure
 ```

@@ -249,7 +249,7 @@ const login = asyncHandler(async (req, res) => {
   }
 
   const token = jwt.sign(
-    { sub: String(user.user_id), empno: user.empno, role: user.role },
+    { sub: String(user.user_id), empno: user.empno, email: user.email, role: user.role },
     getJwtSecret(),
     { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256' }
   );
@@ -339,4 +339,12 @@ const changePassword = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Password updated successfully' } });
 });
 
-module.exports = { register, login, logout, changePassword };
+module.exports = {
+  register,
+  setPassword,
+  forgotPassword,
+  resetPassword,
+  login,
+  logout,
+  changePassword
+};

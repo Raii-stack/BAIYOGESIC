@@ -1,6 +1,7 @@
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const { supabase, authSupabase } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
@@ -47,23 +48,24 @@ const register = asyncHandler(async (req, res) => {
     throw requestError('firstName, lastName, and email are required', 400);
   }
 
-  let user;
-  try {
-    user = await req.withAuditContext(normalizedEmail, async (client) => {
-      const result = await client.query(
-        `INSERT INTO public.app_user (first_name, last_name, email, status)
-         VALUES ($1, $2, $3, 'pending')
-         RETURNING id, first_name, last_name, email, status, role, is_deleted`,
-        [String(firstName).trim(), String(lastName).trim(), normalizedEmail]
-      );
+  const { data: user, error } = await supabase
+    .from('app_user')
+    .select('user_id, email, status, role')
+    .eq('email', normalizedEmail)
+    .maybeSingle();
 
-      return result.rows[0];
-    });
-  } catch (error) {
-    if (error.code === '23505') {
-      throw requestError('A user with that email already exists', 409);
-    }
-    throw error;
+  if (error) {
+    const databaseError = new Error(
+      error.code === '42501'
+        ? 'Server authentication credentials are not authorized to read app_user'
+        : 'Authentication service unavailable'
+    );
+    databaseError.statusCode = 503;
+    throw databaseError;
+  }
+
+  if (user) {
+    throw requestError('A user with that email already exists', 409);
   }
 
   res.status(201).json({ success: true, data: { user } });
@@ -219,29 +221,35 @@ const login = asyncHandler(async (req, res) => {
     throw requestError('email and password are required', 400);
   }
 
-  const user = await req.withAuditContext(normalizedEmail, async (client) => {
-    const result = await client.query(
-      `SELECT user_id, email, password_hash, role, status, must_change_password
-       FROM public.app_user
-       WHERE lower(email) = $1
-       LIMIT 1`,
-      [normalizedEmail]
-    );
+  if (!authSupabase) {
+    throw requestError('SUPABASE_SERVICE_ROLE_KEY must be configured on the server', 503);
+  }
 
-    const candidate = result.rows[0];
-    if (!candidate || typeof candidate.password_hash !== 'string') {
-      return null;
-    }
+  const { data: candidates, error } = await authSupabase
+    .from('app_user')
+    .select('user_id, empno, email, password_hash, role, status, must_change_password')
+    .eq('email', normalizedEmail)
+    .eq('status', 'active')
+    .limit(1);
 
-    return (await bcrypt.compare(password, candidate.password_hash)) ? candidate : null;
-  });
+  if (error) {
+    const databaseError = new Error('Authentication service unavailable');
+    databaseError.statusCode = 503;
+    throw databaseError;
+  }
+
+  const candidate = candidates && candidates[0];
+  const user = candidate && typeof candidate.password_hash === 'string'
+    && await bcrypt.compare(password, candidate.password_hash)
+    ? candidate
+    : null;
 
   if (!user) {
     throw requestError('Invalid email or password', 401);
   }
 
   const token = jwt.sign(
-    { sub: String(user.user_id), role: user.role },
+    { sub: String(user.user_id), empno: user.empno, role: user.role },
     getJwtSecret(),
     { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256' }
   );
@@ -258,7 +266,8 @@ const login = asyncHandler(async (req, res) => {
     success: true,
     data: {
       user: {
-        id: user.user_id,
+        userId: user.user_id,
+        empno: user.empno,
         email: user.email,
         role: user.role,
         status: user.status,
@@ -279,11 +288,55 @@ const logout = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Logged out successfully' } });
 });
 
-module.exports = {
-  register,
-  setPassword,
-  forgotPassword,
-  resetPassword,
-  login,
-  logout
-};
+const changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+
+  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+    throw requestError('currentPassword and newPassword are required', 400);
+  }
+
+  if (newPassword.length < 8) {
+    throw requestError('New password must be at least 8 characters', 400);
+  }
+
+  if (currentPassword === newPassword) {
+    throw requestError('New password must be different from the current password', 400);
+  }
+
+  if (!authSupabase) {
+    throw requestError('SUPABASE_SERVICE_ROLE_KEY must be configured on the server', 503);
+  }
+
+  const { data: user, error: readError } = await authSupabase
+    .from('app_user')
+    .select('password_hash')
+    .eq('user_id', req.user.sub)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (readError || !user) {
+    throw requestError('Authentication service unavailable', 503);
+  }
+
+  if (!await bcrypt.compare(currentPassword, user.password_hash)) {
+    throw requestError('Current password is incorrect', 401);
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  const { error: updateError } = await authSupabase
+    .from('app_user')
+    .update({
+      password_hash: passwordHash,
+      must_change_password: false,
+      updated_at: new Date().toISOString()
+    })
+    .eq('user_id', req.user.sub);
+
+  if (updateError) {
+    throw requestError('Unable to update password', 503);
+  }
+
+  res.json({ success: true, data: { message: 'Password updated successfully' } });
+});
+
+module.exports = { register, login, logout, changePassword };

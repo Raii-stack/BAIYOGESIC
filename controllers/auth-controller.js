@@ -1,8 +1,14 @@
 const bcrypt = require('bcrypt');
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { asyncHandler } = require('../middleware/error-handler');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
+const configuredResetTokenTtl = Number.parseInt(process.env.RESET_TOKEN_TTL_MINUTES || '30', 10);
+const RESET_TOKEN_TTL_MINUTES = Number.isInteger(configuredResetTokenTtl) && configuredResetTokenTtl > 0
+  ? configuredResetTokenTtl
+  : 30;
+const PASSWORD_MIN_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function requestError(message, statusCode) {
@@ -17,6 +23,20 @@ function getJwtSecret() {
   }
 
   return process.env.JWT_SECRET;
+}
+
+function validatePassword(password) {
+  if (typeof password !== 'string' || password.length < PASSWORD_MIN_LENGTH) {
+    throw requestError(`password must be at least ${PASSWORD_MIN_LENGTH} characters`, 400);
+  }
+}
+
+function hashResetToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function shouldReturnResetToken() {
+  return process.env.NODE_ENV !== 'production' && process.env.RETURN_RESET_TOKEN === 'true';
 }
 
 const register = asyncHandler(async (req, res) => {
@@ -49,6 +69,148 @@ const register = asyncHandler(async (req, res) => {
   res.status(201).json({ success: true, data: { user } });
 });
 
+const setPassword = asyncHandler(async (req, res) => {
+  const { email, password } = req.body || {};
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+  if (!EMAIL_PATTERN.test(normalizedEmail)) {
+    throw requestError('A valid email is required', 400);
+  }
+  validatePassword(password);
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const user = await req.withAuditContext(normalizedEmail, async (client) => {
+    const result = await client.query(
+      `UPDATE public.app_user
+       SET password_hash = $1,
+           status = 'active',
+           must_change_password = false,
+           updated_at = now()
+       WHERE lower(email) = $2
+         AND must_change_password = true
+       RETURNING user_id, email, status, role, must_change_password`,
+      [passwordHash, normalizedEmail]
+    );
+
+    return result.rows[0] || null;
+  });
+
+  if (!user) {
+    throw requestError('Password cannot be set for this account', 400);
+  }
+
+  res.json({ success: true, data: { user } });
+});
+
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body || {};
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+  if (!EMAIL_PATTERN.test(normalizedEmail)) {
+    throw requestError('A valid email is required', 400);
+  }
+
+  const resetToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashResetToken(resetToken);
+  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
+
+  const created = await req.withAuditContext(normalizedEmail, async (client) => {
+    const userResult = await client.query(
+      `SELECT user_id
+       FROM public.app_user
+       WHERE lower(email) = $1
+       LIMIT 1`,
+      [normalizedEmail]
+    );
+    const user = userResult.rows[0];
+
+    if (!user) {
+      return false;
+    }
+
+    await client.query(
+      `UPDATE public.password_reset_token
+       SET used = true
+       WHERE user_id = $1
+         AND used = false`,
+      [user.user_id]
+    );
+    await client.query(
+      `INSERT INTO public.password_reset_token (token_hash, user_id, expires_at)
+       VALUES ($1, $2, $3)`,
+      [tokenHash, user.user_id, expiresAt]
+    );
+    return true;
+  });
+
+  const response = {
+    message: 'If an account exists for that email, a password reset link has been created'
+  };
+  if (created && shouldReturnResetToken()) {
+    response.resetToken = resetToken;
+    response.expiresAt = expiresAt.toISOString();
+  }
+
+  res.json({ success: true, data: response });
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password } = req.body || {};
+
+  if (typeof token !== 'string' || token.length < 32) {
+    throw requestError('A valid reset token is required', 400);
+  }
+  validatePassword(password);
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  const user = await req.withAuditContext('password-reset', async (client) => {
+    const tokenResult = await client.query(
+      `SELECT user_id
+       FROM public.password_reset_token
+       WHERE token_hash = $1
+         AND used = false
+         AND expires_at > now()
+       FOR UPDATE`,
+      [hashResetToken(token)]
+    );
+    const resetRecord = tokenResult.rows[0];
+
+    if (!resetRecord) {
+      return null;
+    }
+
+    const userResult = await client.query(
+      `UPDATE public.app_user
+       SET password_hash = $1,
+           status = 'active',
+           must_change_password = false,
+           updated_at = now()
+       WHERE user_id = $2
+       RETURNING user_id, email, status, role, must_change_password`,
+      [passwordHash, resetRecord.user_id]
+    );
+
+    if (!userResult.rows[0]) {
+      return null;
+    }
+
+    await client.query(
+      `UPDATE public.password_reset_token
+       SET used = true
+       WHERE token_hash = $1`,
+      [hashResetToken(token)]
+    );
+
+    return userResult.rows[0];
+  });
+
+  if (!user) {
+    throw requestError('Invalid or expired reset token', 400);
+  }
+
+  res.json({ success: true, data: { user } });
+});
+
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body || {};
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -59,10 +221,9 @@ const login = asyncHandler(async (req, res) => {
 
   const user = await req.withAuditContext(normalizedEmail, async (client) => {
     const result = await client.query(
-      `SELECT id, email, password_hash, role, status
+      `SELECT user_id, email, password_hash, role, status, must_change_password
        FROM public.app_user
        WHERE lower(email) = $1
-         AND is_deleted = false
        LIMIT 1`,
       [normalizedEmail]
     );
@@ -80,7 +241,7 @@ const login = asyncHandler(async (req, res) => {
   }
 
   const token = jwt.sign(
-    { sub: String(user.id), role: user.role },
+    { sub: String(user.user_id), role: user.role },
     getJwtSecret(),
     { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256' }
   );
@@ -96,7 +257,13 @@ const login = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: {
-      user: { id: user.id, email: user.email, role: user.role, status: user.status }
+      user: {
+        id: user.user_id,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        mustChangePassword: user.must_change_password
+      }
     }
   });
 });
@@ -112,4 +279,11 @@ const logout = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { message: 'Logged out successfully' } });
 });
 
-module.exports = { register, login, logout };
+module.exports = {
+  register,
+  setPassword,
+  forgotPassword,
+  resetPassword,
+  login,
+  logout
+};

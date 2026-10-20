@@ -4,6 +4,7 @@ import type { Errors } from "../../types/auth"
 import { Field, Submit } from "./AuthComponents"
 import PasswordStrengthMeter from "./PasswordStrengthMeter"
 import { useAuth } from "./AuthProvider"
+import { notifyToast } from "../../lib/toast"
 
 export default function ChangePasswordModal({ onComplete }: { onComplete: () => void }) {
   const { changePassword, logout, user } = useAuth()
@@ -53,6 +54,7 @@ export default function ChangePasswordModal({ onComplete }: { onComplete: () => 
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
+      notifyToast("Password changed successfully.")
       onComplete()
     } catch (error) {
       setServerError(error instanceof Error ? error.message : "Unable to update your password.")

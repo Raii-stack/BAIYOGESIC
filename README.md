@@ -30,6 +30,12 @@ it does not expose or persist the token in JavaScript. If the backend returns
 `mustChangePassword`, the user must complete the password-change dialog before
 entering the workspace.
 Public account creation is disabled until an administrator/HR-managed flow is available.
+All workspace pages require an active session; User Management is limited to
+administrator/admin roles. Customer, product, and employee APIs re-check the
+account's current role, active status, and password-change requirement on each
+request. Legacy email-only first-time password endpoints are disabled; recovery
+uses a reset token. API failures are presented as safe, shared toast messages
+instead of raw database/server errors.
 
 Customer Management loads active and archived records from `GET /api/customers` with
 debounced server-side search, status and payment-term filtering, and pagination. Administrators can
@@ -55,6 +61,10 @@ pagination filters. Employee profiles load live job history. Administrators and
 admins can add and edit employee details and assignments; other roles can view
 the directory without salary values. Employee creation does not create a login
 account—the account-management flow remains separate.
+
+Sales and User Management still use sample data. Their actions show a preview
+notice and do not claim to persist changes until those modules are connected to
+backend endpoints.
 
 Run `npm install`, then use `npm run dev` to start the API and frontend together.
 Run `npm test` for the frontend and helper tests

@@ -63,7 +63,7 @@ export default function ResetPasswordPage() {
             >
               Create New Password
             </h1>
-            <p className="mt-4 text-sm leading-6 text-slate-600">{token ? "Choose a new password using your reset link." : "A valid password-reset link is required. Return to sign in to request one."}</p>
+            <p className="mt-4 text-sm leading-6 text-slate-600">{token ? "Choose a new password using your reset link." : "A valid password-reset link is required. Contact your administrator to request one."}</p>
           </div>
 
           {token && !done && <form onSubmit={submit} noValidate className="mt-7">

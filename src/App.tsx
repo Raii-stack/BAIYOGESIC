@@ -16,7 +16,7 @@ import ReportsPage from "./pages/ReportsPage"
 import SalesManagementPage from "./pages/SalesManagementPage"
 import UserManagementPage from "./pages/UserManagementPage"
 
-function ProtectedPage({ children, roles }: { children: ReactNode; roles?: string[] }) {
+export function ProtectedPage({ children, roles }: { children: ReactNode; roles?: string[] }) {
   const { user, loading } = useAuth()
   if (loading) return <div role="status" className="grid min-h-screen place-items-center bg-slate-100 text-sm text-slate-600">Checking your session…</div>
   if (!user || user.status !== "active" || user.mustChangePassword) return <Navigate to="/" replace />

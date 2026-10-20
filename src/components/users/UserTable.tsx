@@ -1,4 +1,5 @@
 import type { SystemUser } from "../../types/user"
+import { notifyToast } from "../../lib/toast"
 
 export default function UserTable({
   users,
@@ -103,6 +104,7 @@ export default function UserTable({
                       </button>
                       <button
                         type="button"
+                        onClick={() => notifyToast("Editing accounts is not available until User Management is connected to the backend.", "info")}
                         className="text-xs font-bold text-slate-600 underline-offset-4 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
                       >
                         Edit

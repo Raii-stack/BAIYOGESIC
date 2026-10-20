@@ -46,6 +46,10 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
+app.use('/api', (_req, res, next) => {
+  res.set('Cache-Control', 'no-store');
+  next();
+});
 app.use('/api/auth', auditContext, authRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);

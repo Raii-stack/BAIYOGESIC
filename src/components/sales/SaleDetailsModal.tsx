@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 
 import { getSaleTotal } from "../../lib/sales"
+import { notifyToast } from "../../lib/toast"
 import type { SalePayment, SaleTransaction } from "../../types/sale"
 import RecordPaymentModal from "./RecordPaymentModal"
 import { StatusBadge } from "./SalesTable"
@@ -159,6 +160,7 @@ export default function SaleDetailsModal({
             </div>
             <button
               type="button"
+              onClick={() => notifyToast("Adding sale lines is not available until Sales is connected to the backend.", "info")}
               className="flex h-10 items-center gap-2 rounded-md bg-blue-800 px-4 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
             >
               <AddIcon />
@@ -234,12 +236,14 @@ export default function SaleDetailsModal({
                       <div className="flex gap-3">
                         <button
                           type="button"
+                          onClick={() => notifyToast("Editing sale lines is not available yet.", "info")}
                           className="text-xs font-bold text-blue-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
                         >
                           Edit
                         </button>
                         <button
                           type="button"
+                          onClick={() => notifyToast("Archiving sale lines is not available yet.", "info")}
                           className="text-xs font-bold text-red-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
                         >
                           Delete

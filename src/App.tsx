@@ -1,5 +1,4 @@
-import { createBrowserRouter, Navigate, RouterProvider } from "react-router"
-import type { ComponentType } from "react"
+import { createBrowserRouter, RouterProvider } from "react-router"
 
 import CreateAccountPage from "./components/pages/CreateAccountPage"
 import DashboardPage from "./components/pages/DashboardPage"
@@ -10,24 +9,23 @@ import CreateSalePage from "./pages/CreateSalePage"
 import EmployeeDirectoryPage from "./pages/EmployeeDirectoryPage"
 import EmployeeProfilePage from "./pages/EmployeeProfilePage"
 import InventoryPage from "./pages/InventoryPage"
-import ProfilePage from "./pages/ProfilePage"
-import { getCurrentUser } from "./lib/auth"
-
-function ProtectedPage({ page: Page }: { page: ComponentType }) {
-  return getCurrentUser() ? <Page /> : <Navigate to="/" replace />
-}
+import ReportsPage from "./pages/ReportsPage"
+import SalesManagementPage from "./pages/SalesManagementPage"
+import UserManagementPage from "./pages/UserManagementPage"
 
 const router = createBrowserRouter([
   { path: "/", Component: LoginPage },
-  { path: "/create-account", Component: () => <ProtectedPage page={CreateAccountPage} /> },
-  { path: "/reset-password", Component: () => <ProtectedPage page={ResetPasswordPage} /> },
-  { path: "/dashboard", Component: () => <ProtectedPage page={DashboardPage} /> },
-  { path: "/customers", Component: () => <ProtectedPage page={CustomerManagementPage} /> },
-  { path: "/inventory", Component: () => <ProtectedPage page={InventoryPage} /> },
-  { path: "/employees", Component: () => <ProtectedPage page={EmployeeDirectoryPage} /> },
-  { path: "/employees/:employeeId", Component: () => <ProtectedPage page={EmployeeProfilePage} /> },
-  { path: "/sales/new", Component: () => <ProtectedPage page={CreateSalePage} /> },
-  { path: "/profile", Component: () => <ProtectedPage page={ProfilePage} /> },
+  { path: "/create-account", Component: CreateAccountPage },
+  { path: "/reset-password", Component: ResetPasswordPage },
+  { path: "/dashboard", Component: DashboardPage },
+  { path: "/customers", Component: CustomerManagementPage },
+  { path: "/inventory", Component: InventoryPage },
+  { path: "/reports", Component: ReportsPage },
+  { path: "/employees", Component: EmployeeDirectoryPage },
+  { path: "/employees/:employeeId", Component: EmployeeProfilePage },
+  { path: "/sales/new", Component: CreateSalePage },
+  { path: "/sales", Component: SalesManagementPage },
+  { path: "/users", Component: UserManagementPage },
   { path: "*", Component: LoginPage },
 ])
 

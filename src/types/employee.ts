@@ -3,10 +3,12 @@ export type Employee = {
   fullName: string
   department: string
   jobTitle: string
+  birthDate?: string
   hireDate: string
   separationDate: string | null
   salary: number
   canViewSalary: boolean
+  stamp: string
 }
 
 export type JobHistoryEntry = {
@@ -15,4 +17,5 @@ export type JobHistoryEntry = {
   jobTitle: string
   department: string
   salary: number
+  stamp: string
 }

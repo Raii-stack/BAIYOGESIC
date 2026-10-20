@@ -66,13 +66,38 @@ export default function CustomerManagementPage() {
     if (!customerToArchive) return
 
     setCustomerRecords((current) =>
-      current.filter((customer) => customer.id !== customerToArchive.id),
+      current.map((customer) =>
+        customer.id === customerToArchive.id
+          ? {
+              ...customer,
+              status: "Inactive",
+              stamp: "DELETED user2 2026-10-13 1:01 PM",
+            }
+          : customer,
+      ),
     )
     setCustomerToArchive(null)
   }
 
+  const restoreCustomer = (customerToRestore: Customer) => {
+    setCustomerRecords((current) =>
+      current.map((customer) =>
+        customer.id === customerToRestore.id
+          ? {
+              ...customer,
+              status: "Active",
+              stamp: "EDITED user1 2026-10-13 1:01 PM",
+            }
+          : customer,
+      ),
+    )
+  }
+
   return (
-    <DashboardLayout activeNavigation="" searchPlaceholder="Search workspace">
+    <DashboardLayout
+      activeNavigation="Customers"
+      searchPlaceholder="Search workspace"
+    >
       <>
         <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 xl:px-12">
           <div className="mx-auto max-w-7xl">
@@ -125,9 +150,9 @@ export default function CustomerManagementPage() {
                     className="h-11 w-full appearance-none rounded-md border border-slate-300 bg-slate-50 px-3 pr-9 text-sm text-slate-700 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
                   >
                     <option value="">All payment terms</option>
+                    <option value="Net 30">Net 30</option>
                     <option value="COD">COD</option>
-                    <option value="30D">30D</option>
-                    <option value="45D">45D</option>
+                    <option value="Prepaid">Prepaid</option>
                   </select>
                   <svg
                     aria-hidden="true"
@@ -156,6 +181,8 @@ export default function CustomerManagementPage() {
               customers={filteredCustomers}
               onEdit={openEditCustomerPanel}
               onDelete={setCustomerToArchive}
+              onRestore={restoreCustomer}
+              showAdminAudit
             />
           </div>
         </main>

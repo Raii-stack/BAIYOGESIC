@@ -70,15 +70,18 @@ function DeleteIcon() {
 function ActionButton({
   label,
   destructive = false,
+  onClick,
   children,
 }: {
   label: string
   destructive?: boolean
+  onClick?: () => void
   children: ReactNode
 }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       aria-label={label}
       title={label}
       className={`grid h-8 w-8 place-items-center rounded-md text-slate-500 transition focus-visible:outline-none focus-visible:ring-2 ${
@@ -92,7 +95,13 @@ function ActionButton({
   )
 }
 
-function PriceHistory({ product }: { product: Product }) {
+function PriceHistory({
+  product,
+  showAdminAudit,
+}: {
+  product: Product
+  showAdminAudit: boolean
+}) {
   return (
     <div
       id={`price-history-${product.code}`}
@@ -120,6 +129,11 @@ function PriceHistory({ product }: { product: Product }) {
                 <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
                   Historical Price
                 </th>
+                {showAdminAudit && (
+                  <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-[0.12em] text-slate-600">
+                    Stamp
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -134,6 +148,11 @@ function PriceHistory({ product }: { product: Product }) {
                   <td className="px-4 py-3 text-right text-sm font-bold tabular-nums text-slate-900">
                     {currency.format(entry.price)}
                   </td>
+                  {showAdminAudit && (
+                    <td className="px-4 py-3 font-mono text-[10px] leading-5 text-slate-500">
+                      {entry.stamp ?? "CREATED system 2026-10-01 9:00 AM"}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -144,13 +163,21 @@ function PriceHistory({ product }: { product: Product }) {
   )
 }
 
-export default function ProductTable({ products }: { products: Product[] }) {
+export default function ProductTable({
+  products,
+  onEdit,
+  showAdminAudit = false,
+}: {
+  products: Product[]
+  onEdit: (product: Product) => void
+  showAdminAudit?: boolean
+}) {
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
 
   return (
     <div className="overflow-hidden border border-slate-300 bg-white">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[880px] border-collapse text-left">
+        <table className="w-full min-w-[1320px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-300 bg-slate-100">
               {[
@@ -158,6 +185,8 @@ export default function ProductTable({ products }: { products: Product[] }) {
                 "Description",
                 "Unit Type",
                 "Current Unit Price",
+                "Status",
+                ...(showAdminAudit ? ["Stamp"] : []),
                 "Actions",
               ].map((heading) => (
                 <th
@@ -180,11 +209,13 @@ export default function ProductTable({ products }: { products: Product[] }) {
                 <Fragment key={product.code}>
                   <tr
                     className={`border-b border-slate-200 ${
-                      expanded
-                        ? "bg-blue-50/60"
-                        : index % 2 === 0
-                          ? "bg-white"
-                          : "bg-slate-50"
+                      product.status === "Inactive"
+                        ? "bg-red-50/70 text-slate-500"
+                        : expanded
+                          ? "bg-blue-50/60"
+                          : index % 2 === 0
+                            ? "bg-white"
+                            : "bg-slate-50"
                     }`}
                   >
                     <td className="whitespace-nowrap px-5 py-4 pl-6 font-mono text-xs font-semibold text-blue-800">
@@ -226,9 +257,28 @@ export default function ProductTable({ products }: { products: Product[] }) {
                         </button>
                       </div>
                     </td>
+                    <td className="px-5 py-4">
+                      <span
+                        className={`inline-flex border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${
+                          product.status === "Active"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : "border-slate-300 bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        {product.status}
+                      </span>
+                    </td>
+                    {showAdminAudit && (
+                      <td className="max-w-52 px-5 py-4 font-mono text-[10px] leading-5 text-slate-500">
+                        {product.stamp}
+                      </td>
+                    )}
                     <td className="px-5 py-4 pr-6">
                       <div className="flex items-center gap-1">
-                        <ActionButton label={`Edit ${product.code}`}>
+                        <ActionButton
+                          label={`Edit ${product.code}`}
+                          onClick={() => onEdit(product)}
+                        >
                           <EditIcon />
                         </ActionButton>
                         <ActionButton
@@ -242,8 +292,11 @@ export default function ProductTable({ products }: { products: Product[] }) {
                   </tr>
                   {expanded && (
                     <tr className="border-b border-slate-300">
-                      <td colSpan={5} className="p-0">
-                        <PriceHistory product={product} />
+                      <td colSpan={showAdminAudit ? 7 : 6} className="p-0">
+                        <PriceHistory
+                          product={product}
+                          showAdminAudit={showAdminAudit}
+                        />
                       </td>
                     </tr>
                   )}

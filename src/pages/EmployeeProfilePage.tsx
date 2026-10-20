@@ -40,11 +40,13 @@ export default function EmployeeProfilePage() {
         jobTitle: employee.jobTitle,
         department: employee.department,
         salary: employee.salary,
+        stamp: "CREATED system 2026-10-01 9:00 AM",
       },
     ],
   )
   const [modalOpen, setModalOpen] = useState(false)
   const separated = Boolean(employee.separationDate)
+  const showAdminAudit = true
 
   const addHistory = (entry: JobHistoryEntry) => {
     setHistory((current) =>
@@ -55,7 +57,10 @@ export default function EmployeeProfilePage() {
   }
 
   return (
-    <DashboardLayout activeNavigation="" searchPlaceholder="Search workspace">
+    <DashboardLayout
+      activeNavigation="Human Resources"
+      searchPlaceholder="Search workspace"
+    >
       <>
         <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 xl:px-12">
           <div className="mx-auto max-w-7xl">
@@ -162,6 +167,7 @@ export default function EmployeeProfilePage() {
                         "Job Title",
                         "Department",
                         "Salary",
+                        ...(showAdminAudit ? ["Stamp"] : []),
                       ].map((heading) => (
                         <th
                           key={heading}
@@ -204,6 +210,11 @@ export default function EmployeeProfilePage() {
                         <td className="px-6 py-5 text-right text-sm font-bold tabular-nums text-slate-950">
                           {salaryFormatter.format(entry.salary)}
                         </td>
+                        {showAdminAudit && (
+                          <td className="max-w-52 px-6 py-5 font-mono text-[10px] leading-5 text-slate-500">
+                            {entry.stamp}
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>

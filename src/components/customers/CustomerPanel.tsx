@@ -31,16 +31,20 @@ export default function CustomerPanel({
 }: CustomerPanelProps) {
   const [customerName, setCustomerName] = useState("")
   const [address, setAddress] = useState("")
-  const [paymentTerm, setPaymentTerm] = useState<PaymentTerm>("COD")
+  const [paymentTerm, setPaymentTerm] = useState<PaymentTerm | "">("")
   const [nameError, setNameError] = useState("")
+  const [addressError, setAddressError] = useState("")
+  const [paymentTermError, setPaymentTermError] = useState("")
 
   useEffect(() => {
     if (!open) return
 
     setCustomerName(customer?.company ?? "")
     setAddress(customer?.address ?? "")
-    setPaymentTerm(customer?.paymentTerm ?? "COD")
+    setPaymentTerm(customer?.paymentTerm ?? "")
     setNameError("")
+    setAddressError("")
+    setPaymentTermError("")
   }, [customer, open])
 
   useEffect(() => {
@@ -57,12 +61,17 @@ export default function CustomerPanel({
   const submit = (event: FormEvent) => {
     event.preventDefault()
 
-    if (!customerName.trim()) {
-      setNameError("Customer name is required.")
-      return
-    }
+    const nextNameError = customerName.trim()
+      ? ""
+      : "Customer Name is required."
+    const nextAddressError = address.trim() ? "" : "Address is required."
+    const nextPaymentTermError = paymentTerm ? "" : "Payment Term is required."
 
-    setNameError("")
+    setNameError(nextNameError)
+    setAddressError(nextAddressError)
+    setPaymentTermError(nextPaymentTermError)
+    if (nextNameError || nextAddressError || nextPaymentTermError) return
+
     onClose()
   }
 
@@ -185,28 +194,59 @@ export default function CustomerPanel({
                 </span>
                 <textarea
                   value={address}
-                  onChange={(event) => setAddress(event.target.value)}
+                  onChange={(event) => {
+                    setAddress(event.target.value)
+                    if (addressError) setAddressError("")
+                  }}
                   placeholder="Enter the complete business address"
                   rows={5}
-                  className="w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-3 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  aria-invalid={Boolean(addressError)}
+                  aria-describedby="customer-address-error"
+                  className={`w-full resize-none rounded-md border bg-white px-3 py-3 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 ${
+                    addressError
+                      ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
+                      : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  }`}
                 />
+                <p
+                  id="customer-address-error"
+                  aria-live="polite"
+                  className={`min-h-6 pt-1.5 text-xs font-semibold ${
+                    addressError ? "text-red-600" : "opacity-0"
+                  }`}
+                >
+                  {addressError || "\u00a0"}
+                </p>
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-xs font-bold text-slate-700">
-                  Payment Term
+                <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+                  Payment Terms
+                  <span className="font-medium text-slate-400">
+                    Select only
+                  </span>
                 </span>
                 <span className="relative block">
                   <select
                     value={paymentTerm}
-                    onChange={(event) =>
-                      setPaymentTerm(event.target.value as PaymentTerm)
-                    }
-                    className="h-11 w-full appearance-none rounded-md border border-slate-300 bg-white px-3 pr-9 text-sm text-slate-800 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                    onChange={(event) => {
+                      setPaymentTerm(event.target.value as PaymentTerm | "")
+                      if (paymentTermError) setPaymentTermError("")
+                    }}
+                    aria-invalid={Boolean(paymentTermError)}
+                    aria-describedby="customer-payment-term-error"
+                    className={`h-11 w-full appearance-none rounded-md border bg-slate-50 px-3 pr-9 text-sm outline-none transition ${
+                      paymentTerm ? "text-slate-800" : "text-slate-400"
+                    } ${
+                      paymentTermError
+                        ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
+                        : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                    }`}
                   >
+                    <option value="">Select payment terms</option>
+                    <option value="Net 30">Net 30</option>
                     <option value="COD">COD</option>
-                    <option value="30D">30D</option>
-                    <option value="45D">45D</option>
+                    <option value="Prepaid">Prepaid</option>
                   </select>
                   <svg
                     aria-hidden="true"
@@ -219,6 +259,15 @@ export default function CustomerPanel({
                     <path d="m6 8 4 4 4-4" />
                   </svg>
                 </span>
+                <p
+                  id="customer-payment-term-error"
+                  aria-live="polite"
+                  className={`min-h-6 pt-1.5 text-xs font-semibold ${
+                    paymentTermError ? "text-red-600" : "opacity-0"
+                  }`}
+                >
+                  {paymentTermError || "\u00a0"}
+                </p>
               </label>
             </div>
           </div>

@@ -3,11 +3,12 @@ import { Link, useNavigate } from "react-router"
 
 import type { Errors } from "../../types/auth"
 import { emailOk } from "../../utils/validation"
-import { login, saveCurrentUser } from "../../lib/auth"
 import {
   AuthShell,
   Field,
   Submit,
+  SuccessMessage,
+  useFakeSubmission,
 } from "../auth/AuthComponents"
 
 export default function LoginPage() {
@@ -15,29 +16,22 @@ export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<Errors>({})
-  const [loading, setLoading] = useState(false)
-  const [submitError, setSubmitError] = useState("")
+  const [authenticationError, setAuthenticationError] = useState("")
+  const submission = useFakeSubmission()
 
-  const submit = async (event: FormEvent) => {
+  const submit = (event: FormEvent) => {
     event.preventDefault()
     const nextErrors: Errors = {}
     if (!emailOk(email)) nextErrors.email = "Enter a valid work email address."
     if (!password) nextErrors.password = "Password is required."
     setErrors(nextErrors)
-    setSubmitError("")
-    if (Object.keys(nextErrors).length) return
-
-    setLoading(true)
-    try {
-      const user = await login(email, password)
-      saveCurrentUser(user)
-      navigate("/dashboard")
-    } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : "Unable to sign in. Please try again.",
-      )
-    } finally {
-      setLoading(false)
+    setAuthenticationError(
+      Object.keys(nextErrors).length
+        ? "Invalid credentials. Account will lock after 2 more failed attempts"
+        : "",
+    )
+    if (!Object.keys(nextErrors).length) {
+      submission.run(() => navigate("/dashboard"))
     }
   }
 
@@ -56,7 +50,10 @@ export default function LoginPage() {
           placeholder="name@company.com"
           icon="mail"
           value={email}
-          onChange={setEmail}
+          onChange={(value) => {
+            setEmail(value)
+            if (authenticationError) setAuthenticationError("")
+          }}
           error={errors.email}
         />
         <Field
@@ -68,7 +65,10 @@ export default function LoginPage() {
           icon="lock"
           passwordToggle
           value={password}
-          onChange={setPassword}
+          onChange={(value) => {
+            setPassword(value)
+            if (authenticationError) setAuthenticationError("")
+          }}
           error={errors.password}
         />
         <div className="mb-6 flex items-center justify-between gap-4">
@@ -86,19 +86,46 @@ export default function LoginPage() {
             Forgot password?
           </Link>
         </div>
-        <Submit loading={loading} loadingLabel="Signing you in…">
+        {authenticationError && (
+          <div
+            role="alert"
+            className="mb-5 flex items-start gap-3 border border-red-200 border-l-[3px] border-l-red-600 bg-red-50 px-4 py-3 text-sm font-semibold leading-5 text-red-800"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 20 20"
+              className="mt-0.5 h-4 w-4 shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="10" cy="10" r="8" />
+              <path d="M10 6v5M10 14h.01" />
+            </svg>
+            Invalid credentials. Account will lock after 2 more failed attempts
+          </div>
+        )}
+        <Submit loading={submission.loading} loadingLabel="Signing you in…">
           Sign in
         </Submit>
-        {submitError && (
-          <p role="alert" className="mt-4 text-sm font-medium text-red-600">
-            {submitError}
-          </p>
+        {submission.done && (
+          <SuccessMessage>
+            Signed in successfully. Redirecting to your workspace.
+          </SuccessMessage>
         )}
       </form>
 
       <div className="mt-8 border-t border-slate-200 pt-6">
         <p className="text-sm text-slate-600">
-          Account provisioning is available to authorized users after sign-in.
+          Authorized HR or system administrator?{" "}
+          <Link
+            to="/create-account"
+            className="font-semibold text-blue-800 underline-offset-4 hover:text-blue-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+          >
+            Create an account
+          </Link>
         </p>
       </div>
     </AuthShell>

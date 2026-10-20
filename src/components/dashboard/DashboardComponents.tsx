@@ -74,6 +74,18 @@ export function DashboardIcon({
         <path d="m4 7 5-4 6 6 6-5" />
       </>
     ),
+    reports: (
+      <>
+        <path d="M5 3h10l4 4v14H5V3Z" />
+        <path d="M15 3v5h5M8 17v-4M12 17V9M16 17v-6" />
+      </>
+    ),
+    userManagement: (
+      <>
+        <circle cx="9" cy="8" r="3" />
+        <path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 8v6M14 11h6" />
+      </>
+    ),
   }
 
   return (
@@ -93,9 +105,13 @@ export function DashboardIcon({
 }
 
 export const navigationItems: NavigationItem[] = [
-  { label: "Dashboard", icon: "dashboard", active: true },
-  { label: "Profile", icon: "profile" },
-  { label: "Settings", icon: "settings" },
+  { label: "Dashboard", icon: "dashboard", href: "/dashboard" },
+  { label: "Customers", icon: "crm", href: "/customers" },
+  { label: "Products", icon: "inventory", href: "/inventory" },
+  { label: "Human Resources", icon: "hr", href: "/employees" },
+  { label: "Sales", icon: "sales", href: "/sales" },
+  { label: "Reports", icon: "reports", href: "/reports" },
+  { label: "User Management", icon: "userManagement", href: "/users" },
 ]
 
 export const modules: ModuleDefinition[] = [
@@ -141,7 +157,7 @@ export const modules: ModuleDefinition[] = [
     title: "Sales",
     description:
       "Coordinate sales activity, order workflows, and commercial performance.",
-    href: "/sales/new",
+    href: "/sales",
     icon: "sales",
     accent: "border-t-violet-700",
     iconStyle: "bg-violet-50 text-violet-800",

@@ -3,6 +3,7 @@ export type UnitType = "pc" | "ea" | "mtr" | "pkg" | "ltr"
 export type PriceHistoryEntry = {
   effectiveDate: string
   price: number
+  stamp?: string
 }
 
 export type Product = {
@@ -10,5 +11,7 @@ export type Product = {
   description: string
   unitType: UnitType
   currentPrice: number
+  status: "Active" | "Inactive"
+  stamp: string
   priceHistory: PriceHistoryEntry[]
 }

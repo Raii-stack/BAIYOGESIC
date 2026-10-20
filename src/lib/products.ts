@@ -6,6 +6,8 @@ export const products: Product[] = [
     description: "Standard fastener assembly",
     unitType: "pc",
     currentPrice: 12.5,
+    status: "Active",
+    stamp: "EDITED user1 2026-10-08 1:15 PM",
     priceHistory: [
       { effectiveDate: "2025-01-15", price: 12.5 },
       { effectiveDate: "2024-07-01", price: 11.85 },
@@ -17,6 +19,8 @@ export const products: Product[] = [
     description: "Industrial cleaning solution",
     unitType: "ltr",
     currentPrice: 8.75,
+    status: "Active",
+    stamp: "CREATED system 2026-09-18 9:20 AM",
     priceHistory: [
       { effectiveDate: "2025-02-01", price: 8.75 },
       { effectiveDate: "2024-08-12", price: 8.2 },
@@ -27,6 +31,8 @@ export const products: Product[] = [
     description: "Reinforced electrical cable",
     unitType: "mtr",
     currentPrice: 4.35,
+    status: "Active",
+    stamp: "EDITED user1 2026-10-03 2:44 PM",
     priceHistory: [
       { effectiveDate: "2025-03-05", price: 4.35 },
       { effectiveDate: "2024-11-18", price: 4.1 },
@@ -38,6 +44,8 @@ export const products: Product[] = [
     description: "Warehouse label set",
     unitType: "pkg",
     currentPrice: 21.9,
+    status: "Inactive",
+    stamp: "DELETED user2 2026-10-06 11:08 AM",
     priceHistory: [
       { effectiveDate: "2025-01-20", price: 21.9 },
       { effectiveDate: "2024-06-14", price: 20.5 },
@@ -48,6 +56,8 @@ export const products: Product[] = [
     description: "Protective equipment unit",
     unitType: "ea",
     currentPrice: 34,
+    status: "Active",
+    stamp: "CREATED system 2026-08-27 8:31 AM",
     priceHistory: [
       { effectiveDate: "2025-02-10", price: 34 },
       { effectiveDate: "2024-09-03", price: 32.75 },
@@ -58,6 +68,8 @@ export const products: Product[] = [
     description: "Machine maintenance component",
     unitType: "pc",
     currentPrice: 48.6,
+    status: "Active",
+    stamp: "EDITED user1 2026-10-01 4:12 PM",
     priceHistory: [
       { effectiveDate: "2025-03-01", price: 48.6 },
       { effectiveDate: "2024-10-08", price: 46.25 },
@@ -69,6 +81,8 @@ export const products: Product[] = [
     description: "Packaging liner material",
     unitType: "mtr",
     currentPrice: 6.15,
+    status: "Active",
+    stamp: "CREATED system 2026-07-14 10:25 AM",
     priceHistory: [
       { effectiveDate: "2025-01-08", price: 6.15 },
       { effectiveDate: "2024-05-27", price: 5.8 },
@@ -79,6 +93,8 @@ export const products: Product[] = [
     description: "Shipping carton bundle",
     unitType: "pkg",
     currentPrice: 27.4,
+    status: "Inactive",
+    stamp: "DELETED user2 2026-09-29 3:52 PM",
     priceHistory: [
       { effectiveDate: "2025-02-24", price: 27.4 },
       { effectiveDate: "2024-08-05", price: 25.95 },

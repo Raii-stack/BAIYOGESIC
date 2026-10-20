@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react"
 
 import { DashboardIcon } from "../components/dashboard/DashboardComponents"
+import EmployeePanel from "../components/employees/EmployeePanel"
 import EmployeeTable from "../components/employees/EmployeeTable"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { employees } from "../lib/employees"
+import type { Employee } from "../types/employee"
 
 function AddIcon() {
   return (
@@ -25,6 +27,20 @@ export default function EmployeeDirectoryPage() {
   const [query, setQuery] = useState("")
   const [department, setDepartment] = useState("")
   const [jobTitle, setJobTitle] = useState("")
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(
+    null,
+  )
+
+  const openNewEmployee = () => {
+    setSelectedEmployee(null)
+    setPanelOpen(true)
+  }
+
+  const openEditEmployee = (employee: Employee) => {
+    setSelectedEmployee(employee)
+    setPanelOpen(true)
+  }
 
   const departments = useMemo(
     () => [...new Set(employees.map((employee) => employee.department))].sort(),
@@ -51,73 +67,89 @@ export default function EmployeeDirectoryPage() {
   }, [department, jobTitle, query])
 
   return (
-    <DashboardLayout activeNavigation="" searchPlaceholder="Search workspace">
-      <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 xl:px-12">
-        <div className="mx-auto max-w-[1500px]">
-          <div className="mb-7 flex flex-col gap-5 border-b border-slate-300 pb-7 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-800">
-                Human Resources / Personnel register
-              </p>
-              <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-slate-950 sm:text-4xl">
-                Employee Directory
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                Review employment records and role-controlled compensation
-                information.
-              </p>
+    <DashboardLayout
+      activeNavigation="Human Resources"
+      searchPlaceholder="Search workspace"
+    >
+      <>
+        <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 xl:px-12">
+          <div className="mx-auto max-w-[1500px]">
+            <div className="mb-7 flex flex-col gap-5 border-b border-slate-300 pb-7 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-800">
+                  Human Resources / Personnel register
+                </p>
+                <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-slate-950 sm:text-4xl">
+                  Employee Directory
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
+                  Review employment records and role-controlled compensation
+                  information.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={openNewEmployee}
+                className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+              >
+                <AddIcon />
+                Add Employee
+              </button>
             </div>
-            <button
-              type="button"
-              className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+
+            <section
+              aria-label="Employee filters"
+              className="mb-5 grid gap-3 border border-slate-300 bg-white p-4 md:grid-cols-[minmax(240px,1fr)_minmax(190px,0.55fr)_minmax(220px,0.65fr)]"
             >
-              <AddIcon />
-              Add Employee
-            </button>
+              <label>
+                <span className="mb-2 block text-xs font-bold text-slate-700">
+                  Employee Name
+                </span>
+                <span className="relative block">
+                  <DashboardIcon
+                    name="search"
+                    className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400"
+                  />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search employee name"
+                    className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  />
+                </span>
+              </label>
+
+              <FilterSelect
+                label="Department"
+                value={department}
+                onChange={setDepartment}
+                options={departments}
+                defaultLabel="All departments"
+              />
+              <FilterSelect
+                label="Job Title"
+                value={jobTitle}
+                onChange={setJobTitle}
+                options={jobTitles}
+                defaultLabel="All job titles"
+              />
+            </section>
+
+            <EmployeeTable
+              employees={filteredEmployees}
+              onEdit={openEditEmployee}
+              showAdminAudit
+            />
           </div>
+        </main>
 
-          <section
-            aria-label="Employee filters"
-            className="mb-5 grid gap-3 border border-slate-300 bg-white p-4 md:grid-cols-[minmax(240px,1fr)_minmax(190px,0.55fr)_minmax(220px,0.65fr)]"
-          >
-            <label>
-              <span className="mb-2 block text-xs font-bold text-slate-700">
-                Employee Name
-              </span>
-              <span className="relative block">
-                <DashboardIcon
-                  name="search"
-                  className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  type="search"
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search employee name"
-                  className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
-                />
-              </span>
-            </label>
-
-            <FilterSelect
-              label="Department"
-              value={department}
-              onChange={setDepartment}
-              options={departments}
-              defaultLabel="All departments"
-            />
-            <FilterSelect
-              label="Job Title"
-              value={jobTitle}
-              onChange={setJobTitle}
-              options={jobTitles}
-              defaultLabel="All job titles"
-            />
-          </section>
-
-          <EmployeeTable employees={filteredEmployees} />
-        </div>
-      </main>
+        <EmployeePanel
+          employee={selectedEmployee}
+          open={panelOpen}
+          onClose={() => setPanelOpen(false)}
+        />
+      </>
     </DashboardLayout>
   )
 }

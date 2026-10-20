@@ -38,15 +38,19 @@ export default function CustomerTable({
   customers,
   onEdit,
   onDelete,
+  onRestore,
+  showAdminAudit = false,
 }: {
   customers: Customer[]
   onEdit: (customer: Customer) => void
   onDelete: (customer: Customer) => void
+  onRestore: (customer: Customer) => void
+  showAdminAudit?: boolean
 }) {
   return (
     <div className="overflow-hidden border border-slate-300 bg-white">
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[920px] border-collapse text-left">
+        <table className="w-full min-w-[1320px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-300 bg-slate-100">
               {[
@@ -54,6 +58,8 @@ export default function CustomerTable({
                 "Company / Name",
                 "Address",
                 "Payment Terms",
+                "Status",
+                ...(showAdminAudit ? ["Stamp"] : []),
                 "Actions",
               ].map((heading) => (
                 <th
@@ -71,7 +77,11 @@ export default function CustomerTable({
               <tr
                 key={customer.id}
                 className={`border-b border-slate-200 last:border-b-0 ${
-                  index % 2 === 0 ? "bg-white" : "bg-slate-50"
+                  customer.status === "Inactive"
+                    ? "bg-red-50/70 text-slate-500"
+                    : index % 2 === 0
+                      ? "bg-white"
+                      : "bg-slate-50"
                 }`}
               >
                 <td className="whitespace-nowrap px-5 py-4 pl-6 font-mono text-xs font-semibold text-blue-800">
@@ -91,27 +101,53 @@ export default function CustomerTable({
                     {customer.paymentTerm}
                   </span>
                 </td>
+                <td className="px-5 py-4">
+                  <span
+                    className={`inline-flex border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.1em] ${
+                      customer.status === "Active"
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                        : "border-slate-300 bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {customer.status}
+                  </span>
+                </td>
+                {showAdminAudit && (
+                  <td className="max-w-52 px-5 py-4 font-mono text-[10px] leading-5 text-slate-500">
+                    {customer.stamp}
+                  </td>
+                )}
                 <td className="px-5 py-4 pr-6">
-                  <div className="flex items-center gap-1">
+                  {customer.status === "Inactive" ? (
                     <button
                       type="button"
-                      onClick={() => onEdit(customer)}
-                      aria-label={`Edit ${customer.company}`}
-                      title="Edit customer"
-                      className="grid h-8 w-8 place-items-center rounded-md text-slate-500 transition hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+                      onClick={() => onRestore(customer)}
+                      className="text-xs font-bold text-emerald-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
                     >
-                      <EditIcon />
+                      Restore
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(customer)}
-                      aria-label={`Delete ${customer.company}`}
-                      title="Delete customer"
-                      className="grid h-8 w-8 place-items-center rounded-md text-slate-500 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
-                    >
-                      <DeleteIcon />
-                    </button>
-                  </div>
+                  ) : (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => onEdit(customer)}
+                        aria-label={`Edit ${customer.company}`}
+                        title="Edit customer"
+                        className="grid h-8 w-8 place-items-center rounded-md text-slate-500 transition hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+                      >
+                        <EditIcon />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onDelete(customer)}
+                        aria-label={`Delete ${customer.company}`}
+                        title="Delete customer"
+                        className="grid h-8 w-8 place-items-center rounded-md text-slate-500 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                      >
+                        <DeleteIcon />
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

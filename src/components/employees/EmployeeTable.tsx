@@ -61,14 +61,17 @@ function MoreIcon() {
 
 function ActionButton({
   label,
+  onClick,
   children,
 }: {
   label: string
+  onClick?: () => void
   children: ReactNode
 }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       aria-label={label}
       title={label}
       className="grid h-8 w-8 place-items-center rounded-md text-slate-500 transition hover:bg-blue-50 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
@@ -80,8 +83,12 @@ function ActionButton({
 
 export default function EmployeeTable({
   employees,
+  onEdit,
+  showAdminAudit = false,
 }: {
   employees: Employee[]
+  onEdit: (employee: Employee) => void
+  showAdminAudit?: boolean
 }) {
   return (
     <div className="overflow-hidden border border-slate-300 bg-white">
@@ -97,6 +104,7 @@ export default function EmployeeTable({
                 "Hire Date",
                 "Separation Date",
                 "Salary",
+                ...(showAdminAudit ? ["Stamp"] : []),
                 "Actions",
               ].map((heading) => (
                 <th
@@ -165,9 +173,17 @@ export default function EmployeeTable({
                     </span>
                   )}
                 </td>
+                {showAdminAudit && (
+                  <td className="max-w-52 px-4 py-4 font-mono text-[10px] leading-5 text-slate-500">
+                    {employee.stamp}
+                  </td>
+                )}
                 <td className="px-4 py-4 pr-6">
                   <div className="flex items-center gap-1">
-                    <ActionButton label={`Edit ${employee.fullName}`}>
+                    <ActionButton
+                      label={`Edit ${employee.fullName}`}
+                      onClick={() => onEdit(employee)}
+                    >
                       <EditIcon />
                     </ActionButton>
                     <ActionButton

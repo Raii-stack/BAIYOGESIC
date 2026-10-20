@@ -57,11 +57,11 @@ app.use('/api/products', productRoutes);
 app.use('/api/employees', employeeRoutes);
 app.use('/api/users', userRoutes);
 
-app.get('/health', asyncHandler(async (req, res) => {
+app.get(['/health', '/api/health'], asyncHandler(async (req, res) => {
   const { error } = await supabase.from('_health_check').select('*').limit(1);
 
   // A missing health-check table is expected until the first schema is deployed.
-  if (error && error.code !== '42P01') {
+  if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
     const databaseError = new Error('Database health check failed');
     databaseError.statusCode = 503;
     throw databaseError;

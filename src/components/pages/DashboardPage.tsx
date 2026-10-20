@@ -1,11 +1,27 @@
+import { useAuth } from "../auth/AuthProvider"
 import {
   ModuleTile,
   modules,
 } from "../dashboard/DashboardComponents"
 import DashboardLayout from "../../layouts/DashboardLayout"
+import { canAccessModule, type ErpModuleKey } from "../../lib/rbac"
+
+const MODULE_KEY_MAP: Record<string, ErpModuleKey> = {
+  crm: "customers",
+  inventory: "products",
+  hr: "hr",
+  sales: "sales",
+  reports: "reports",
+  users: "users",
+}
 
 export default function DashboardPage() {
-  const visibleModules = modules.filter((module) => module.visible)
+  const { user } = useAuth()
+  const visibleModules = modules.filter((module) => {
+    if (!module.visible) return false
+    const key = MODULE_KEY_MAP[module.id]
+    return !key || canAccessModule(user, key)
+  })
 
   return (
     <DashboardLayout>
@@ -37,6 +53,16 @@ export default function DashboardPage() {
               <ModuleTile key={module.id} module={module} />
             ))}
           </section>
+          {visibleModules.length === 0 && (
+            <div className="rounded-lg border border-slate-300 bg-white px-6 py-14 text-center">
+              <p className="text-sm font-semibold text-slate-800">
+                No modules have been assigned to your account yet.
+              </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Contact an administrator to request module permissions.
+              </p>
+            </div>
+          )}
         </div>
       </main>
     </DashboardLayout>

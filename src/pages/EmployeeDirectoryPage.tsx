@@ -10,6 +10,7 @@ import LookupSection from "../components/employees/LookupSection"
 import useDebouncedValue from "../hooks/useDebouncedValue"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { employeeApi, type EmployeeInput, type EmployeePagination, type Lookup } from "../lib/employee-api"
+import { getHrPermissions } from "../lib/rbac"
 import type { Employee } from "../types/employee"
 
 const PAGE_SIZE = 10
@@ -17,9 +18,20 @@ const emptyPagination: EmployeePagination = { page: 1, limit: PAGE_SIZE, total: 
 
 export default function EmployeeDirectoryPage() {
   const { user } = useAuth()
-  const isSuperOrAdmin = user?.role === "superadmin" || user?.role === "administrator" || user?.role === "admin"
-  const canEdit = isSuperOrAdmin || Boolean(user?.rights?.some((r) => r.startsWith("hr.") && (r.endsWith(".add") || r.endsWith(".edit"))))
-  const canDelete = isSuperOrAdmin || Boolean(user?.rights?.some((r) => r.startsWith("hr.") && r.endsWith(".delete")))
+  const {
+    canAddEmployee,
+    canEditEmployee,
+    canDeleteEmployee,
+    canViewHistory,
+    canAddJob,
+    canEditJob,
+    canDeleteJob,
+    canAddDepartment,
+    canEditDepartment,
+    canDeleteDepartment,
+    canViewAudit,
+  } = getHrPermissions(user)
+  const canOpenEmployeePanel = canAddEmployee || canEditEmployee
   const [activeTab, setActiveTab] = useState<"employees" | "jobs" | "departments">("employees")
   const [lookupTotal, setLookupTotal] = useState<number | null>(null)
   const [query, setQuery] = useState("")
@@ -174,21 +186,31 @@ export default function EmployeeDirectoryPage() {
                 <label><span className="mb-2 block text-xs font-bold text-slate-700">Search employees</span><span className="relative block"><DashboardIcon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" /><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder="Name, ID, or email" className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm outline-none transition focus:border-blue-700 focus:bg-white focus:ring-3 focus:ring-blue-100" /></span></label>
                 <FilterSelect label="Department" value={department} onChange={(value) => { setDepartment(value); setPage(1) }} options={departments} allLabel="All departments" />
                 <FilterSelect label="Job title" value={job} onChange={(value) => { setJob(value); setPage(1) }} options={jobs} allLabel="All job titles" />
-                <label><span className="mb-2 block text-xs font-bold text-slate-700">Status</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }} className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-blue-700"><option value="all">All statuses</option><option value="active">Active</option><option value="separated">Separated</option><option value="archived">Archived</option></select></label>
-                {canEdit && <button type="button" onClick={() => { setSelected(null); setPanelOpen(true) }} className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:ring-4 focus-visible:ring-blue-200">+ Add employee</button>}
+                {canViewAudit && <label><span className="mb-2 block text-xs font-bold text-slate-700">Status</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }} className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-blue-700"><option value="all">All statuses</option><option value="active">Active</option><option value="separated">Separated</option><option value="archived">Archived</option></select></label>}
+                {canAddEmployee && <button type="button" onClick={() => { setSelected(null); setPanelOpen(true) }} className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:ring-4 focus-visible:ring-blue-200">+ Add employee</button>}
               </section>
 
               {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{error}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
               {optionsError && !error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"><span>Department and job options are unavailable. Please retry before saving an employee.</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
-              <EmployeeTable key={`${page}-${department}-${job}-${status}-${refresh}`} employees={employees} pagination={pagination} loading={loading} error={Boolean(error)} onPageChange={setPage} onEdit={(employee) => { setSelected(employee); setPanelOpen(true) }} onArchive={(employee) => { setArchiveError(""); setEmployeeToArchive(employee) }} onRestore={restoreEmployee} restoringId={restoringId} canEdit={Boolean(canEdit)} canDelete={canDelete} />
+              <EmployeeTable key={`${page}-${department}-${job}-${status}-${refresh}`} employees={employees} pagination={pagination} loading={loading} error={Boolean(error)} onPageChange={setPage} onEdit={(employee) => { setSelected(employee); setPanelOpen(true) }} onArchive={(employee) => { setArchiveError(""); setEmployeeToArchive(employee) }} onRestore={restoreEmployee} restoringId={restoringId} canEdit={canEditEmployee} canDelete={canDeleteEmployee} canViewHistory={canViewHistory} canViewAudit={canViewAudit} />
             </>
           ) : (
-            <LookupSection key={activeTab} kind={activeTab} canEdit={Boolean(canEdit)} canDelete={canDelete} onChanged={() => setRefresh((current) => current + 1)} onNotice={showNotice} onTotalChange={setLookupTotal} />
+            <LookupSection
+              key={activeTab}
+              kind={activeTab}
+              canAdd={activeTab === "jobs" ? canAddJob : canAddDepartment}
+              canEdit={activeTab === "jobs" ? canEditJob : canEditDepartment}
+              canDelete={activeTab === "jobs" ? canDeleteJob : canDeleteDepartment}
+              canViewAudit={canViewAudit}
+              onChanged={() => setRefresh((current) => current + 1)}
+              onNotice={showNotice}
+              onTotalChange={setLookupTotal}
+            />
           )}
         </div>
       </main>
-      {canEdit && <EmployeePanel employee={selected} open={panelOpen} departments={departments} jobs={jobs} onClose={() => setPanelOpen(false)} onSave={save} />}
-      {canDelete && <ArchiveEmployeeModal employeeName={employeeToArchive?.fullName ?? ""} open={Boolean(employeeToArchive)} onCancel={() => setEmployeeToArchive(null)} onConfirm={archiveEmployee} loading={archiving} error={archiveError} />}
+      {canOpenEmployeePanel && <EmployeePanel employee={selected} open={panelOpen} departments={departments} jobs={jobs} onClose={() => setPanelOpen(false)} onSave={save} />}
+      {canDeleteEmployee && <ArchiveEmployeeModal employeeName={employeeToArchive?.fullName ?? ""} open={Boolean(employeeToArchive)} onCancel={() => setEmployeeToArchive(null)} onConfirm={archiveEmployee} loading={archiving} error={archiveError} />}
       {notice && <SuccessToast key={notice.id} message={notice.message} onClose={() => setNotice((current) => current?.id === notice.id ? null : current)} />}
     </DashboardLayout>
   )

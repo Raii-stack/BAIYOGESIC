@@ -9,6 +9,7 @@ import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import DashboardLayout from "../layouts/DashboardLayout"
 import useDebouncedValue from "../hooks/useDebouncedValue"
 import { customerApi, type CustomerInput, type CustomerPagination } from "../lib/customer-api"
+import { getCustomerPermissions } from "../lib/rbac"
 import type { Customer, PaymentTerm } from "../types/customer"
 
 const PAGE_SIZE = 10
@@ -20,9 +21,7 @@ function AddIcon() {
 
 export default function CustomerManagementPage() {
   const { user } = useAuth()
-  const isSuperOrAdmin = user?.role === "superadmin" || user?.role === "administrator" || user?.role === "admin"
-  const canEdit = isSuperOrAdmin || Boolean(user?.rights?.some((r) => r === "customers.add" || r === "customers.edit"))
-  const canDelete = isSuperOrAdmin || Boolean(user?.rights?.includes("customers.delete"))
+  const { canAdd, canEdit, canDelete, canViewAudit } = getCustomerPermissions(user)
   const [query, setQuery] = useState("")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
@@ -171,15 +170,17 @@ export default function CustomerManagementPage() {
                 <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder="ID, customer name, or address" className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100" />
               </span>
             </label>
-            <label>
-              <span className="mb-2 block text-xs font-bold text-slate-700">Status</span>
-              <span className="relative block">
-                <select value={status} onChange={(event) => { setStatus(event.target.value as "all" | "active" | "archived"); setPage(1) }} className="h-11 w-full appearance-none rounded-md border border-slate-300 bg-slate-50 px-3 pr-9 text-sm text-slate-700 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100">
-                  <option value="all">All statuses</option><option value="active">Active</option><option value="archived">Archived</option>
-                </select>
-                <svg aria-hidden="true" viewBox="0 0 20 20" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 8 4 4 4-4" /></svg>
-              </span>
-            </label>
+            {canViewAudit && (
+              <label>
+                <span className="mb-2 block text-xs font-bold text-slate-700">Status</span>
+                <span className="relative block">
+                  <select value={status} onChange={(event) => { setStatus(event.target.value as "all" | "active" | "archived"); setPage(1) }} className="h-11 w-full appearance-none rounded-md border border-slate-300 bg-slate-50 px-3 pr-9 text-sm text-slate-700 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100">
+                    <option value="all">All statuses</option><option value="active">Active</option><option value="archived">Archived</option>
+                  </select>
+                  <svg aria-hidden="true" viewBox="0 0 20 20" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 8 4 4 4-4" /></svg>
+                </span>
+              </label>
+            )}
             <label>
               <span className="mb-2 block text-xs font-bold text-slate-700">Payment terms</span>
               <span className="relative block">
@@ -192,16 +193,16 @@ export default function CustomerManagementPage() {
                 <svg aria-hidden="true" viewBox="0 0 20 20" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 8 4 4 4-4" /></svg>
               </span>
             </label>
-            {canEdit && <button type="button" onClick={openNewCustomerPanel} className="flex h-11 items-center justify-center gap-2 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"><AddIcon />Add customer</button>}
+            {canAdd && <button type="button" onClick={openNewCustomerPanel} className="flex h-11 items-center justify-center gap-2 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"><AddIcon />Add customer</button>}
           </section>
 
           {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4 hover:text-red-950">Try again</button></div>}
 
-          <CustomerTable customers={customers} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={openEditCustomerPanel} onArchive={(customer) => { setArchiveError(""); setCustomerToArchive(customer) }} onRestore={restoreCustomer} restoringId={restoringId} canEdit={Boolean(canEdit)} canDelete={canDelete} />
+          <CustomerTable customers={customers} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={openEditCustomerPanel} onArchive={(customer) => { setArchiveError(""); setCustomerToArchive(customer) }} onRestore={restoreCustomer} restoringId={restoringId} canEdit={canEdit} canDelete={canDelete} canViewAudit={canViewAudit} />
         </div>
       </main>
 
-      {canEdit && <CustomerPanel customer={selectedCustomer} open={panelOpen} onClose={() => setPanelOpen(false)} onSave={saveCustomer} />}
+      {(canAdd || canEdit) && <CustomerPanel customer={selectedCustomer} open={panelOpen} onClose={() => setPanelOpen(false)} onSave={saveCustomer} />}
       {canDelete && <DeleteConfirmationModal customerName={customerToArchive?.company ?? ""} open={Boolean(customerToArchive)} onCancel={() => setCustomerToArchive(null)} onConfirm={archiveCustomer} loading={archiving} error={archiveError} />}
       {notice && <SuccessToast key={notice.id} message={notice.message} onClose={() => setNotice((current) => current?.id === notice.id ? null : current)} />}
     </DashboardLayout>

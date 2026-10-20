@@ -1,9 +1,11 @@
-import type { PermissionGroup } from "../types/user"
+import type { DepartmentPermissionPreset, PermissionGroup } from "../types/user"
 
 export const permissionGroups: PermissionGroup[] = [
   {
     module: "Customer Management",
     accessRight: "customers.access",
+    employeeDefaultIds: ["customers.access", "customers.add", "customers.edit"],
+    viewerIds: ["customers.access"],
     permissions: [
       { id: "customers.add", label: "Add Customer" },
       { id: "customers.edit", label: "Edit Customer" },
@@ -13,6 +15,13 @@ export const permissionGroups: PermissionGroup[] = [
   {
     module: "Product Management",
     accessRight: "products.access",
+    employeeDefaultIds: [
+      "products.access",
+      "products.add",
+      "products.edit",
+      "products.price.add",
+    ],
+    viewerIds: ["products.access"],
     permissions: [
       { id: "products.add", label: "Add Product" },
       { id: "products.edit", label: "Edit Product" },
@@ -25,6 +34,14 @@ export const permissionGroups: PermissionGroup[] = [
   {
     module: "Human Resources",
     accessRight: "hr.access",
+    employeeDefaultIds: [
+      "hr.access",
+      "hr.employee.add",
+      "hr.employee.edit",
+      "hr.history.view",
+      "hr.history.add",
+    ],
+    viewerIds: ["hr.access", "hr.history.view"],
     permissions: [
       { id: "hr.job.add", label: "Add Job" },
       { id: "hr.job.edit", label: "Edit Job" },
@@ -44,6 +61,13 @@ export const permissionGroups: PermissionGroup[] = [
   {
     module: "Sales",
     accessRight: "sales.access",
+    employeeDefaultIds: [
+      "sales.access",
+      "sales.add",
+      "sales.details.view",
+      "sales.details.add",
+    ],
+    viewerIds: ["sales.access", "sales.details.view"],
     permissions: [
       { id: "sales.add", label: "Add Sale" },
       { id: "sales.edit", label: "Edit Sale" },
@@ -57,6 +81,18 @@ export const permissionGroups: PermissionGroup[] = [
   {
     module: "Reports",
     accessRight: "reports.access",
+    employeeDefaultIds: [
+      "reports.access",
+      "reports.top-customers",
+      "reports.product-master",
+      "reports.top-products",
+      "reports.top-sales",
+    ],
+    viewerIds: [
+      "reports.access",
+      "reports.product-master",
+      "reports.active-employees",
+    ],
     permissions: [
       { id: "reports.top-customers", label: "Top Customers" },
       { id: "reports.product-master", label: "Product Master List" },
@@ -65,6 +101,220 @@ export const permissionGroups: PermissionGroup[] = [
       { id: "reports.all-employees", label: "All Employees" },
       { id: "reports.job-history", label: "Employee Job History" },
       { id: "reports.top-sales", label: "Top Sales" },
+    ],
+  },
+]
+
+export const ALL_RIGHT_CODES = permissionGroups.flatMap((group) => [
+  group.accessRight,
+  ...group.permissions.map((p) => p.id),
+])
+
+export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
+  {
+    id: "sales-manager",
+    department: "Sales & CRM",
+    level: "Manager",
+    label: "Sales & CRM — Manager",
+    description:
+      "Full Customer and Sales management (including archive/restore), Product catalog view, and commercial reports.",
+    rights: [
+      "customers.access",
+      "customers.add",
+      "customers.edit",
+      "customers.delete",
+      "products.access",
+      "sales.access",
+      "sales.add",
+      "sales.edit",
+      "sales.delete",
+      "sales.details.view",
+      "sales.details.add",
+      "sales.details.edit",
+      "sales.details.delete",
+      "reports.access",
+      "reports.top-customers",
+      "reports.product-master",
+      "reports.top-products",
+      "reports.top-sales",
+    ],
+  },
+  {
+    id: "sales-employee",
+    department: "Sales & CRM",
+    level: "Employee",
+    label: "Sales & CRM — Employee",
+    description:
+      "Add/edit customers, view products, create sales and line items, and view Top Customers & Top Sales reports.",
+    rights: [
+      "customers.access",
+      "customers.add",
+      "customers.edit",
+      "products.access",
+      "sales.access",
+      "sales.add",
+      "sales.details.view",
+      "sales.details.add",
+      "reports.access",
+      "reports.top-customers",
+      "reports.product-master",
+      "reports.top-sales",
+    ],
+  },
+  {
+    id: "inventory-manager",
+    department: "Inventory & Products",
+    level: "Manager",
+    label: "Inventory & Products — Manager",
+    description:
+      "Full Product and Price History management (including archive/restore), Sales lookup, and Product reports.",
+    rights: [
+      "products.access",
+      "products.add",
+      "products.edit",
+      "products.delete",
+      "products.price.add",
+      "products.price.edit",
+      "products.price.delete",
+      "sales.access",
+      "sales.details.view",
+      "reports.access",
+      "reports.product-master",
+      "reports.top-products",
+    ],
+  },
+  {
+    id: "inventory-employee",
+    department: "Inventory & Products",
+    level: "Employee",
+    label: "Inventory & Products — Employee",
+    description:
+      "Add and edit products, record new effective prices, and view the Product Master List report.",
+    rights: [
+      "products.access",
+      "products.add",
+      "products.edit",
+      "products.price.add",
+      "reports.access",
+      "reports.product-master",
+    ],
+  },
+  {
+    id: "hr-manager",
+    department: "Human Resources",
+    level: "Manager",
+    label: "Human Resources — Manager",
+    description:
+      "Full HR access across Employees, Jobs, Departments, and Job History (including archive/restore) plus all HR reports.",
+    rights: [
+      "hr.access",
+      "hr.job.add",
+      "hr.job.edit",
+      "hr.job.delete",
+      "hr.department.add",
+      "hr.department.edit",
+      "hr.department.delete",
+      "hr.employee.add",
+      "hr.employee.edit",
+      "hr.employee.delete",
+      "hr.history.view",
+      "hr.history.add",
+      "hr.history.edit",
+      "hr.history.delete",
+      "reports.access",
+      "reports.active-employees",
+      "reports.all-employees",
+      "reports.job-history",
+    ],
+  },
+  {
+    id: "hr-employee",
+    department: "Human Resources",
+    level: "Employee",
+    label: "Human Resources — Employee",
+    description:
+      "Add and edit employees, view and record job history entries, and view Active Employees & Job History reports.",
+    rights: [
+      "hr.access",
+      "hr.employee.add",
+      "hr.employee.edit",
+      "hr.history.view",
+      "hr.history.add",
+      "reports.access",
+      "reports.active-employees",
+      "reports.job-history",
+    ],
+  },
+  {
+    id: "accounting-manager",
+    department: "Accounting & Finance",
+    level: "Manager",
+    label: "Accounting & Finance — Manager",
+    description:
+      "Manage customer payment terms, product pricing, sales & payment records, and access all 7 analytical reports.",
+    rights: [
+      "customers.access",
+      "customers.edit",
+      "products.access",
+      "products.price.add",
+      "products.price.edit",
+      "hr.access",
+      "hr.history.view",
+      "sales.access",
+      "sales.edit",
+      "sales.details.view",
+      "sales.details.add",
+      "sales.details.edit",
+      "reports.access",
+      "reports.top-customers",
+      "reports.product-master",
+      "reports.top-products",
+      "reports.active-employees",
+      "reports.all-employees",
+      "reports.job-history",
+      "reports.top-sales",
+    ],
+  },
+  {
+    id: "accounting-employee",
+    department: "Accounting & Finance",
+    level: "Employee",
+    label: "Accounting & Finance — Employee",
+    description:
+      "Read-only access to Customers, Products, and Sales Details, plus financial & sales reports.",
+    rights: [
+      "customers.access",
+      "products.access",
+      "sales.access",
+      "sales.details.view",
+      "reports.access",
+      "reports.top-customers",
+      "reports.product-master",
+      "reports.top-products",
+      "reports.top-sales",
+    ],
+  },
+  {
+    id: "all-manager",
+    department: "All Departments",
+    level: "Manager",
+    label: "All Departments — Manager (Full Access)",
+    description:
+      "Grants every module and action permission across Customer Management, Products, HR, Sales, and Reports.",
+    rights: ALL_RIGHT_CODES,
+  },
+  {
+    id: "all-employee",
+    department: "All Departments",
+    level: "Employee",
+    label: "All Departments — Employee (Read-Only)",
+    description:
+      "Grants view-only access to Customer Management, Product Management, Human Resources, and Sales.",
+    rights: [
+      "customers.access",
+      "products.access",
+      "hr.access",
+      "sales.access",
     ],
   },
 ]

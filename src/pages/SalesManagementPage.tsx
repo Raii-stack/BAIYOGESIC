@@ -1,10 +1,12 @@
 import { useMemo, useState } from "react"
 import { Link } from "react-router"
 
+import { useAuth } from "../components/auth/AuthProvider"
 import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import SaleDetailsModal from "../components/sales/SaleDetailsModal"
 import SalesTable from "../components/sales/SalesTable"
 import DashboardLayout from "../layouts/DashboardLayout"
+import { getSalesPermissions } from "../lib/rbac"
 import { salesTransactions } from "../lib/sales"
 import { notifyToast } from "../lib/toast"
 import type { RecordStatus, SalePayment, SaleTransaction } from "../types/sale"
@@ -12,11 +14,24 @@ import type { RecordStatus, SalePayment, SaleTransaction } from "../types/sale"
 type StatusView = RecordStatus | "All"
 
 export default function SalesManagementPage() {
+  const { user } = useAuth()
+  const {
+    canAddSale,
+    canEditSale,
+    canDeleteSale,
+    canViewDetails,
+    canAddDetail,
+    canEditDetail,
+    canDeleteDetail,
+    canViewAudit,
+  } = getSalesPermissions(user)
   const [transactions, setTransactions] =
     useState<SaleTransaction[]>(salesTransactions)
   const [statusView, setStatusView] = useState<StatusView>("Active")
   const [query, setQuery] = useState("")
   const [selectedSale, setSelectedSale] = useState<SaleTransaction | null>(null)
+
+  const effectiveStatusView: StatusView = canViewAudit ? statusView : "Active"
 
   const counts = useMemo(
     () => ({
@@ -32,7 +47,7 @@ export default function SalesManagementPage() {
     const normalizedQuery = query.trim().toLowerCase()
 
     return transactions.filter((sale) => {
-      const matchesStatus = statusView === "All" || sale.status === statusView
+      const matchesStatus = effectiveStatusView === "All" || sale.status === effectiveStatusView
       const matchesQuery =
         !normalizedQuery ||
         sale.transactionNo.toLowerCase().includes(normalizedQuery) ||
@@ -43,7 +58,7 @@ export default function SalesManagementPage() {
 
       return matchesStatus && matchesQuery
     })
-  }, [query, statusView, transactions])
+  }, [effectiveStatusView, query, transactions])
 
   const changeStatus = (
     transactionNo: string,
@@ -101,12 +116,14 @@ export default function SalesManagementPage() {
                   audit context.
                 </p>
               </div>
-              <Link
-                to="/sales/new"
-                className="flex h-11 shrink-0 items-center justify-center rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
-              >
-                + New Sale
-              </Link>
+              {canAddSale && (
+                <Link
+                  to="/sales/new"
+                  className="flex h-11 shrink-0 items-center justify-center rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+                >
+                  + New Sale
+                </Link>
+              )}
             </div>
 
             <div className="mb-5 border border-slate-300 bg-white">
@@ -129,40 +146,44 @@ export default function SalesManagementPage() {
                     />
                   </span>
                 </label>
-                <div className="flex border border-slate-300" role="tablist">
-                  {(["Active", "Inactive", "All"] as StatusView[]).map(
-                    (status) => (
-                      <button
-                        key={status}
-                        type="button"
-                        role="tab"
-                        aria-selected={statusView === status}
-                        onClick={() => setStatusView(status)}
-                        className={`h-11 border-r border-slate-300 px-4 text-xs font-bold last:border-r-0 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 ${
-                          statusView === status
-                            ? "bg-blue-800 text-white"
-                            : "bg-white text-slate-600 hover:bg-slate-50"
-                        }`}
-                      >
-                        {status}{" "}
-                        <span
-                          className={
+                {canViewAudit && (
+                  <div className="flex border border-slate-300" role="tablist">
+                    {(["Active", "Inactive", "All"] as StatusView[]).map(
+                      (status) => (
+                        <button
+                          key={status}
+                          type="button"
+                          role="tab"
+                          aria-selected={statusView === status}
+                          onClick={() => setStatusView(status)}
+                          className={`h-11 border-r border-slate-300 px-4 text-xs font-bold last:border-r-0 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 ${
                             statusView === status
-                              ? "text-blue-200"
-                              : "text-slate-400"
-                          }
+                              ? "bg-blue-800 text-white"
+                              : "bg-white text-slate-600 hover:bg-slate-50"
+                          }`}
                         >
-                          {counts[status]}
-                        </span>
-                      </button>
-                    ),
-                  )}
+                          {status}{" "}
+                          <span
+                            className={
+                              statusView === status
+                                ? "text-blue-200"
+                                : "text-slate-400"
+                            }
+                          >
+                            {counts[status]}
+                          </span>
+                        </button>
+                      ),
+                    )}
+                  </div>
+                )}
+              </div>
+              {canViewAudit && (
+                <div className="border-t border-slate-200 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
+                  Admin view · Inactive records remain available for audit and
+                  restore
                 </div>
-              </div>
-              <div className="border-t border-slate-200 px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">
-                Admin view · Inactive records remain available for audit and
-                restore
-              </div>
+              )}
             </div>
 
             <SalesTable
@@ -174,7 +195,10 @@ export default function SalesManagementPage() {
               onRestore={(transactionNo) =>
                 changeStatus(transactionNo, "Active")
               }
-              showAdminAudit
+              canViewDetails={canViewDetails}
+              canEdit={canEditSale}
+              canDelete={canDeleteSale}
+              showAdminAudit={canViewAudit}
             />
           </div>
         </main>
@@ -183,7 +207,10 @@ export default function SalesManagementPage() {
           sale={selectedSale}
           onClose={() => setSelectedSale(null)}
           onPaymentsChange={updatePayments}
-          showAdminAudit
+          canAdd={canAddDetail}
+          canEdit={canEditDetail}
+          canDelete={canDeleteDetail}
+          showAdminAudit={canViewAudit}
         />
       </>
     </DashboardLayout>

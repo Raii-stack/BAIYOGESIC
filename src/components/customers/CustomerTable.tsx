@@ -13,10 +13,18 @@ const termStyles: Record<Customer["paymentTerm"], string> = {
   COD: "border-amber-200 bg-amber-50 text-amber-900",
 }
 
-function SkeletonRows({ showActions }: { showActions: boolean }) {
+function SkeletonRows({ showActions, canViewAudit }: { showActions: boolean; canViewAudit: boolean }) {
+  const widths = [
+    "w-20",
+    "w-40",
+    "w-52",
+    "w-24",
+    ...(canViewAudit ? ["w-16", "w-36"] : []),
+    ...(showActions ? ["w-16"] : []),
+  ]
   return Array.from({ length: 8 }, (_, index) => (
     <tr key={index} className="border-b border-slate-100 last:border-0" aria-hidden="true">
-      {["w-20", "w-40", "w-52", "w-24", "w-16", "w-36", ...(showActions ? ["w-16"] : [])].map((width, column) => (
+      {widths.map((width, column) => (
         <td key={column} className="px-5 py-5 first:pl-6 last:pr-6">
           <div className={`h-3.5 ${width} max-w-full animate-pulse rounded bg-slate-200`} />
         </td>
@@ -55,6 +63,7 @@ export default function CustomerTable({
   restoringId,
   canEdit,
   canDelete,
+  canViewAudit = true,
 }: {
   customers: Customer[]
   pagination: CustomerPagination
@@ -67,10 +76,19 @@ export default function CustomerTable({
   restoringId?: string | null
   canEdit: boolean
   canDelete: boolean
+  canViewAudit?: boolean
 }) {
   const showActions = canEdit || canDelete
   const start = pagination.total ? (pagination.page - 1) * pagination.limit + 1 : 0
   const end = pagination.total ? Math.min(start + customers.length - 1, pagination.total) : 0
+  const headings = [
+    "Customer ID",
+    "Customer",
+    "Address",
+    "Payment terms",
+    ...(canViewAudit ? ["Status", "Last change"] : []),
+    ...(showActions ? ["Actions"] : []),
+  ]
 
   return (
     <section aria-label="Customer records" className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-[0_8px_28px_rgba(15,39,67,0.05)]">
@@ -85,23 +103,23 @@ export default function CustomerTable({
       </div>
 
       <div className="overflow-x-auto" aria-busy={loading}>
-        <table className="w-full min-w-[1010px] border-collapse text-left">
+        <table className="w-full min-w-[820px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              {["Customer ID", "Customer", "Address", "Payment terms", "Status", "Last change", ...(showActions ? ["Actions"] : [])].map((heading) => (
+              {headings.map((heading) => (
                 <th key={heading} scope="col" className={`px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 first:pl-6 last:pr-6 ${heading === "Actions" ? "sticky right-0 z-10 border-l border-slate-200 bg-slate-50" : ""}`}>{heading}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {loading ? <SkeletonRows showActions={showActions} /> : customers.map((customer) => (
+            {loading ? <SkeletonRows showActions={showActions} canViewAudit={canViewAudit} /> : customers.map((customer) => (
               <tr key={customer.id} className={`border-b border-slate-100 transition-colors last:border-0 ${customer.status === "Active" ? "hover:bg-blue-50/40" : "bg-slate-50/70 hover:bg-slate-100"}`}>
                 <td className="whitespace-nowrap px-5 py-4 pl-6 font-mono text-xs font-semibold text-blue-800">{customer.id}</td>
                 <td className="min-w-48 px-5 py-4 text-sm font-semibold text-slate-900">{customer.company}</td>
                 <td className="max-w-72 px-5 py-4 text-sm leading-5 text-slate-600">{customer.address}</td>
                 <td className="whitespace-nowrap px-5 py-4"><span className={`inline-flex rounded border px-2.5 py-1 text-xs font-semibold ${termStyles[customer.paymentTerm] ?? "border-slate-200 bg-slate-50 text-slate-700"}`}>{termLabels[customer.paymentTerm] || customer.paymentTerm}</span></td>
-                <td className="whitespace-nowrap px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${customer.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{customer.status === "Active" ? "Active" : "Archived"}</span></td>
-                <td className="max-w-52 px-5 py-4 font-mono text-[11px] leading-5 text-slate-500">{customer.stamp || "—"}</td>
+                {canViewAudit && <td className="whitespace-nowrap px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${customer.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{customer.status === "Active" ? "Active" : "Archived"}</span></td>}
+                {canViewAudit && <td className="max-w-52 px-5 py-4 font-mono text-[11px] leading-5 text-slate-500">{customer.stamp || "—"}</td>}
                 {showActions && <td className={`sticky right-0 z-10 border-l border-slate-100 px-5 py-4 pr-6 ${customer.status === "Active" ? "bg-white" : "bg-slate-50"}`}><div className="flex items-center gap-1">
                   {customer.status === "Active" ? <>
                     {canEdit && <button type="button" onClick={() => onEdit(customer)} aria-label={`Edit ${customer.company}`} title="Edit customer" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-blue-100 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"><EditIcon /></button>}

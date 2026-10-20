@@ -115,6 +115,21 @@ function requirePermission(moduleName, action) {
       });
     }
 
+    if (
+      (role === 'admin' || role === 'superadmin' || role === 'administrator') &&
+      moduleName !== 'Users' &&
+      Array.isArray(req.user.rights) &&
+      req.user.rights.length > 0
+    ) {
+      if (hasGranularRight(req.user, moduleName, action)) {
+        return next();
+      }
+      return res.status(403).json({
+        success: false,
+        error: { message: 'Insufficient permissions', statusCode: 403 }
+      });
+    }
+
     const rolePermissions = PERMISSIONS[role];
     const allowedActions = rolePermissions && rolePermissions[moduleName];
 

@@ -163,6 +163,30 @@ export const modules: ModuleDefinition[] = [
     iconStyle: "bg-violet-50 text-violet-800",
     visible: true,
   },
+  {
+    id: "reports",
+    index: "05",
+    title: "Reports",
+    description:
+      "Review, filter, print, and export read-only operational ERP reports.",
+    href: "/reports",
+    icon: "reports",
+    accent: "border-t-cyan-700",
+    iconStyle: "bg-cyan-50 text-cyan-800",
+    visible: true,
+  },
+  {
+    id: "users",
+    index: "06",
+    title: "User Management",
+    description:
+      "Manage user accounts, role assignments, account status, and granular module rights.",
+    href: "/users",
+    icon: "userManagement",
+    accent: "border-t-slate-800",
+    iconStyle: "bg-slate-100 text-slate-800",
+    visible: true,
+  },
 ]
 
 export function DashboardLogo({ collapsed }: { collapsed: boolean }) {

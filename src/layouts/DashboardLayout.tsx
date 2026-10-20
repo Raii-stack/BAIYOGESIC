@@ -3,7 +3,17 @@ import { Link, useNavigate } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
 import { safeErrorMessage } from "../lib/api-errors"
+import { canAccessModule, type ErpModuleKey } from "../lib/rbac"
 import { notifyToast } from "../lib/toast"
+
+const HREF_MODULE_MAP: Record<string, ErpModuleKey> = {
+  "/customers": "customers",
+  "/inventory": "products",
+  "/employees": "hr",
+  "/sales": "sales",
+  "/reports": "reports",
+  "/users": "users",
+}
 
 import {
   DashboardIcon,
@@ -62,7 +72,10 @@ export default function DashboardLayout({
             Workspace
           </p>
           <ul className="space-y-1">
-            {navigationItems.filter((item) => item.href !== "/users" || user?.role === "superadmin" || user?.role === "administrator" || user?.role === "admin").map((item) => {
+            {navigationItems.filter((item) => {
+              const moduleKey = item.href ? HREF_MODULE_MAP[item.href] : undefined
+              return !moduleKey || canAccessModule(user, moduleKey)
+            }).map((item) => {
               const active = item.label === activeNavigation
               const className = `flex h-11 w-full items-center rounded-md text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
                 sidebarCollapsed ? "lg:justify-center lg:px-0" : "gap-3 px-3"

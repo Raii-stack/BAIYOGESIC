@@ -6,6 +6,7 @@ const {
   listUserOptions,
   createUser,
   updateUser,
+  approveUser,
   setBlockStatus,
   updateUserRights
 } = require('../controllers/user-controller');
@@ -17,6 +18,8 @@ router.get('/', requirePermission('Users', 'view'), listUsers);
 router.get('/options', requirePermission('Users', 'view'), listUserOptions);
 router.post('/', requirePermission('Users', 'edit'), createUser);
 router.put('/:userId', requirePermission('Users', 'edit'), updateUser);
+router.post('/:userId/approve', requirePermission('Users', 'edit'), approveUser);
+router.patch('/:userId/approve', requirePermission('Users', 'edit'), approveUser);
 router.patch('/:userId/block', requirePermission('Users', 'edit'), setBlockStatus);
 router.put('/:userId/rights', requirePermission('Users', 'edit'), updateUserRights);
 

@@ -241,7 +241,8 @@ const createUser = asyncHandler(async (req, res) => {
   const firstName = typeof body.firstName === 'string' ? body.firstName.trim() : '';
   const lastName = typeof body.lastName === 'string' ? body.lastName.trim() : '';
   const mustChangePassword = body.mustChangePassword !== undefined ? Boolean(body.mustChangePassword) : true;
-  const requestedRights = Array.isArray(body.rights)
+  const hasExplicitRights = Array.isArray(body.rights);
+  const requestedRights = hasExplicitRights
     ? body.rights.filter((code) => typeof code === 'string' && code.trim())
     : DEFAULT_EMPLOYEE_RIGHTS;
 
@@ -278,7 +279,6 @@ const createUser = asyncHandler(async (req, res) => {
         throw requestError('A valid email address is required', 400);
       }
 
-      // Sync updated name/email to employee record if provided
       const nextFirst = firstName || emp.firstname;
       const nextLast = lastName || emp.lastname;
       await client.query(
@@ -332,7 +332,15 @@ const createUser = asyncHandler(async (req, res) => {
     );
     const newUserId = insertResult.rows[0].user_id;
 
-    if (role === 'employee' && requestedRights.length > 0) {
+    if (!hasExplicitRights && (role === 'superadmin' || role === 'admin')) {
+      await client.query(
+        `INSERT INTO public.app_user_right (user_id, right_code, granted_by)
+         SELECT $1::uuid, r.right_code, $2
+         FROM public.app_right r
+         ON CONFLICT DO NOTHING`,
+        [newUserId, actor]
+      );
+    } else if (requestedRights.length > 0) {
       await client.query(
         `INSERT INTO public.app_user_right (user_id, right_code, granted_by)
          SELECT $1::uuid, r.right_code, $2
@@ -452,6 +460,55 @@ const updateUser = asyncHandler(async (req, res) => {
       );
     }
 
+    if (existing.role === 'employee' && (nextRole === 'admin' || nextRole === 'superadmin')) {
+      await client.query(
+        `INSERT INTO public.app_user_right (user_id, right_code, granted_by)
+         SELECT $1::uuid, r.right_code, $2
+         FROM public.app_right r
+         ON CONFLICT DO NOTHING`,
+        [userId, actor]
+      );
+    }
+
+    return fetchUserById(client, userId);
+  });
+
+  res.json({ success: true, data: { user: updated } });
+});
+
+const approveUser = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  if (!UUID_PATTERN.test(String(userId || ''))) {
+    throw requestError('Invalid user ID', 400);
+  }
+
+  const requesterIsSuperAdmin = isSuperAdminRole(req.user && req.user.role);
+  const actor = auditActor(req);
+
+  const updated = await withAudit(actor, async (client) => {
+    const existingResult = await client.query(
+      `SELECT user_id, role, status FROM public.app_user WHERE user_id = $1::uuid FOR UPDATE`,
+      [userId]
+    );
+    const existing = existingResult.rows[0];
+    if (!existing) {
+      throw requestError('User account not found', 404);
+    }
+
+    if (!requesterIsSuperAdmin && existing.role !== 'employee') {
+      throw requestError('Admins can only approve Employee accounts', 403);
+    }
+
+    await client.query(
+      `UPDATE public.app_user
+       SET status = 'active',
+           is_blocked = false,
+           stamp = public.audit_stamp('EDIT'),
+           updated_at = now()
+       WHERE user_id = $1::uuid`,
+      [userId]
+    );
+
     return fetchUserById(client, userId);
   });
 
@@ -537,6 +594,9 @@ const updateUserRights = asyncHandler(async (req, res) => {
     if (!requesterIsSuperAdmin && existing.role !== 'employee') {
       throw requestError('Admins can only manage rights for Employee accounts', 403);
     }
+    if (String(req.user.sub) === String(userId)) {
+      throw requestError('You cannot modify your own permissions', 400);
+    }
 
     if (requestedRights.length > 0) {
       const validResult = await client.query(
@@ -577,6 +637,7 @@ module.exports = {
   listUserOptions,
   createUser,
   updateUser,
+  approveUser,
   setBlockStatus,
   updateUserRights
 };

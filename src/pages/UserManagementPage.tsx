@@ -58,6 +58,7 @@ export default function UserManagementPage() {
   const [selectedUser, setSelectedUser] = useState<SystemUser | null>(null)
   const [rightsUser, setRightsUser] = useState<SystemUser | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
+  const [approvingId, setApprovingId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null)
 
   useEffect(() => {
@@ -149,6 +150,19 @@ export default function UserManagementPage() {
     await userApi.update(userId, input)
     showNotice("User account updated successfully.")
     setRefresh((current) => current + 1)
+  }
+
+  const handleApproveUser = async (target: SystemUser) => {
+    setApprovingId(target.userId)
+    try {
+      await userApi.approve(target.userId)
+      showNotice(`${target.name} has been accepted and activated.`)
+      setRefresh((current) => current + 1)
+    } catch {
+      // Shared error toast is emitted by apiFailure
+    } finally {
+      setApprovingId(null)
+    }
   }
 
   const handleToggleBlock = async (target: SystemUser) => {
@@ -321,7 +335,9 @@ export default function UserManagementPage() {
               isSuperAdmin={isSuperAdmin}
               currentUserId={currentUserId}
               togglingId={togglingId}
+              approvingId={approvingId}
               onPageChange={setPage}
+              onApprove={handleApproveUser}
               onToggleBlock={handleToggleBlock}
               onOpenRights={setRightsUser}
               onEdit={openEditPanel}

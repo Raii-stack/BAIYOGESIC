@@ -9,6 +9,7 @@ import ProductTable from "../components/inventory/ProductTable"
 import DashboardLayout from "../layouts/DashboardLayout"
 import useDebouncedValue from "../hooks/useDebouncedValue"
 import { productApi, type ProductInput, type ProductPagination } from "../lib/product-api"
+import { getProductPermissions } from "../lib/rbac"
 import type { Product, UnitType } from "../types/product"
 
 const PAGE_SIZE = 10
@@ -20,9 +21,7 @@ function AddIcon() {
 
 export default function InventoryPage() {
   const { user } = useAuth()
-  const isSuperOrAdmin = user?.role === "superadmin" || user?.role === "administrator" || user?.role === "admin"
-  const canEdit = isSuperOrAdmin || Boolean(user?.rights?.some((r) => r === "products.add" || r === "products.edit" || r === "products.price.add" || r === "products.price.edit"))
-  const canDelete = isSuperOrAdmin || Boolean(user?.rights?.some((r) => r === "products.delete" || r === "products.price.delete"))
+  const { canAdd, canEdit, canDelete, canViewAudit } = getProductPermissions(user)
   const [query, setQuery] = useState("")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
@@ -151,15 +150,17 @@ export default function InventoryPage() {
                 <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder="Code or description" className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100" />
               </span>
             </label>
-            <label>
-              <span className="mb-2 block text-xs font-bold text-slate-700">Status</span>
-              <span className="relative block">
-                <select value={status} onChange={(event) => { setStatus(event.target.value as "all" | "active" | "archived"); setPage(1) }} className="h-11 w-full appearance-none rounded-md border border-slate-300 bg-slate-50 px-3 pr-9 text-sm text-slate-700 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100">
-                  <option value="all">All statuses</option><option value="active">Active</option><option value="archived">Archived</option>
-                </select>
-                <svg aria-hidden="true" viewBox="0 0 20 20" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 8 4 4 4-4" /></svg>
-              </span>
-            </label>
+            {canViewAudit && (
+              <label>
+                <span className="mb-2 block text-xs font-bold text-slate-700">Status</span>
+                <span className="relative block">
+                  <select value={status} onChange={(event) => { setStatus(event.target.value as "all" | "active" | "archived"); setPage(1) }} className="h-11 w-full appearance-none rounded-md border border-slate-300 bg-slate-50 px-3 pr-9 text-sm text-slate-700 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100">
+                    <option value="all">All statuses</option><option value="active">Active</option><option value="archived">Archived</option>
+                  </select>
+                  <svg aria-hidden="true" viewBox="0 0 20 20" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 8 4 4 4-4" /></svg>
+                </span>
+              </label>
+            )}
             <label>
               <span className="mb-2 block text-xs font-bold text-slate-700">Unit type</span>
               <span className="relative block">
@@ -169,15 +170,15 @@ export default function InventoryPage() {
                 <svg aria-hidden="true" viewBox="0 0 20 20" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m6 8 4 4 4-4" /></svg>
               </span>
             </label>
-            {canEdit && <button type="button" onClick={() => { setSelectedProduct(null); setPanelOpen(true) }} className="flex h-11 items-center justify-center gap-2 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"><AddIcon />Add product</button>}
+            {canAdd && <button type="button" onClick={() => { setSelectedProduct(null); setPanelOpen(true) }} className="flex h-11 items-center justify-center gap-2 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"><AddIcon />Add product</button>}
           </section>
 
           {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4 hover:text-red-950">Try again</button></div>}
-          <ProductTable key={`${page}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} onRestore={restoreProduct} restoringCode={restoringCode} canEdit={Boolean(canEdit)} canDelete={canDelete} />
+          <ProductTable key={`${page}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} onRestore={restoreProduct} restoringCode={restoringCode} canEdit={canEdit} canDelete={canDelete} canViewAudit={canViewAudit} />
         </div>
       </main>
 
-      {canEdit && <ProductPanel product={selectedProduct} open={panelOpen} onClose={() => setPanelOpen(false)} onSave={saveProduct} />}
+      {(canAdd || canEdit) && <ProductPanel product={selectedProduct} open={panelOpen} onClose={() => setPanelOpen(false)} onSave={saveProduct} />}
       {canDelete && <ArchiveProductModal productName={productToArchive?.description ?? ""} open={Boolean(productToArchive)} onCancel={() => setProductToArchive(null)} onConfirm={archiveProduct} loading={archiving} error={archiveError} />}
       {notice && <SuccessToast key={notice.id} message={notice.message} onClose={() => setNotice((current) => current?.id === notice.id ? null : current)} />}
     </DashboardLayout>

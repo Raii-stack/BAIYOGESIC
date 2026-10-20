@@ -39,7 +39,9 @@ export default function UserTable({
   isSuperAdmin,
   currentUserId,
   togglingId,
+  approvingId,
   onPageChange,
+  onApprove,
   onToggleBlock,
   onOpenRights,
   onEdit,
@@ -51,7 +53,9 @@ export default function UserTable({
   isSuperAdmin: boolean
   currentUserId: string
   togglingId: string | null
+  approvingId: string | null
   onPageChange: (page: number) => void
+  onApprove: (user: SystemUser) => void
   onToggleBlock: (user: SystemUser) => void
   onOpenRights: (user: SystemUser) => void
   onEdit: (user: SystemUser) => void
@@ -68,7 +72,7 @@ export default function UserTable({
         <div>
           <h2 className="text-sm font-bold text-slate-900">User directory</h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            System roles, account status, and per-module employee permissions
+            System roles, account status, and per-module user permissions
           </p>
         </div>
         <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-900">
@@ -101,7 +105,10 @@ export default function UserTable({
                 const isSelf = String(user.userId) === String(currentUserId)
                 const canManageRow = isSuperAdmin || user.role === "employee"
                 const canBlockRow = canManageRow && !isSelf
-                const canAssignRights = canManageRow && user.role === "employee"
+                const canAssignRights = isSuperAdmin
+                  ? !isSelf
+                  : canManageRow && user.role === "employee"
+                const canApproveRow = canManageRow && user.status === "pending"
 
                 const statusLabel = user.isBlocked
                   ? "Blocked"
@@ -168,6 +175,17 @@ export default function UserTable({
                         </span>
                       ) : (
                         <div className="flex items-center gap-3">
+                          {canApproveRow && (
+                            <button
+                              type="button"
+                              disabled={approvingId === user.userId}
+                              onClick={() => onApprove(user)}
+                              aria-label={`Accept ${user.name}`}
+                              className="rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 disabled:cursor-wait disabled:opacity-50"
+                            >
+                              {approvingId === user.userId ? "Accepting…" : "Accept"}
+                            </button>
+                          )}
                           {canBlockRow && (
                             <button
                               type="button"

@@ -47,13 +47,20 @@ export default function SaleDetailsModal({
   sale,
   onClose,
   onPaymentsChange,
+  canAdd = true,
+  canEdit = true,
+  canDelete = true,
   showAdminAudit = false,
 }: {
   sale: SaleTransaction | null
   onClose: () => void
   onPaymentsChange: (transactionNo: string, payments: SalePayment[]) => void
+  canAdd?: boolean
+  canEdit?: boolean
+  canDelete?: boolean
   showAdminAudit?: boolean
 }) {
+  const showDetailActions = canEdit || canDelete
   const [payments, setPayments] = useState<SalePayment[]>([])
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
   const [editingPayment, setEditingPayment] = useState<SalePayment | null>(null)
@@ -158,14 +165,16 @@ export default function SaleDetailsModal({
                 Line Items
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => notifyToast("Adding sale lines is not available until Sales is connected to the backend.", "info")}
-              className="flex h-10 items-center gap-2 rounded-md bg-blue-800 px-4 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
-            >
-              <AddIcon />
-              Add Line
-            </button>
+            {canAdd && (
+              <button
+                type="button"
+                onClick={() => notifyToast("Adding sale lines is not available until Sales is connected to the backend.", "info")}
+                className="flex h-10 items-center gap-2 rounded-md bg-blue-800 px-4 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+              >
+                <AddIcon />
+                Add Line
+              </button>
+            )}
           </div>
 
           <div className="overflow-x-auto border border-slate-300">
@@ -177,9 +186,8 @@ export default function SaleDetailsModal({
                     "Qty",
                     "Unit Price",
                     "Line Total",
-                    "Status",
-                    ...(showAdminAudit ? ["Stamp"] : []),
-                    "Actions",
+                    ...(showAdminAudit ? ["Status", "Stamp"] : []),
+                    ...(showDetailActions ? ["Actions"] : []),
                   ].map((heading) => (
                     <th
                       key={heading}
@@ -224,32 +232,40 @@ export default function SaleDetailsModal({
                     <td className="px-4 py-4 text-right text-sm font-bold tabular-nums text-slate-950">
                       {currency.format(line.quantity * line.unitPrice)}
                     </td>
-                    <td className="px-4 py-4">
-                      <StatusBadge status={line.status} />
-                    </td>
+                    {showAdminAudit && (
+                      <td className="px-4 py-4">
+                        <StatusBadge status={line.status} />
+                      </td>
+                    )}
                     {showAdminAudit && (
                       <td className="max-w-52 px-4 py-4 font-mono text-[10px] leading-5 text-slate-500">
                         {line.stamp}
                       </td>
                     )}
-                    <td className="px-4 py-4">
-                      <div className="flex gap-3">
-                        <button
-                          type="button"
-                          onClick={() => notifyToast("Editing sale lines is not available yet.", "info")}
-                          className="text-xs font-bold text-blue-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => notifyToast("Archiving sale lines is not available yet.", "info")}
-                          className="text-xs font-bold text-red-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+                    {showDetailActions && (
+                      <td className="px-4 py-4">
+                        <div className="flex gap-3">
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => notifyToast("Editing sale lines is not available yet.", "info")}
+                              className="text-xs font-bold text-blue-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+                            >
+                              Edit
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => notifyToast("Archiving sale lines is not available yet.", "info")}
+                              className="text-xs font-bold text-red-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -272,18 +288,20 @@ export default function SaleDetailsModal({
                   Payment History
                 </h3>
               </div>
-              <button
-                type="button"
-                disabled={balance <= 0}
-                onClick={() => {
-                  setEditingPayment(null)
-                  setPaymentModalOpen(true)
-                }}
-                className="flex h-10 items-center gap-2 rounded-md bg-blue-800 px-4 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-300"
-              >
-                <AddIcon />
-                Record Payment
-              </button>
+              {canAdd && (
+                <button
+                  type="button"
+                  disabled={balance <= 0}
+                  onClick={() => {
+                    setEditingPayment(null)
+                    setPaymentModalOpen(true)
+                  }}
+                  className="flex h-10 items-center gap-2 rounded-md bg-blue-800 px-4 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  <AddIcon />
+                  Record Payment
+                </button>
+              )}
             </div>
 
             <div className="overflow-x-auto border border-slate-300">
@@ -295,7 +313,7 @@ export default function SaleDetailsModal({
                       "Date",
                       "Amount",
                       ...(showAdminAudit ? ["Stamp"] : []),
-                      "Actions",
+                      ...(showDetailActions ? ["Actions"] : []),
                     ].map((heading) => (
                       <th
                         key={heading}
@@ -331,33 +349,39 @@ export default function SaleDetailsModal({
                           {payment.stamp}
                         </td>
                       )}
-                      <td className="px-4 py-3">
-                        <div className="flex gap-3">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingPayment(payment)
-                              setPaymentModalOpen(true)
-                            }}
-                            className="text-xs font-bold text-blue-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              updatePayments((current) =>
-                                current.filter(
-                                  (entry) => entry.id !== payment.id,
-                                ),
-                              )
-                            }
-                            className="text-xs font-bold text-red-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+                      {showDetailActions && (
+                        <td className="px-4 py-3">
+                          <div className="flex gap-3">
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingPayment(payment)
+                                  setPaymentModalOpen(true)
+                                }}
+                                className="text-xs font-bold text-blue-800 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+                              >
+                                Edit
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updatePayments((current) =>
+                                    current.filter(
+                                      (entry) => entry.id !== payment.id,
+                                    ),
+                                  )
+                                }
+                                className="text-xs font-bold text-red-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                              >
+                                Delete
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

@@ -31,8 +31,19 @@ export type AvailableEmployee = {
 export type PermissionGroup = {
   module: string
   accessRight: string
+  employeeDefaultIds: string[]
+  viewerIds: string[]
   permissions: {
     id: string
     label: string
   }[]
+}
+
+export type DepartmentPermissionPreset = {
+  id: string
+  department: string
+  level: "Manager" | "Employee"
+  label: string
+  description: string
+  rights: string[]
 }

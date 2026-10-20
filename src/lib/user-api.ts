@@ -127,6 +127,13 @@ export const userApi = {
     )
     return normalizeUserRow(data.user)
   },
+  async approve(userId: string) {
+    const data = await request<{ user: SystemUser }>(
+      `/${encodeURIComponent(userId)}/approve`,
+      "POST",
+    )
+    return normalizeUserRow(data.user)
+  },
   async setBlocked(userId: string, isBlocked: boolean) {
     const data = await request<{ user: SystemUser }>(
       `/${encodeURIComponent(userId)}/block`,

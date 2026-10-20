@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { UserCreateInput, UserUpdateInput } from "../../lib/user-api"
+import { departmentPermissionPresets } from "../../lib/users"
 import type { AvailableEmployee, SystemUser, UserRole } from "../../types/user"
 
 type UserPanelProps = {
@@ -30,6 +31,31 @@ function CloseIcon() {
   )
 }
 
+function suggestPresetForEmployee(emp?: AvailableEmployee): string {
+  if (!emp) return ""
+  const dept = (emp.departmentName || "").toLowerCase()
+  const job = (emp.jobTitle || "").toLowerCase()
+  const isManagerLevel =
+    job.includes("manager") ||
+    job.includes("president") ||
+    job.includes("supervisor") ||
+    job.includes("director")
+
+  if (dept.includes("sales")) {
+    return isManagerLevel ? "sales-manager" : "sales-employee"
+  }
+  if (dept.includes("human") || dept.includes("hr")) {
+    return isManagerLevel ? "hr-manager" : "hr-employee"
+  }
+  if (dept.includes("account") || dept.includes("finance") || dept.includes("executive")) {
+    return isManagerLevel ? "accounting-manager" : "accounting-employee"
+  }
+  if (dept.includes("inventory") || dept.includes("warehouse") || dept.includes("product")) {
+    return isManagerLevel ? "inventory-manager" : "inventory-employee"
+  }
+  return isManagerLevel ? "all-manager" : "all-employee"
+}
+
 export default function UserPanel({
   user,
   open,
@@ -45,6 +71,7 @@ export default function UserPanel({
   const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
   const [role, setRole] = useState<UserRole>("employee")
+  const [presetId, setPresetId] = useState("")
   const [password, setPassword] = useState("")
   const [mustChangePassword, setMustChangePassword] = useState(true)
   const [firstNameError, setFirstNameError] = useState("")
@@ -65,6 +92,7 @@ export default function UserPanel({
     setLastName(user?.lastName ?? "")
     setEmail(user?.email ?? "")
     setRole(user?.role ?? "employee")
+    setPresetId("")
     setPassword("")
     setMustChangePassword(user ? Boolean(user.mustChangePassword) : true)
     setFirstNameError("")
@@ -90,6 +118,7 @@ export default function UserPanel({
       setFirstName(found.firstName)
       setLastName(found.lastName)
       setEmail(found.email)
+      setPresetId(suggestPresetForEmployee(found))
       setFirstNameError("")
       setLastNameError("")
       setEmailError("")
@@ -138,6 +167,7 @@ export default function UserPanel({
     setSaving(true)
     setSaveError("")
     try {
+      const selectedPreset = departmentPermissionPresets.find((p) => p.id === presetId)
       if (user) {
         await onUpdate(user.userId, {
           firstName: trimmedFirst,
@@ -156,6 +186,7 @@ export default function UserPanel({
           role,
           password,
           mustChangePassword,
+          rights: selectedPreset ? selectedPreset.rights : undefined,
         })
       }
       onClose()
@@ -369,6 +400,28 @@ export default function UserPanel({
                   <option value="employee">Employee (Granular Rights)</option>
                 </select>
               </label>
+
+              {!isEditing && role === "employee" && (
+                <label className="block">
+                  <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+                    Department &amp; Role Permission Preset
+                    <span className="font-medium text-slate-400">Pre-selected rights</span>
+                  </span>
+                  <select
+                    aria-label="Department permission preset"
+                    value={presetId}
+                    onChange={(event) => setPresetId(event.target.value)}
+                    className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  >
+                    <option value="">Default Employee (Read-Only Modules)</option>
+                    {departmentPermissionPresets.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
               <label className="block">
                 <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">

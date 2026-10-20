@@ -29,17 +29,26 @@ function RestoreIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" /></svg>
 }
 
-function SkeletonRows({ showActions }: { showActions: boolean }) {
+function SkeletonRows({ showActions, canViewAudit }: { showActions: boolean; canViewAudit: boolean }) {
+  const widths = [
+    "w-20",
+    "w-44",
+    "w-12",
+    "w-24",
+    "w-20",
+    ...(canViewAudit ? ["w-16", "w-36"] : []),
+    ...(showActions ? ["w-16"] : []),
+  ]
   return Array.from({ length: 8 }, (_, index) => (
     <tr key={index} aria-hidden="true" className="border-b border-slate-100 last:border-0">
-      {["w-20", "w-44", "w-12", "w-24", "w-20", "w-16", "w-36", ...(showActions ? ["w-16"] : [])].map((width, column) => (
+      {widths.map((width, column) => (
         <td key={column} className="px-5 py-5 first:pl-6 last:pr-6"><div className={`h-3.5 ${width} max-w-full animate-pulse rounded bg-slate-200`} /></td>
       ))}
     </tr>
   ))
 }
 
-function PriceHistory({ code }: { code: string }) {
+function PriceHistory({ code, canViewAudit }: { code: string; canViewAudit: boolean }) {
   const [entries, setEntries] = useState<PriceHistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -69,8 +78,8 @@ function PriceHistory({ code }: { code: string }) {
             : error ? <div role="alert" className="flex items-center justify-between gap-3 p-4 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => setRetry((value) => value + 1)} className="font-semibold underline">Retry</button></div>
               : entries.length === 0 ? <p className="p-4 text-sm text-slate-500">No price history recorded.</p>
                 : <table className="w-full text-left">
-                  <thead><tr className="border-b border-slate-200 bg-white text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500"><th className="px-4 py-3">Effective date</th><th className="px-4 py-3 text-right">Unit price</th><th className="hidden px-4 py-3 sm:table-cell">Last change</th></tr></thead>
-                  <tbody>{entries.map((entry) => <tr key={entry.effectiveDate} className="border-b border-slate-100 last:border-0"><td className="px-4 py-3 font-mono text-xs text-slate-600">{entry.effectiveDate}</td><td className="px-4 py-3 text-right text-sm font-bold tabular-nums text-slate-900">{currency.format(entry.price)}</td><td className="hidden px-4 py-3 font-mono text-[11px] text-slate-500 sm:table-cell">{entry.stamp || "—"}</td></tr>)}</tbody>
+                  <thead><tr className="border-b border-slate-200 bg-white text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500"><th className="px-4 py-3">Effective date</th><th className="px-4 py-3 text-right">Unit price</th>{canViewAudit && <th className="hidden px-4 py-3 sm:table-cell">Last change</th>}</tr></thead>
+                  <tbody>{entries.map((entry) => <tr key={entry.effectiveDate} className="border-b border-slate-100 last:border-0"><td className="px-4 py-3 font-mono text-xs text-slate-600">{entry.effectiveDate}</td><td className="px-4 py-3 text-right text-sm font-bold tabular-nums text-slate-900">{currency.format(entry.price)}</td>{canViewAudit && <td className="hidden px-4 py-3 font-mono text-[11px] text-slate-500 sm:table-cell">{entry.stamp || "—"}</td>}</tr>)}</tbody>
                 </table>}
         </div>
       </div>
@@ -84,7 +93,7 @@ function visiblePages(page: number, totalPages: number) {
   return Array.from({ length: count }, (_, index) => start + index)
 }
 
-export default function ProductTable({ products, pagination, loading, error, onPageChange, onEdit, onArchive, onRestore, restoringCode, canEdit, canDelete }: {
+export default function ProductTable({ products, pagination, loading, error, onPageChange, onEdit, onArchive, onRestore, restoringCode, canEdit, canDelete, canViewAudit = true }: {
   products: Product[]
   pagination: ProductPagination
   loading: boolean
@@ -96,11 +105,21 @@ export default function ProductTable({ products, pagination, loading, error, onP
   restoringCode?: string | null
   canEdit: boolean
   canDelete: boolean
+  canViewAudit?: boolean
 }) {
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
   const showActions = canEdit || canDelete
   const start = pagination.total ? (pagination.page - 1) * pagination.limit + 1 : 0
   const end = pagination.total ? Math.min(start + products.length - 1, pagination.total) : 0
+  const headings = [
+    "Product code",
+    "Description",
+    "Unit",
+    "Unit price",
+    "Effective",
+    ...(canViewAudit ? ["Status", "Last change"] : []),
+    ...(showActions ? ["Actions"] : []),
+  ]
 
   return (
     <section aria-label="Product records" className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-[0_8px_28px_rgba(15,39,67,0.05)]">
@@ -109,11 +128,11 @@ export default function ProductTable({ products, pagination, loading, error, onP
         <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-900">{loading ? "Loading…" : error ? "Unavailable" : `${pagination.total} records`}</span>
       </div>
       <div className="overflow-x-auto" aria-busy={loading}>
-        <table className="w-full min-w-[1030px] border-collapse text-left">
+        <table className="w-full min-w-[820px] border-collapse text-left">
           <thead><tr className="border-b border-slate-200 bg-slate-50">
-            {["Product code", "Description", "Unit", "Unit price", "Effective", "Status", "Last change", ...(showActions ? ["Actions"] : [])].map((heading) => <th key={heading} scope="col" className={`px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 first:pl-6 last:pr-6 ${heading === "Unit price" ? "text-right" : ""} ${heading === "Actions" ? "sticky right-0 z-10 border-l border-slate-200 bg-slate-50" : ""}`}>{heading}</th>)}
+            {headings.map((heading) => <th key={heading} scope="col" className={`px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 first:pl-6 last:pr-6 ${heading === "Unit price" ? "text-right" : ""} ${heading === "Actions" ? "sticky right-0 z-10 border-l border-slate-200 bg-slate-50" : ""}`}>{heading}</th>)}
           </tr></thead>
-          <tbody>{loading ? <SkeletonRows showActions={showActions} /> : products.map((product) => {
+          <tbody>{loading ? <SkeletonRows showActions={showActions} canViewAudit={canViewAudit} /> : products.map((product) => {
             const expanded = expandedProduct === product.code
             return <Fragment key={product.code}>
               <tr className={`border-b border-slate-100 transition-colors ${expanded ? "bg-blue-50/60" : product.status === "Active" ? "hover:bg-blue-50/40" : "bg-slate-50/70 hover:bg-slate-100"}`}>
@@ -122,8 +141,8 @@ export default function ProductTable({ products, pagination, loading, error, onP
                 <td className="px-5 py-4"><span className={`inline-flex min-w-12 justify-center rounded border px-2.5 py-1 text-xs font-bold uppercase ${unitStyles[product.unitType] ?? "border-slate-200 bg-slate-50 text-slate-700"}`}>{product.unitType}</span></td>
                 <td className="whitespace-nowrap px-5 py-4"><div className="flex items-center justify-end gap-2"><span className="text-sm font-bold tabular-nums text-slate-950">{product.currentPrice === null ? "No price" : currency.format(product.currentPrice)}</span><button type="button" aria-label={`${expanded ? "Hide" : "Show"} price history for ${product.code}`} aria-expanded={expanded} aria-controls={`price-history-${product.code}`} title="Price history" onClick={() => setExpandedProduct(expanded ? null : product.code)} className={`grid h-8 w-8 place-items-center rounded-md transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 ${expanded ? "bg-blue-800 text-white" : "text-slate-500 hover:bg-blue-100 hover:text-blue-800"}`}><HistoryIcon /></button></div></td>
                 <td className="whitespace-nowrap px-5 py-4 font-mono text-xs text-slate-600">{product.priceEffectiveDate || "—"}</td>
-                <td className="whitespace-nowrap px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${product.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{product.status === "Active" ? "Active" : "Archived"}</span></td>
-                <td className="max-w-52 px-5 py-4 font-mono text-[11px] leading-5 text-slate-500">{product.stamp || "—"}</td>
+                {canViewAudit && <td className="whitespace-nowrap px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${product.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{product.status === "Active" ? "Active" : "Archived"}</span></td>}
+                {canViewAudit && <td className="max-w-52 px-5 py-4 font-mono text-[11px] leading-5 text-slate-500">{product.stamp || "—"}</td>}
                 {showActions && <td className={`sticky right-0 z-10 border-l border-slate-100 px-5 py-4 pr-6 ${product.status === "Active" ? "bg-white" : "bg-slate-50"}`}><div className="flex items-center gap-1">
                   {product.status === "Active" ? <>
                     {canEdit && <button type="button" onClick={() => onEdit(product)} aria-label={`Edit ${product.code}`} title="Edit product" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-blue-100 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"><EditIcon /></button>}
@@ -131,7 +150,7 @@ export default function ProductTable({ products, pagination, loading, error, onP
                   </> : canDelete && onRestore ? <button type="button" onClick={() => onRestore(product)} disabled={restoringCode === product.code} aria-label={`Restore ${product.code}`} title="Restore product" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 disabled:cursor-wait disabled:opacity-50"><RestoreIcon /></button> : <span className="px-2 text-slate-400" aria-label="No actions for archived product">—</span>}
                 </div></td>}
               </tr>
-              {expanded && <tr className="border-b border-slate-200"><td colSpan={showActions ? 8 : 7} className="p-0"><PriceHistory code={product.code} /></td></tr>}
+              {expanded && <tr className="border-b border-slate-200"><td colSpan={headings.length} className="p-0"><PriceHistory code={product.code} canViewAudit={canViewAudit} /></td></tr>}
             </Fragment>
           })}</tbody>
         </table>

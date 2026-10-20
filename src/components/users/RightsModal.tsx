@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 
-import { permissionGroups } from "../../lib/users"
+import { departmentPermissionPresets, permissionGroups } from "../../lib/users"
 import type { PermissionGroup, SystemUser } from "../../types/user"
 
 function CloseIcon() {
@@ -19,6 +19,23 @@ function CloseIcon() {
   )
 }
 
+function getModulePresetValue(group: PermissionGroup, selectedRights: string[]): string {
+  const actionIds = group.permissions.map((p) => p.id)
+  const allModuleCodes = [group.accessRight, ...actionIds]
+  const currentInModule = allModuleCodes.filter((code) => selectedRights.includes(code))
+
+  if (currentInModule.length === 0) return "none"
+  if (allModuleCodes.every((code) => selectedRights.includes(code))) return "manager"
+
+  const matchesSet = (target: string[]) =>
+    currentInModule.length === target.length &&
+    target.every((code) => currentInModule.includes(code))
+
+  if (matchesSet(group.employeeDefaultIds)) return "employee"
+  if (matchesSet(group.viewerIds)) return "viewer"
+  return "custom"
+}
+
 export default function RightsModal({
   user,
   onClose,
@@ -29,11 +46,13 @@ export default function RightsModal({
   onSave: (userId: string, rights: string[]) => Promise<void>
 }) {
   const [selectedRights, setSelectedRights] = useState<string[]>([])
+  const [selectedPresetId, setSelectedPresetId] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
 
   useEffect(() => {
     setSelectedRights(user?.rights ?? [])
+    setSelectedPresetId("")
     setSaving(false)
     setError("")
 
@@ -48,6 +67,32 @@ export default function RightsModal({
 
   if (!user) return null
 
+  const applyDepartmentPreset = (presetId: string) => {
+    setSelectedPresetId(presetId)
+    const preset = departmentPermissionPresets.find((item) => item.id === presetId)
+    if (!preset) return
+    setSelectedRights([...preset.rights])
+  }
+
+  const applyModulePreset = (group: PermissionGroup, presetMode: string) => {
+    const actionIds = group.permissions.map((p) => p.id)
+    const allModuleCodes = [group.accessRight, ...actionIds]
+    setSelectedPresetId("")
+    setSelectedRights((current) => {
+      const withoutModule = current.filter((code) => !allModuleCodes.includes(code))
+      if (presetMode === "manager") {
+        return [...withoutModule, ...allModuleCodes]
+      }
+      if (presetMode === "employee") {
+        return [...withoutModule, ...group.employeeDefaultIds]
+      }
+      if (presetMode === "viewer") {
+        return [...withoutModule, ...group.viewerIds]
+      }
+      return withoutModule
+    })
+  }
+
   const toggleModuleAccess = (group: PermissionGroup) => {
     const actionIds = group.permissions.map((p) => p.id)
     const allModuleCodes = [group.accessRight, ...actionIds]
@@ -55,6 +100,7 @@ export default function RightsModal({
       selectedRights.includes(group.accessRight) ||
       actionIds.some((id) => selectedRights.includes(id))
 
+    setSelectedPresetId("")
     setSelectedRights((current) => {
       const withoutModule = current.filter((code) => !allModuleCodes.includes(code))
       return isEnabled ? withoutModule : [...withoutModule, group.accessRight]
@@ -64,6 +110,7 @@ export default function RightsModal({
   const setModuleRights = (group: PermissionGroup, selected: boolean) => {
     const actionIds = group.permissions.map((p) => p.id)
     const allModuleCodes = [group.accessRight, ...actionIds]
+    setSelectedPresetId("")
     setSelectedRights((current) => {
       const withoutModule = current.filter((right) => !allModuleCodes.includes(right))
       return selected ? [...withoutModule, ...allModuleCodes] : withoutModule
@@ -71,6 +118,7 @@ export default function RightsModal({
   }
 
   const toggleRight = (group: PermissionGroup, permissionId: string) => {
+    setSelectedPresetId("")
     setSelectedRights((current) => {
       if (current.includes(permissionId)) {
         return current.filter((right) => right !== permissionId)
@@ -86,6 +134,10 @@ export default function RightsModal({
   const actionRightsCount = permissionGroups
     .flatMap((group) => group.permissions.map((p) => p.id))
     .filter((id) => selectedRights.includes(id)).length
+
+  const activePreset = departmentPermissionPresets.find(
+    (item) => item.id === selectedPresetId,
+  )
 
   const handleSave = async () => {
     setSaving(true)
@@ -131,6 +183,9 @@ export default function RightsModal({
             <p className="mt-1 text-sm text-slate-500">
               {user.email}
               {user.empno ? ` · Emp #${user.empno}` : ""}
+              {user.jobTitle || user.departmentName
+                ? ` · ${[user.jobTitle, user.departmentName].filter(Boolean).join(" — ")}`
+                : ""}
             </p>
           </div>
           <button
@@ -145,11 +200,73 @@ export default function RightsModal({
         </header>
 
         <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-8">
-          <div className="border-l-2 border-blue-800 bg-blue-50 px-4 py-3">
+          <div className="grid gap-4 rounded-lg border border-slate-300 bg-slate-50 p-4 sm:grid-cols-[minmax(260px,1fr)_auto] sm:items-end">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-bold text-slate-800">
+                Pre-selected Department &amp; Role Configuration
+              </span>
+              <select
+                aria-label="Permission preset configuration"
+                value={selectedPresetId}
+                onChange={(event) => applyDepartmentPreset(event.target.value)}
+                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+              >
+                <option value="">Select a department / role preset…</option>
+                <optgroup label="Sales & CRM Department">
+                  <option value="sales-manager">Sales &amp; CRM — Manager</option>
+                  <option value="sales-employee">Sales &amp; CRM — Employee</option>
+                </optgroup>
+                <optgroup label="Inventory & Products Department">
+                  <option value="inventory-manager">Inventory &amp; Products — Manager</option>
+                  <option value="inventory-employee">Inventory &amp; Products — Employee</option>
+                </optgroup>
+                <optgroup label="Human Resources Department">
+                  <option value="hr-manager">Human Resources — Manager</option>
+                  <option value="hr-employee">Human Resources — Employee</option>
+                </optgroup>
+                <optgroup label="Accounting & Finance Department">
+                  <option value="accounting-manager">Accounting &amp; Finance — Manager</option>
+                  <option value="accounting-employee">Accounting &amp; Finance — Employee</option>
+                </optgroup>
+                <optgroup label="All Departments">
+                  <option value="all-manager">All Departments — Manager (Full Access)</option>
+                  <option value="all-employee">All Departments — Employee (Read-Only)</option>
+                </optgroup>
+              </select>
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => applyDepartmentPreset("all-manager")}
+                className="h-10 rounded-md border border-slate-300 bg-white px-3.5 text-xs font-bold text-blue-800 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+              >
+                Grant All
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedPresetId("")
+                  setSelectedRights([])
+                }}
+                className="h-10 rounded-md border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+              >
+                Clear All
+              </button>
+            </div>
+            {activePreset && (
+              <p className="text-xs leading-5 text-blue-900 sm:col-span-2">
+                <strong className="font-bold">{activePreset.label}:</strong>{" "}
+                {activePreset.description}
+              </p>
+            )}
+          </div>
+
+          <div className="mt-4 border-l-2 border-blue-800 bg-blue-50 px-4 py-3">
             <p className="text-xs font-semibold leading-5 text-blue-900">
               Ticking a module switch enables module access; the switches inside each
-              group grant specific Add, Edit, Delete, or Report actions. Changes apply
-              immediately on the user’s next request.
+              group grant specific Add, Edit, Delete, or Report actions. You can also
+              use each module’s preset selector to configure Manager or Employee rights
+              per department.
             </p>
           </div>
 
@@ -170,6 +287,7 @@ export default function RightsModal({
               ).length
               const moduleEnabled =
                 selectedRights.includes(group.accessRight) || selectedCount > 0
+              const modulePreset = getModulePresetValue(group, selectedRights)
 
               return (
                 <section
@@ -177,7 +295,7 @@ export default function RightsModal({
                   aria-labelledby={`rights-${group.module.replaceAll(" ", "-")}`}
                   className="overflow-hidden rounded-md border border-slate-300"
                 >
-                  <div className="flex items-center justify-between gap-4 border-b border-slate-300 bg-slate-100 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-300 bg-slate-100 px-4 py-3">
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
@@ -197,6 +315,20 @@ export default function RightsModal({
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
+                      <select
+                        aria-label={`${group.module} role preset`}
+                        value={modulePreset}
+                        onChange={(event) => applyModulePreset(group, event.target.value)}
+                        className="h-8 rounded border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 outline-none transition hover:border-slate-400 focus:border-blue-700"
+                      >
+                        <option value="manager">Manager (Full)</option>
+                        <option value="employee">Employee (Standard)</option>
+                        <option value="viewer">Viewer (Read-Only)</option>
+                        <option value="none">No Access</option>
+                        {modulePreset === "custom" && (
+                          <option value="custom">Custom Selection</option>
+                        )}
+                      </select>
                       <button
                         type="button"
                         onClick={() => setModuleRights(group, true)}

@@ -11,14 +11,21 @@ export default function SalesTable({
   onDetails,
   onDelete,
   onRestore,
+  canViewDetails = true,
+  canEdit = true,
+  canDelete = true,
   showAdminAudit = false,
 }: {
   sales: SaleTransaction[]
   onDetails: (sale: SaleTransaction) => void
   onDelete: (transactionNo: string) => void
   onRestore: (transactionNo: string) => void
+  canViewDetails?: boolean
+  canEdit?: boolean
+  canDelete?: boolean
   showAdminAudit?: boolean
 }) {
+  const showActions = canViewDetails || canEdit || canDelete
   return (
     <div className="overflow-hidden border border-slate-300 bg-white">
       <div className="overflow-x-auto">
@@ -32,9 +39,8 @@ export default function SalesTable({
                 "Employee",
                 "Total",
                 "Balance",
-                "Status",
-                ...(showAdminAudit ? ["Stamp"] : []),
-                "Actions",
+                ...(showAdminAudit ? ["Status", "Stamp"] : []),
+                ...(showActions ? ["Actions"] : []),
               ].map((heading) => (
                 <th
                   key={heading}
@@ -91,48 +97,60 @@ export default function SalesTable({
                   <td className="whitespace-nowrap px-4 py-4 text-right text-sm font-bold tabular-nums text-blue-900">
                     {currency.format(getSaleBalance(sale))}
                   </td>
-                  <td className="px-4 py-4">
-                    <StatusBadge status={sale.status} />
-                  </td>
+                  {showAdminAudit && (
+                    <td className="px-4 py-4">
+                      <StatusBadge status={sale.status} />
+                    </td>
+                  )}
                   {showAdminAudit && (
                     <td className="max-w-56 px-4 py-4 font-mono text-[10px] leading-5 text-slate-500">
                       {sale.stamp}
                     </td>
                   )}
-                  <td className="px-4 py-4 pr-6">
-                    {inactive ? (
-                      <button
-                        type="button"
-                        onClick={() => onRestore(sale.transactionNo)}
-                        className="text-xs font-bold text-emerald-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
-                      >
-                        Restore
-                      </button>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <button
-                          type="button"
-                          onClick={() => onDetails(sale)}
-                          className="text-xs font-bold text-blue-800 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
-                        >
-                          Details
-                        </button>
-                        <button
-                          type="button"
-                          className="text-xs font-bold text-slate-600 underline-offset-4 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onDelete(sale.transactionNo)}
-                          className="text-xs font-bold text-red-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </td>
+                  {showActions && (
+                    <td className="px-4 py-4 pr-6">
+                      {inactive ? (
+                        canDelete ? (
+                          <button
+                            type="button"
+                            onClick={() => onRestore(sale.transactionNo)}
+                            className="text-xs font-bold text-emerald-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
+                          >
+                            Restore
+                          </button>
+                        ) : null
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          {canViewDetails && (
+                            <button
+                              type="button"
+                              onClick={() => onDetails(sale)}
+                              className="text-xs font-bold text-blue-800 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+                            >
+                              Details
+                            </button>
+                          )}
+                          {canEdit && (
+                            <button
+                              type="button"
+                              className="text-xs font-bold text-slate-600 underline-offset-4 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+                            >
+                              Edit
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => onDelete(sale.transactionNo)}
+                              className="text-xs font-bold text-red-700 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </td>
+                  )}
                 </tr>
               )
             })}

@@ -293,3 +293,120 @@ test("waits for a pause in typing before searching users", async () => {
   )
   expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain("search=Smith")
 })
+
+test("allows superadmin to edit rights of admin and other superadmin accounts and accept pending accounts", async () => {
+  let users = [
+    { ...makeUser(2, "superadmin", false), status: "pending" as const },
+    makeUser(3, "admin", false),
+  ]
+
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: superAdminSession })
+    if (url.pathname === "/api/users/options") return success({ availableEmployees: [] })
+    if (url.pathname === "/api/users" && (!init?.method || init.method === "GET")) {
+      return success({
+        users,
+        pagination: { page: 1, limit: 10, total: users.length, totalPages: 1 },
+      })
+    }
+    if (url.pathname === `/api/users/${users[0].userId}/approve` && init?.method === "POST") {
+      users = users.map((u, idx) => (idx === 0 ? { ...u, status: "active" as const } : u))
+      return success({ user: users[0] })
+    }
+    if (url.pathname === `/api/users/${users[1].userId}/rights` && init?.method === "PUT") {
+      const body = JSON.parse(String(init.body))
+      users = users.map((u, idx) => (idx === 1 ? { ...u, rights: body.rights } : u))
+      return success({ user: users[1] })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <UserManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  expect(await screen.findByText("User2 Account")).toBeInTheDocument()
+  const otherSuperRow = screen.getByRole("row", { name: /User2 Account/ })
+  expect(within(otherSuperRow).getByText("Pending")).toBeInTheDocument()
+  expect(within(otherSuperRow).getByRole("button", { name: "Rights for User2 Account" })).toBeInTheDocument()
+
+  await user.click(within(otherSuperRow).getByRole("button", { name: "Accept User2 Account" }))
+  await waitFor(() =>
+    expect(within(screen.getByRole("row", { name: /User2 Account/ })).getByText("Active")).toBeInTheDocument(),
+  )
+  expect(screen.getByRole("status")).toHaveTextContent("User2 Account has been accepted and activated.")
+
+  const adminRow = screen.getByRole("row", { name: /User3 Account/ })
+  await user.click(within(adminRow).getByRole("button", { name: "Rights for User3 Account" }))
+  const dialog = screen.getByRole("dialog", { name: /Rights — User3 Account/ })
+  await user.click(within(dialog).getByRole("switch", { name: "Add Customer" }))
+  await user.click(within(dialog).getByRole("button", { name: "Save Rights" }))
+
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  expect(screen.getByRole("status")).toHaveTextContent("User permissions updated successfully.")
+})
+
+test("applies department and module permission presets in the Rights modal", async () => {
+  let savedRights: string[] = []
+  const users = [makeUser(3, "employee", false)]
+
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: superAdminSession })
+    if (url.pathname === "/api/users/options") return success({ availableEmployees: [] })
+    if (url.pathname === "/api/users" && (!init?.method || init.method === "GET")) {
+      return success({
+        users,
+        pagination: { page: 1, limit: 10, total: users.length, totalPages: 1 },
+      })
+    }
+    if (url.pathname === `/api/users/${users[0].userId}/rights` && init?.method === "PUT") {
+      const body = JSON.parse(String(init.body))
+      savedRights = body.rights
+      return success({ user: { ...users[0], rights: savedRights } })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <UserManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  expect(await screen.findByText("User3 Account")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Rights for User3 Account" }))
+  const dialog = screen.getByRole("dialog", { name: /Rights — User3 Account/ })
+
+  const presetSelect = within(dialog).getByLabelText("Permission preset configuration")
+  await user.selectOptions(presetSelect, "sales-manager")
+
+  expect(within(dialog).getByRole("switch", { name: "Add Customer" })).toHaveAttribute("aria-checked", "true")
+  expect(within(dialog).getByRole("switch", { name: "Delete Sale" })).toHaveAttribute("aria-checked", "true")
+  expect(within(dialog).getByRole("switch", { name: "Add Employee" })).toHaveAttribute("aria-checked", "false")
+
+  const hrModuleSelect = within(dialog).getByLabelText("Human Resources role preset")
+  await user.selectOptions(hrModuleSelect, "employee")
+  expect(within(dialog).getByRole("checkbox", { name: "Enable Human Resources module" })).toBeChecked()
+  expect(within(dialog).getByRole("switch", { name: "View Job History" })).toHaveAttribute("aria-checked", "true")
+  expect(within(dialog).getByRole("switch", { name: "Delete Employee" })).toHaveAttribute("aria-checked", "false")
+
+  await user.click(within(dialog).getByRole("button", { name: "Save Rights" }))
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  expect(savedRights).toContain("customers.add")
+  expect(savedRights).toContain("sales.delete")
+  expect(savedRights).toContain("hr.access")
+  expect(savedRights).toContain("hr.history.view")
+  expect(savedRights).not.toContain("hr.employee.delete")
+})

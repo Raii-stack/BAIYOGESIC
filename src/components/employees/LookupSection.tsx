@@ -21,10 +21,12 @@ function RestoreIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" /></svg>
 }
 
-export default function LookupSection({ kind, canEdit, canDelete, onChanged, onNotice, onTotalChange }: {
+export default function LookupSection({ kind, canAdd = canEdit, canEdit, canDelete, canViewAudit = true, onChanged, onNotice, onTotalChange }: {
   kind: "jobs" | "departments"
+  canAdd?: boolean
   canEdit: boolean
   canDelete: boolean
+  canViewAudit?: boolean
   onChanged: () => void
   onNotice: (message: string) => void
   onTotalChange: (total: number | null) => void
@@ -153,14 +155,19 @@ export default function LookupSection({ kind, canEdit, canDelete, onChanged, onN
   const showActions = canEdit || canDelete
   const start = pagination.total ? (pagination.page - 1) * pagination.limit + 1 : 0
   const end = pagination.total ? Math.min(start + items.length - 1, pagination.total) : 0
-  const headings = [isJobs ? "Job code" : "Dept code", isJobs ? "Description" : "Department name", "Status", "Last change", ...(showActions ? ["Actions"] : [])]
+  const headings = [
+    isJobs ? "Job code" : "Dept code",
+    isJobs ? "Description" : "Department name",
+    ...(canViewAudit ? ["Status", "Last change"] : []),
+    ...(showActions ? ["Actions"] : []),
+  ]
 
   return (
     <>
       <section aria-label={`${singular} filters`} className="mb-5 grid gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-[0_8px_28px_rgba(15,39,67,0.04)] md:grid-cols-2 lg:grid-cols-[minmax(220px,1fr)_180px_auto] lg:items-end">
         <label><span className="mb-2 block text-xs font-bold text-slate-700">Search {kind}</span><span className="relative block"><DashboardIcon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" /><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder={isJobs ? "Job code or description" : "Dept code or department name"} className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm outline-none transition focus:border-blue-700 focus:bg-white focus:ring-3 focus:ring-blue-100" /></span></label>
-        <label><span className="mb-2 block text-xs font-bold text-slate-700">Status</span><select value={status} onChange={(event) => { setStatus(event.target.value as "all" | "active" | "archived"); setPage(1) }} className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-blue-700"><option value="all">All statuses</option><option value="active">Active</option><option value="archived">Archived</option></select></label>
-        {canEdit && <button type="button" onClick={() => openModal(null)} className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:ring-4 focus-visible:ring-blue-200">+ Add {singular.toLowerCase()}</button>}
+        {canViewAudit && <label><span className="mb-2 block text-xs font-bold text-slate-700">Status</span><select value={status} onChange={(event) => { setStatus(event.target.value as "all" | "active" | "archived"); setPage(1) }} className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-blue-700"><option value="all">All statuses</option><option value="active">Active</option><option value="archived">Archived</option></select></label>}
+        {canAdd && <button type="button" onClick={() => openModal(null)} className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:ring-4 focus-visible:ring-blue-200">+ Add {singular.toLowerCase()}</button>}
       </section>
 
       {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{error}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
@@ -172,8 +179,8 @@ export default function LookupSection({ kind, canEdit, canDelete, onChanged, onN
             <tr key={item.code} className={`border-b border-slate-100 transition-colors last:border-0 ${item.archived ? "bg-slate-50/70 hover:bg-slate-100" : "hover:bg-blue-50/40"}`}>
               <td className="whitespace-nowrap px-5 py-4 pl-6 font-mono text-xs font-semibold text-blue-800">{item.code}</td>
               <td className="px-5 py-4 text-sm font-semibold text-slate-950">{item.label}</td>
-              <td className="whitespace-nowrap px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.archived ? "bg-slate-200 text-slate-700" : "bg-emerald-100 text-emerald-800"}`}>{item.archived ? "Archived" : "Active"}</span></td>
-              <td className="max-w-56 px-5 py-4 font-mono text-[11px] leading-5 text-slate-500">{item.stamp || "—"}</td>
+              {canViewAudit && <td className="whitespace-nowrap px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${item.archived ? "bg-slate-200 text-slate-700" : "bg-emerald-100 text-emerald-800"}`}>{item.archived ? "Archived" : "Active"}</span></td>}
+              {canViewAudit && <td className="max-w-56 px-5 py-4 font-mono text-[11px] leading-5 text-slate-500">{item.stamp || "—"}</td>}
               {showActions && <td className={`sticky right-0 z-10 border-l border-slate-100 px-5 py-4 pr-6 ${item.archived ? "bg-slate-50" : "bg-white"}`}><div className="flex items-center gap-1">
                 {!item.archived ? <>
                   {canEdit && <button type="button" onClick={() => openModal(item)} aria-label={`Edit ${item.label}`} title={`Edit ${singular.toLowerCase()}`} className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-blue-100 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"><EditIcon /></button>}

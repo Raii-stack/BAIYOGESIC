@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 
 const express = require('express');
 const cors = require('cors');
@@ -8,6 +8,7 @@ const { supabase } = require('./db');
 const { asyncHandler, errorHandler } = require('./middleware/error-handler');
 const { auditContext } = require('./middleware/audit-context');
 const authRoutes = require('./routes/auth-routes');
+const customerRoutes = require('./routes/customer-routes');
 
 const app = express();
 const port = Number.parseInt(process.env.PORT || '3000', 10);
@@ -18,13 +19,33 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 
 app.disable('x-powered-by');
 app.use(helmet());
+const allowedOrigins = new Set(
+  (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+);
+
+if (process.env.VERCEL_URL) {
+  allowedOrigins.add(`https://${process.env.VERCEL_URL}`);
+}
+if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+  allowedOrigins.add(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`);
+}
+
 app.use(cors({
-  origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  origin(origin, callback) {
+    if (!origin || allowedOrigins.has(origin) || /\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, false);
+  },
   credentials: true
 }));
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
 app.use('/api/auth', auditContext, authRoutes);
+app.use('/api/customers', customerRoutes);
 
 app.get('/health', asyncHandler(async (req, res) => {
   const { error } = await supabase.from('_health_check').select('*').limit(1);

@@ -6,7 +6,8 @@ const {
   SUPABASE_URL,
   SUPABASE_KEY,
   SUPABASE_SERVICE_ROLE_KEY,
-  DATABASE_URL
+  DATABASE_URL,
+  DATABASE_POOLER_HOST
 } = process.env;
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
@@ -35,9 +36,19 @@ const authSupabase = SUPABASE_SERVICE_ROLE_KEY
     })
   : null;
 
+function databaseConnectionString() {
+  if (!DATABASE_URL || !DATABASE_POOLER_HOST) return DATABASE_URL;
+  const connection = new URL(DATABASE_URL);
+  const projectRef = new URL(SUPABASE_URL).hostname.split('.')[0];
+  connection.hostname = DATABASE_POOLER_HOST;
+  connection.port = '5432';
+  connection.username = `postgres.${projectRef}`;
+  return connection.toString();
+}
+
 const pool = DATABASE_URL
   ? new Pool({
-      connectionString: DATABASE_URL,
+      connectionString: databaseConnectionString(),
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined
     })
   : null;

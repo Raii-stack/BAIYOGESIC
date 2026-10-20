@@ -40,6 +40,16 @@ function shouldReturnResetToken() {
   return process.env.NODE_ENV !== 'production' && process.env.RETURN_RESET_TOKEN === 'true';
 }
 
+async function fetchUserRights(userId) {
+  if (!authSupabase || !userId) return [];
+  const { data, error } = await authSupabase
+    .from('app_user_right')
+    .select('right_code')
+    .eq('user_id', userId);
+  if (error || !Array.isArray(data)) return [];
+  return data.map((row) => row.right_code).filter(Boolean);
+}
+
 const register = asyncHandler(async (req, res) => {
   const { firstName, lastName, email } = req.body || {};
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -227,7 +237,7 @@ const login = asyncHandler(async (req, res) => {
 
   const { data: candidates, error } = await authSupabase
     .from('app_user')
-    .select('user_id, empno, email, password_hash, role, status, must_change_password')
+    .select('user_id, empno, email, password_hash, role, status, is_blocked, must_change_password')
     .eq('email', normalizedEmail)
     .eq('status', 'active')
     .limit(1);
@@ -247,6 +257,12 @@ const login = asyncHandler(async (req, res) => {
   if (!user) {
     throw requestError('Invalid email or password', 401);
   }
+
+  if (user.is_blocked) {
+    throw requestError('Your account has been blocked. Contact an administrator.', 403);
+  }
+
+  const rights = await fetchUserRights(user.user_id);
 
   const token = jwt.sign(
     { sub: String(user.user_id), empno: user.empno, email: user.email, role: user.role },
@@ -271,7 +287,47 @@ const login = asyncHandler(async (req, res) => {
         email: user.email,
         role: user.role,
         status: user.status,
-        mustChangePassword: user.must_change_password
+        isBlocked: Boolean(user.is_blocked),
+        mustChangePassword: user.must_change_password,
+        rights
+      }
+    }
+  });
+});
+
+const session = asyncHandler(async (req, res) => {
+  if (!authSupabase) {
+    throw requestError('Authentication service unavailable', 503);
+  }
+
+  const { data: user, error } = await authSupabase
+    .from('app_user')
+    .select('user_id, empno, email, role, status, is_blocked, must_change_password')
+    .eq('user_id', req.user.sub)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (error) {
+    throw requestError('Authentication service unavailable', 503);
+  }
+  if (!user || user.is_blocked) {
+    throw requestError('Authentication required', 401);
+  }
+
+  const rights = await fetchUserRights(user.user_id);
+
+  res.json({
+    success: true,
+    data: {
+      user: {
+        userId: user.user_id,
+        empno: user.empno,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        isBlocked: Boolean(user.is_blocked),
+        mustChangePassword: user.must_change_password,
+        rights
       }
     }
   });
@@ -309,13 +365,17 @@ const changePassword = asyncHandler(async (req, res) => {
 
   const { data: user, error: readError } = await authSupabase
     .from('app_user')
-    .select('password_hash')
+    .select('password_hash, is_blocked')
     .eq('user_id', req.user.sub)
     .eq('status', 'active')
     .maybeSingle();
 
   if (readError || !user) {
     throw requestError('Authentication service unavailable', 503);
+  }
+
+  if (user.is_blocked) {
+    throw requestError('Your account has been blocked. Contact an administrator.', 403);
   }
 
   if (!await bcrypt.compare(currentPassword, user.password_hash)) {
@@ -345,6 +405,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   login,
+  session,
   logout,
   changePassword
 };

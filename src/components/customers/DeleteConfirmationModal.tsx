@@ -4,7 +4,9 @@ type DeleteConfirmationModalProps = {
   customerName: string
   open: boolean
   onCancel: () => void
-  onConfirm: () => void
+  onConfirm: () => Promise<void>
+  loading: boolean
+  error: string
 }
 
 function WarningIcon() {
@@ -30,17 +32,19 @@ export default function DeleteConfirmationModal({
   open,
   onCancel,
   onConfirm,
+  loading,
+  error,
 }: DeleteConfirmationModalProps) {
   useEffect(() => {
     if (!open) return
 
     const cancelOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCancel()
+      if (event.key === "Escape" && !loading) onCancel()
     }
 
     window.addEventListener("keydown", cancelOnEscape)
     return () => window.removeEventListener("keydown", cancelOnEscape)
-  }, [onCancel, open])
+  }, [onCancel, open, loading])
 
   if (!open) return null
 
@@ -49,7 +53,7 @@ export default function DeleteConfirmationModal({
       <button
         type="button"
         aria-label="Cancel archive"
-        onClick={onCancel}
+        onClick={() => { if (!loading) onCancel() }}
         className="absolute inset-0 bg-slate-950/70"
       />
 
@@ -80,16 +84,17 @@ export default function DeleteConfirmationModal({
             id="archive-dialog-description"
             className="mx-auto mt-4 max-w-md text-sm leading-6 text-slate-600"
           >
-            Are you sure you want to delete this customer? This action will hide
-            the record from active views. If this customer has active sales
-            records, the deletion will be blocked by the system.
+            Archive this customer? The record will stay in the directory with
+            Archived status. Customers with active sales cannot be archived.
           </p>
         </div>
 
+        {error && <p role="alert" className="px-6 pb-4 text-sm font-semibold text-red-700 sm:px-9">{error}</p>}
         <div className="grid grid-cols-2 gap-3 border-t border-slate-300 bg-slate-50 px-5 py-4 sm:px-8">
           <button
             type="button"
             onClick={onCancel}
+              disabled={loading}
             autoFocus
             className="h-11 rounded-md border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 sm:text-sm"
           >
@@ -98,9 +103,10 @@ export default function DeleteConfirmationModal({
           <button
             type="button"
             onClick={onConfirm}
-            className="h-11 rounded-md bg-red-700 px-3 text-xs font-bold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-200 sm:text-sm"
+              disabled={loading}
+              className="h-11 rounded-md bg-red-700 px-3 text-xs font-bold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-200 disabled:cursor-wait disabled:opacity-70 sm:text-sm"
           >
-            Yes, Archive Record
+              {loading ? "Archiving…" : "Yes, Archive Record"}
           </button>
         </div>
       </section>

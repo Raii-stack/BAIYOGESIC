@@ -65,6 +65,7 @@ export default function AddJobHistoryModal({
       jobTitle: jobTitle.trim(),
       department: department.trim(),
       salary: Number(salary),
+      stamp: "CREATED system 2026-10-01 9:00 AM",
     })
     onClose()
   }

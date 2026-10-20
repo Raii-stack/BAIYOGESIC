@@ -277,6 +277,40 @@ const login = asyncHandler(async (req, res) => {
   });
 });
 
+const session = asyncHandler(async (req, res) => {
+  if (!authSupabase) {
+    throw requestError('Authentication service unavailable', 503);
+  }
+
+  const { data: user, error } = await authSupabase
+    .from('app_user')
+    .select('user_id, empno, email, role, status, must_change_password')
+    .eq('user_id', req.user.sub)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (error) {
+    throw requestError('Authentication service unavailable', 503);
+  }
+  if (!user) {
+    throw requestError('Authentication required', 401);
+  }
+
+  res.json({
+    success: true,
+    data: {
+      user: {
+        userId: user.user_id,
+        empno: user.empno,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        mustChangePassword: user.must_change_password
+      }
+    }
+  });
+});
+
 const logout = asyncHandler(async (req, res) => {
   res.clearCookie('access_token', {
     httpOnly: true,
@@ -345,6 +379,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   login,
+  session,
   logout,
   changePassword
 };

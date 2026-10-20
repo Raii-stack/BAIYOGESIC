@@ -1,5 +1,5 @@
-const crypto = require('crypto');
 const { requirePool } = require('../db');
+const { nextCustomerId } = require('../lib/customer-id');
 const { asyncHandler } = require('../middleware/error-handler');
 
 const PAYMENT_TERMS = new Set(['COD', '30D', '45D']);
@@ -39,6 +39,9 @@ function validateCustomerPayload(body) {
   if (!custname || !address || !PAYMENT_TERMS.has(payterm)) {
     throw requestError('custname, address, and payterm are required; payterm must be COD, 30D, or 45D', 400);
   }
+  if (custname.length > 20 || address.length > 50) {
+    throw requestError('Customer name must be at most 20 characters and address at most 50 characters', 400);
+  }
 
   return { custname, address, payterm };
 }
@@ -64,15 +67,24 @@ const listCustomers = asyncHandler(async (req, res) => {
   const page = parsePositiveInteger(req.query.page, DEFAULT_PAGE);
   const limit = parsePositiveInteger(req.query.limit, DEFAULT_LIMIT, MAX_LIMIT);
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+  const payterm = typeof req.query.payterm === 'string' ? req.query.payterm.trim().toUpperCase() : '';
+  if (payterm && !PAYMENT_TERMS.has(payterm)) {
+    throw requestError('payterm must be COD, 30D, or 45D', 400);
+  }
   const offset = (page - 1) * limit;
   const values = [];
   const filters = [];
 
   if (search) {
     values.push(`%${search}%`);
-    filters.push(`custname ILIKE $${values.length}`);
+    filters.push(`(custno ILIKE $${values.length} OR custname ILIKE $${values.length} OR address ILIKE $${values.length})`);
+  }
+  if (payterm) {
+    values.push(payterm);
+    filters.push(`payterm = $${values.length}`);
   }
 
+  const filterValues = [...values];
   values.push(limit, offset);
   const limitParameter = values.length - 1;
   const offsetParameter = values.length;
@@ -86,12 +98,11 @@ const listCustomers = asyncHandler(async (req, res) => {
     values
   );
 
-  const countValues = search ? [`%${search}%`] : [];
   const countResult = await requirePool().query(
     `SELECT count(*)::integer AS total
      FROM public.customer_active
-     ${search ? 'WHERE custname ILIKE $1' : ''}`,
-    countValues
+     ${whereClause}`,
+    filterValues
   );
   const total = countResult.rows[0].total;
 
@@ -113,11 +124,14 @@ const createCustomer = asyncHandler(async (req, res) => {
   const body = req.body || {};
   const { custname, address, payterm } = validateCustomerPayload(body);
   const requestedCustno = typeof body.custno === 'string' ? body.custno.trim() : '';
-  const custno = requestedCustno || `CUS-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+  if (requestedCustno.length > 5) {
+    throw requestError('Customer ID must be at most 5 characters', 400);
+  }
 
   let customer;
   try {
     customer = await withAuditContext(req.user.email, async (client) => {
+      const custno = requestedCustno || await nextCustomerId(client);
       const result = await client.query(
         `INSERT INTO public.customer (custno, custname, address, payterm, is_deleted)
          VALUES ($1, $2, $3, $4, false)

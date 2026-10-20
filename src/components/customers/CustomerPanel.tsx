@@ -1,11 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { Customer, PaymentTerm } from "../../types/customer"
+import type { CustomerInput } from "../../lib/customer-api"
 
 type CustomerPanelProps = {
   customer: Customer | null
   open: boolean
   onClose: () => void
+  onSave: (input: CustomerInput) => Promise<void>
 }
 
 function CloseIcon() {
@@ -28,6 +30,7 @@ export default function CustomerPanel({
   customer,
   open,
   onClose,
+  onSave,
 }: CustomerPanelProps) {
   const [customerName, setCustomerName] = useState("")
   const [address, setAddress] = useState("")
@@ -35,6 +38,8 @@ export default function CustomerPanel({
   const [nameError, setNameError] = useState("")
   const [addressError, setAddressError] = useState("")
   const [paymentTermError, setPaymentTermError] = useState("")
+  const [saveError, setSaveError] = useState("")
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -45,26 +50,33 @@ export default function CustomerPanel({
     setNameError("")
     setAddressError("")
     setPaymentTermError("")
+    setSaveError("")
   }, [customer, open])
 
   useEffect(() => {
     if (!open) return
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
+      if (event.key === "Escape" && !saving) onClose()
     }
 
     window.addEventListener("keydown", closeOnEscape)
     return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [onClose, open])
+  }, [onClose, open, saving])
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
 
-    const nextNameError = customerName.trim()
-      ? ""
-      : "Customer Name is required."
-    const nextAddressError = address.trim() ? "" : "Address is required."
+    const nextNameError = !customerName.trim()
+      ? "Customer Name is required."
+      : customerName.trim().length > 20
+        ? "Customer Name must be 20 characters or fewer."
+        : ""
+    const nextAddressError = !address.trim()
+      ? "Address is required."
+      : address.trim().length > 50
+        ? "Address must be 50 characters or fewer."
+        : ""
     const nextPaymentTermError = paymentTerm ? "" : "Payment Term is required."
 
     setNameError(nextNameError)
@@ -72,7 +84,16 @@ export default function CustomerPanel({
     setPaymentTermError(nextPaymentTermError)
     if (nextNameError || nextAddressError || nextPaymentTermError) return
 
-    onClose()
+    setSaving(true)
+    setSaveError("")
+    try {
+      await onSave({ custname: customerName.trim(), address: address.trim(), payterm: paymentTerm as PaymentTerm })
+      onClose()
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to save customer.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -81,11 +102,12 @@ export default function CustomerPanel({
         open ? "pointer-events-auto" : "pointer-events-none"
       }`}
       aria-hidden={!open}
+      inert={!open}
     >
       <button
         type="button"
         aria-label="Close customer details"
-        onClick={onClose}
+        onClick={() => { if (!saving) onClose() }}
         tabIndex={open ? 0 : -1}
         className={`absolute inset-0 bg-slate-950/45 transition-opacity duration-200 ${
           open ? "opacity-100" : "opacity-0"
@@ -119,7 +141,7 @@ export default function CustomerPanel({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { if (!saving) onClose() }}
             aria-label="Close customer details"
             className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
           >
@@ -164,6 +186,7 @@ export default function CustomerPanel({
                 <input
                   type="text"
                   value={customerName}
+                  maxLength={20}
                   onChange={(event) => {
                     setCustomerName(event.target.value)
                     if (nameError) setNameError("")
@@ -194,6 +217,7 @@ export default function CustomerPanel({
                 </span>
                 <textarea
                   value={address}
+                  maxLength={50}
                   onChange={(event) => {
                     setAddress(event.target.value)
                     if (addressError) setAddressError("")
@@ -244,9 +268,9 @@ export default function CustomerPanel({
                     }`}
                   >
                     <option value="">Select payment terms</option>
-                    <option value="Net 30">Net 30</option>
+                    <option value="30D">Net 30</option>
                     <option value="COD">COD</option>
-                    <option value="Prepaid">Prepaid</option>
+                    <option value="45D">Net 45</option>
                   </select>
                   <svg
                     aria-hidden="true"
@@ -273,18 +297,21 @@ export default function CustomerPanel({
           </div>
 
           <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-300 bg-white px-6 py-4 sm:px-8">
+            {saveError && <p role="alert" className="mr-auto text-xs font-semibold text-red-700">{saveError}</p>}
             <button
               type="button"
               onClick={onClose}
+              disabled={saving}
               className="h-11 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+              disabled={saving}
+              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 disabled:cursor-wait disabled:opacity-70"
             >
-              Save Customer
+              {saving ? "Saving…" : customer ? "Save changes" : "Create customer"}
             </button>
           </footer>
         </form>

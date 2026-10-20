@@ -21,15 +21,27 @@ runs elsewhere. Set `VITE_API_BASE_URL` to the API origin when the frontend and
 backend are hosted on different origins and the backend is configured for
 credentialed CORS; otherwise, route `/api` through a same-origin reverse proxy.
 
-Authentication uses `POST /api/auth/register`, `POST /api/auth/login`, and
-`POST /api/auth/logout`. The backend sets and clears an HttpOnly `access_token`
-cookie, so the frontend sends requests with credentials and keeps the signed-in
-user in React Context; it does not expose or persist the token in JavaScript.
+Sign-in uses `POST /api/auth/login`. The frontend restores a session with
+`GET /api/auth/session`, changes a default password with
+`POST /api/auth/change-password`, and signs out with `POST /api/auth/logout`.
+The backend sets and clears an HttpOnly `access_token` cookie, so the frontend
+sends requests with credentials and keeps the signed-in user in React Context;
+it does not expose or persist the token in JavaScript. If the backend returns
+`mustChangePassword`, the user must complete the password-change dialog before
+entering the workspace.
 Registration sends `firstName`, `lastName`, and `email`, creating an account
 that remains pending until administrator approval.
 
-Run `npm install`, then start the API with `npm run api:dev` and the frontend
-with `npm run dev` in separate terminals. Run `npm test` for the auth form tests
+Customer Management loads active records from `GET /api/customers` with
+server-side search, payment-term filtering, and pagination. Administrators can
+create, edit, and archive customers; admins can create and edit; employees and
+users can view the directory. Payment terms use the database codes `30D`,
+`45D`, and `COD`. If the database's direct hostname is IPv6-only in your
+environment, set `DATABASE_POOLER_HOST` to the session pooler hostname shown
+by Supabase; the server keeps the database password in `DATABASE_URL`.
+
+Run `npm install`, then use `npm run dev` to start the API and frontend together.
+Run `npm test` for the auth flow test
 and `npm run build` to create the production bundle.
 
 ### Possible project structure

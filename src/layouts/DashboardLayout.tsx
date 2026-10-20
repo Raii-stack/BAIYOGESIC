@@ -1,5 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react"
-import { Link } from "react-router"
+import { Link, useNavigate } from "react-router"
+
+import { useAuth } from "../components/auth/AuthProvider"
 
 import {
   DashboardIcon,
@@ -20,6 +22,9 @@ export default function DashboardLayout({
   activeNavigation = "Dashboard",
   searchPlaceholder = "Search workspace",
 }: DashboardLayoutProps) {
+  const navigate = useNavigate()
+  const { logout } = useAuth()
+  const [logoutError, setLogoutError] = useState("")
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => window.localStorage.getItem(sidebarPreferenceKey) === "true",
   )
@@ -110,8 +115,17 @@ export default function DashboardLayout({
         </nav>
 
         <div className="border-t border-white/10 p-3">
-          <Link
-            to="/"
+          <button
+            type="button"
+            onClick={async () => {
+              setLogoutError("")
+              try {
+                await logout()
+                navigate("/", { replace: true })
+              } catch (error) {
+                setLogoutError(error instanceof Error ? error.message : "Unable to sign out.")
+              }
+            }}
             className={`flex h-10 w-full items-center gap-3 rounded-md px-3 text-xs font-semibold text-slate-300 transition hover:bg-red-500/10 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 ${
               sidebarCollapsed ? "lg:justify-center lg:gap-0 lg:px-0" : ""
             }`}
@@ -130,7 +144,8 @@ export default function DashboardLayout({
               <path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10" />
             </svg>
             <span className={sidebarCollapsed ? "lg:hidden" : ""}>Log Out</span>
-          </Link>
+          </button>
+          {logoutError && <p role="alert" className="px-3 text-xs text-red-200">{logoutError}</p>}
           <button
             type="button"
             onClick={() => setSidebarCollapsed((current) => !current)}

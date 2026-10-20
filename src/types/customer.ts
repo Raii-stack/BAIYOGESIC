@@ -1,4 +1,4 @@
-export type PaymentTerm = "Net 30" | "COD" | "Prepaid"
+export type PaymentTerm = "30D" | "45D" | "COD"
 
 export type Customer = {
   id: string

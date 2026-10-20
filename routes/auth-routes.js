@@ -5,6 +5,7 @@ const {
   forgotPassword,
   resetPassword,
   login,
+  session,
   logout,
   changePassword
 } = require('../controllers/auth-controller');
@@ -18,6 +19,7 @@ router.post('/first-time-login', setPassword);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.post('/login', login);
+router.get('/session', authenticate, session);
 router.post('/logout', authenticate, logout);
 router.post('/change-password', authenticate, changePassword);
 

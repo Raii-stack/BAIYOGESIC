@@ -1,39 +1,48 @@
 import { useState, type FormEvent } from "react"
-import { Link, useNavigate } from "react-router"
+import { Link, Navigate, useNavigate } from "react-router"
 
+import { useAuth } from "../auth/AuthProvider"
+import ChangePasswordModal from "../auth/ChangePasswordModal"
 import type { Errors } from "../../types/auth"
 import { emailOk } from "../../utils/validation"
 import {
   AuthShell,
   Field,
   Submit,
-  SuccessMessage,
-  useFakeSubmission,
 } from "../auth/AuthComponents"
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { user, loading, login } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<Errors>({})
   const [authenticationError, setAuthenticationError] = useState("")
-  const submission = useFakeSubmission()
+  const [submitting, setSubmitting] = useState(false)
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
     const nextErrors: Errors = {}
     if (!emailOk(email)) nextErrors.email = "Enter a valid work email address."
     if (!password) nextErrors.password = "Password is required."
     setErrors(nextErrors)
-    setAuthenticationError(
-      Object.keys(nextErrors).length
-        ? "Invalid credentials. Account will lock after 2 more failed attempts"
-        : "",
-    )
-    if (!Object.keys(nextErrors).length) {
-      submission.run(() => navigate("/dashboard"))
+    setAuthenticationError("")
+    if (Object.keys(nextErrors).length) return
+
+    setSubmitting(true)
+    try {
+      const signedInUser = await login(email, password)
+      setPassword("")
+      if (!signedInUser.mustChangePassword) navigate("/dashboard", { replace: true })
+    } catch (error) {
+      setAuthenticationError(error instanceof Error ? error.message : "Unable to sign in.")
+    } finally {
+      setSubmitting(false)
     }
   }
+
+  if (loading) return <div role="status" className="grid min-h-screen place-items-center bg-[#edf1f5] text-sm text-slate-600">Checking your session…</div>
+  if (user && !user.mustChangePassword) return <Navigate to="/dashboard" replace />
 
   return (
     <AuthShell
@@ -71,14 +80,7 @@ export default function LoginPage() {
           }}
           error={errors.password}
         />
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <label className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-slate-600">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 accent-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
-            />
-            Remember me
-          </label>
+        <div className="mb-6 flex items-center justify-end">
           <Link
             to="/reset-password"
             className="text-[13px] font-semibold text-blue-800 transition hover:text-blue-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
@@ -104,17 +106,12 @@ export default function LoginPage() {
               <circle cx="10" cy="10" r="8" />
               <path d="M10 6v5M10 14h.01" />
             </svg>
-            Invalid credentials. Account will lock after 2 more failed attempts
+            {authenticationError}
           </div>
         )}
-        <Submit loading={submission.loading} loadingLabel="Signing you in…">
+        <Submit loading={submitting} loadingLabel="Signing you in…">
           Sign in
         </Submit>
-        {submission.done && (
-          <SuccessMessage>
-            Signed in successfully. Redirecting to your workspace.
-          </SuccessMessage>
-        )}
       </form>
 
       <div className="mt-8 border-t border-slate-200 pt-6">
@@ -128,6 +125,9 @@ export default function LoginPage() {
           </Link>
         </p>
       </div>
+      {user?.mustChangePassword && (
+        <ChangePasswordModal onComplete={() => navigate("/dashboard", { replace: true })} />
+      )}
     </AuthShell>
   )
 }

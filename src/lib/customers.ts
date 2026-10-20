@@ -7,6 +7,8 @@ export const customers: Customer[] = [
     name: "Procurement Account",
     address: "1200 Market Street, Suite 210",
     paymentTerm: "30D",
+    status: "Active",
+    stamp: "EDITED user1 2026-10-08 2:14 PM",
   },
   {
     id: "CUS-1002",
@@ -14,6 +16,8 @@ export const customers: Customer[] = [
     name: "Operations Account",
     address: "48 Industrial Park Road",
     paymentTerm: "45D",
+    status: "Active",
+    stamp: "CREATED system 2026-09-21 9:30 AM",
   },
   {
     id: "CUS-1003",
@@ -21,6 +25,8 @@ export const customers: Customer[] = [
     name: "Retail Account",
     address: "780 Harbor Avenue",
     paymentTerm: "COD",
+    status: "Active",
+    stamp: "EDITED user1 2026-10-02 11:05 AM",
   },
   {
     id: "CUS-1004",
@@ -28,6 +34,8 @@ export const customers: Customer[] = [
     name: "Service Account",
     address: "325 Summit Drive",
     paymentTerm: "30D",
+    status: "Inactive",
+    stamp: "DELETED user2 2026-10-07 4:42 PM",
   },
   {
     id: "CUS-1005",
@@ -35,6 +43,8 @@ export const customers: Customer[] = [
     name: "Distribution Account",
     address: "910 Westbridge Boulevard",
     paymentTerm: "45D",
+    status: "Active",
+    stamp: "CREATED system 2026-08-16 10:18 AM",
   },
   {
     id: "CUS-1006",
@@ -42,6 +52,8 @@ export const customers: Customer[] = [
     name: "Wholesale Account",
     address: "64 Evergreen Commerce Way",
     paymentTerm: "COD",
+    status: "Active",
+    stamp: "EDITED user1 2026-10-05 1:22 PM",
   },
   {
     id: "CUS-1007",
@@ -49,6 +61,8 @@ export const customers: Customer[] = [
     name: "Facilities Account",
     address: "221 Central Exchange",
     paymentTerm: "30D",
+    status: "Active",
+    stamp: "CREATED system 2026-07-29 8:55 AM",
   },
   {
     id: "CUS-1008",
@@ -56,6 +70,8 @@ export const customers: Customer[] = [
     name: "Technical Account",
     address: "505 Clearwater Lane",
     paymentTerm: "45D",
+    status: "Active",
+    stamp: "EDITED user1 2026-09-30 3:47 PM",
   },
   {
     id: "CUS-1009",
@@ -63,6 +79,8 @@ export const customers: Customer[] = [
     name: "Hospitality Account",
     address: "17 Oakwell Plaza",
     paymentTerm: "COD",
+    status: "Inactive",
+    stamp: "DELETED user2 2026-10-01 12:08 PM",
   },
   {
     id: "CUS-1010",
@@ -70,5 +88,7 @@ export const customers: Customer[] = [
     name: "Medical Supply Account",
     address: "840 Redwood Center",
     paymentTerm: "30D",
+    status: "Active",
+    stamp: "CREATED system 2026-09-11 10:36 AM",
   },
 ]

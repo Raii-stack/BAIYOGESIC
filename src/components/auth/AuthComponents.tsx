@@ -141,7 +141,7 @@ export function Field({
   const inputType = passwordToggle && visible ? "text" : type
 
   return (
-    <div>
+    <div className="mb-5">
       <label
         htmlFor={id}
         className="mb-2 block text-[13px] font-semibold text-slate-700"
@@ -189,11 +189,13 @@ export function Field({
       <p
         id={errorId}
         aria-live="polite"
-        className={`min-h-6 pt-1.5 text-xs font-medium ${
-          error ? "text-red-600" : "opacity-0"
-        }`}
+        className={
+          error
+            ? "mt-2 text-xs font-medium leading-4 text-red-600"
+            : "sr-only"
+        }
       >
-        {error || "\u00a0"}
+        {error}
       </p>
     </div>
   )
@@ -209,7 +211,7 @@ export function RoleField({
   error?: string
 }) {
   return (
-    <div>
+    <div className="mb-5">
       <label
         htmlFor="account-role"
         className="mb-2 block text-[13px] font-semibold text-slate-700"
@@ -259,11 +261,13 @@ export function RoleField({
       <p
         id="account-role-error"
         aria-live="polite"
-        className={`min-h-6 pt-1.5 text-xs font-medium ${
-          error ? "text-red-600" : "opacity-0"
-        }`}
+        className={
+          error
+            ? "mt-2 text-xs font-medium leading-4 text-red-600"
+            : "sr-only"
+        }
       >
-        {error || "\u00a0"}
+        {error}
       </p>
     </div>
   )
@@ -390,9 +394,8 @@ export function AuthShell({
   const details = pageDetails[page]
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#edf1f5] px-4 py-5 font-sans antialiased sm:px-6 sm:py-8 lg:px-8">
-      <div className="flex w-full flex-1 items-center justify-center">
-        <div className="mx-auto flex w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_24px_70px_rgba(15,39,67,0.10)] lg:grid lg:min-h-[720px] lg:grid-cols-[0.82fr_1.18fr]">
+    <main className="flex min-h-screen flex-col bg-[#edf1f5] px-4 py-5 font-sans antialiased sm:px-6 sm:py-8 lg:grid lg:place-items-center lg:px-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_24px_70px_rgba(15,39,67,0.10)] lg:grid lg:min-h-[720px] lg:flex-none lg:grid-cols-[0.82fr_1.18fr]">
         <aside className="relative hidden min-h-[300px] flex-col bg-[#0d2743] p-7 text-white sm:p-10 lg:flex lg:min-h-full lg:p-12">
           <Logo inverse />
 
@@ -444,10 +447,9 @@ export function AuthShell({
             {children}
           </div>
         </section>
-        </div>
       </div>
 
-      <footer className="mx-auto mt-5 flex w-full max-w-6xl shrink-0 flex-col items-center justify-between gap-3 text-center text-xs text-slate-500 sm:flex-row sm:text-left">
+      <footer className="mx-auto mt-5 flex w-full max-w-6xl flex-col items-center justify-between gap-3 text-center text-xs text-slate-500 sm:flex-row sm:text-left">
         <p>© {new Date().getFullYear()} HOPE, Inc. All rights reserved.</p>
         <nav
           aria-label="Legal and support links"

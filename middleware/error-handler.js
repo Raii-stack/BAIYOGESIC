@@ -12,9 +12,11 @@ function errorHandler(err, req, res, next) {
   const statusCode = Number.isInteger(err.statusCode) && err.statusCode >= 400 && err.statusCode < 600
     ? err.statusCode
     : 500;
-  const message = statusCode === 500 ? 'Internal server error' : (err.message || 'Request failed');
+  const message = statusCode >= 500
+    ? 'The service is temporarily unavailable. Please try again.'
+    : (err.message || 'Request failed');
 
-  if (statusCode === 500) {
+  if (statusCode >= 500) {
     console.error(err);
   }
 

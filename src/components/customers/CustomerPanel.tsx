@@ -1,11 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { Customer, PaymentTerm } from "../../types/customer"
+import type { CustomerInput } from "../../lib/customer-api"
 
 type CustomerPanelProps = {
   customer: Customer | null
   open: boolean
   onClose: () => void
+  onSave: (input: CustomerInput) => Promise<void>
 }
 
 function CloseIcon() {
@@ -28,42 +30,70 @@ export default function CustomerPanel({
   customer,
   open,
   onClose,
+  onSave,
 }: CustomerPanelProps) {
   const [customerName, setCustomerName] = useState("")
   const [address, setAddress] = useState("")
-  const [paymentTerm, setPaymentTerm] = useState<PaymentTerm>("COD")
+  const [paymentTerm, setPaymentTerm] = useState<PaymentTerm | "">("")
   const [nameError, setNameError] = useState("")
+  const [addressError, setAddressError] = useState("")
+  const [paymentTermError, setPaymentTermError] = useState("")
+  const [saveError, setSaveError] = useState("")
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
 
     setCustomerName(customer?.company ?? "")
     setAddress(customer?.address ?? "")
-    setPaymentTerm(customer?.paymentTerm ?? "COD")
+    setPaymentTerm(customer?.paymentTerm ?? "")
     setNameError("")
+    setAddressError("")
+    setPaymentTermError("")
+    setSaveError("")
   }, [customer, open])
 
   useEffect(() => {
     if (!open) return
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
+      if (event.key === "Escape" && !saving) onClose()
     }
 
     window.addEventListener("keydown", closeOnEscape)
     return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [onClose, open])
+  }, [onClose, open, saving])
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
 
-    if (!customerName.trim()) {
-      setNameError("Customer name is required.")
-      return
-    }
+    const nextNameError = !customerName.trim()
+      ? "Customer Name is required."
+      : customerName.trim().length > 20
+        ? "Customer Name must be 20 characters or fewer."
+        : ""
+    const nextAddressError = !address.trim()
+      ? "Address is required."
+      : address.trim().length > 50
+        ? "Address must be 50 characters or fewer."
+        : ""
+    const nextPaymentTermError = paymentTerm ? "" : "Payment Term is required."
 
-    setNameError("")
-    onClose()
+    setNameError(nextNameError)
+    setAddressError(nextAddressError)
+    setPaymentTermError(nextPaymentTermError)
+    if (nextNameError || nextAddressError || nextPaymentTermError) return
+
+    setSaving(true)
+    setSaveError("")
+    try {
+      await onSave({ custname: customerName.trim(), address: address.trim(), payterm: paymentTerm as PaymentTerm })
+      onClose()
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to save customer.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -72,11 +102,12 @@ export default function CustomerPanel({
         open ? "pointer-events-auto" : "pointer-events-none"
       }`}
       aria-hidden={!open}
+      inert={!open}
     >
       <button
         type="button"
         aria-label="Close customer details"
-        onClick={onClose}
+        onClick={() => { if (!saving) onClose() }}
         tabIndex={open ? 0 : -1}
         className={`absolute inset-0 bg-slate-950/45 transition-opacity duration-200 ${
           open ? "opacity-100" : "opacity-0"
@@ -110,7 +141,7 @@ export default function CustomerPanel({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { if (!saving) onClose() }}
             aria-label="Close customer details"
             className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
           >
@@ -155,6 +186,7 @@ export default function CustomerPanel({
                 <input
                   type="text"
                   value={customerName}
+                  maxLength={20}
                   onChange={(event) => {
                     setCustomerName(event.target.value)
                     if (nameError) setNameError("")
@@ -185,28 +217,60 @@ export default function CustomerPanel({
                 </span>
                 <textarea
                   value={address}
-                  onChange={(event) => setAddress(event.target.value)}
+                  maxLength={50}
+                  onChange={(event) => {
+                    setAddress(event.target.value)
+                    if (addressError) setAddressError("")
+                  }}
                   placeholder="Enter the complete business address"
                   rows={5}
-                  className="w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-3 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  aria-invalid={Boolean(addressError)}
+                  aria-describedby="customer-address-error"
+                  className={`w-full resize-none rounded-md border bg-white px-3 py-3 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 ${
+                    addressError
+                      ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
+                      : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  }`}
                 />
+                <p
+                  id="customer-address-error"
+                  aria-live="polite"
+                  className={`min-h-6 pt-1.5 text-xs font-semibold ${
+                    addressError ? "text-red-600" : "opacity-0"
+                  }`}
+                >
+                  {addressError || "\u00a0"}
+                </p>
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-xs font-bold text-slate-700">
-                  Payment Term
+                <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+                  Payment Terms
+                  <span className="font-medium text-slate-400">
+                    Select only
+                  </span>
                 </span>
                 <span className="relative block">
                   <select
                     value={paymentTerm}
-                    onChange={(event) =>
-                      setPaymentTerm(event.target.value as PaymentTerm)
-                    }
-                    className="h-11 w-full appearance-none rounded-md border border-slate-300 bg-white px-3 pr-9 text-sm text-slate-800 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                    onChange={(event) => {
+                      setPaymentTerm(event.target.value as PaymentTerm | "")
+                      if (paymentTermError) setPaymentTermError("")
+                    }}
+                    aria-invalid={Boolean(paymentTermError)}
+                    aria-describedby="customer-payment-term-error"
+                    className={`h-11 w-full appearance-none rounded-md border bg-slate-50 px-3 pr-9 text-sm outline-none transition ${
+                      paymentTerm ? "text-slate-800" : "text-slate-400"
+                    } ${
+                      paymentTermError
+                        ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
+                        : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                    }`}
                   >
+                    <option value="">Select payment terms</option>
+                    <option value="30D">Net 30</option>
                     <option value="COD">COD</option>
-                    <option value="30D">30D</option>
-                    <option value="45D">45D</option>
+                    <option value="45D">Net 45</option>
                   </select>
                   <svg
                     aria-hidden="true"
@@ -219,23 +283,35 @@ export default function CustomerPanel({
                     <path d="m6 8 4 4 4-4" />
                   </svg>
                 </span>
+                <p
+                  id="customer-payment-term-error"
+                  aria-live="polite"
+                  className={`min-h-6 pt-1.5 text-xs font-semibold ${
+                    paymentTermError ? "text-red-600" : "opacity-0"
+                  }`}
+                >
+                  {paymentTermError || "\u00a0"}
+                </p>
               </label>
             </div>
           </div>
 
           <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-300 bg-white px-6 py-4 sm:px-8">
+            {saveError && <p role="alert" className="mr-auto text-xs font-semibold text-red-700">{saveError}</p>}
             <button
               type="button"
               onClick={onClose}
+              disabled={saving}
               className="h-11 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+              disabled={saving}
+              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 disabled:cursor-wait disabled:opacity-70"
             >
-              Save Customer
+              {saving ? "Saving…" : customer ? "Save changes" : "Create customer"}
             </button>
           </footer>
         </form>

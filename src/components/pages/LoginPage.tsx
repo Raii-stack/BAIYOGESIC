@@ -1,9 +1,10 @@
 import { useState, type FormEvent } from "react"
-import { Link, useNavigate } from "react-router"
+import { Link, Navigate, useNavigate } from "react-router"
 
+import { useAuth } from "../auth/AuthProvider"
+import ChangePasswordModal from "../auth/ChangePasswordModal"
 import type { Errors } from "../../types/auth"
 import { emailOk } from "../../utils/validation"
-import { login, saveCurrentUser } from "../../lib/auth"
 import {
   AuthShell,
   Field,
@@ -12,11 +13,12 @@ import {
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { user, loading, login } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [errors, setErrors] = useState<Errors>({})
-  const [loading, setLoading] = useState(false)
-  const [submitError, setSubmitError] = useState("")
+  const [authenticationError, setAuthenticationError] = useState("")
+  const [submitting, setSubmitting] = useState(false)
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -24,22 +26,23 @@ export default function LoginPage() {
     if (!emailOk(email)) nextErrors.email = "Enter a valid work email address."
     if (!password) nextErrors.password = "Password is required."
     setErrors(nextErrors)
-    setSubmitError("")
+    setAuthenticationError("")
     if (Object.keys(nextErrors).length) return
 
-    setLoading(true)
+    setSubmitting(true)
     try {
-      const user = await login(email, password)
-      saveCurrentUser(user)
-      navigate("/dashboard")
+      const signedInUser = await login(email, password)
+      setPassword("")
+      if (!signedInUser.mustChangePassword) navigate("/dashboard", { replace: true })
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : "Unable to sign in. Please try again.",
-      )
+      setAuthenticationError(error instanceof Error ? error.message : "Unable to sign in.")
     } finally {
-      setLoading(false)
+      setSubmitting(false)
     }
   }
+
+  if (loading) return <div role="status" className="grid min-h-screen place-items-center bg-[#edf1f5] text-sm text-slate-600">Checking your session…</div>
+  if (user && !user.mustChangePassword) return <Navigate to="/dashboard" replace />
 
   return (
     <AuthShell
@@ -56,7 +59,10 @@ export default function LoginPage() {
           placeholder="name@company.com"
           icon="mail"
           value={email}
-          onChange={setEmail}
+          onChange={(value) => {
+            setEmail(value)
+            if (authenticationError) setAuthenticationError("")
+          }}
           error={errors.email}
         />
         <Field
@@ -68,17 +74,13 @@ export default function LoginPage() {
           icon="lock"
           passwordToggle
           value={password}
-          onChange={setPassword}
+          onChange={(value) => {
+            setPassword(value)
+            if (authenticationError) setAuthenticationError("")
+          }}
           error={errors.password}
         />
-        <div className="mb-6 flex items-center justify-between gap-4">
-          <label className="flex cursor-pointer items-center gap-2.5 text-[13px] font-medium text-slate-600">
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 accent-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-2"
-            />
-            Remember me
-          </label>
+        <div className={`-mt-2 flex items-center justify-end ${authenticationError ? "mb-3" : "mb-6"}`}>
           <Link
             to="/reset-password"
             className="text-[13px] font-semibold text-blue-800 transition hover:text-blue-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
@@ -86,21 +88,15 @@ export default function LoginPage() {
             Forgot password?
           </Link>
         </div>
-        <Submit loading={loading} loadingLabel="Signing you in…">
+        {authenticationError && <p role="alert" className="mb-4 text-[13px] font-medium leading-5 text-red-700">{authenticationError}</p>}
+        <Submit loading={submitting} loadingLabel="Signing you in…">
           Sign in
         </Submit>
-        {submitError && (
-          <p role="alert" className="mt-4 text-sm font-medium text-red-600">
-            {submitError}
-          </p>
-        )}
       </form>
 
-      <div className="mt-8 border-t border-slate-200 pt-6">
-        <p className="text-sm text-slate-600">
-          Account provisioning is available to authorized users after sign-in.
-        </p>
-      </div>
+      {user?.mustChangePassword && (
+        <ChangePasswordModal onComplete={() => navigate("/dashboard", { replace: true })} />
+      )}
     </AuthShell>
   )
 }

@@ -1,19 +1,25 @@
-import { useState, useEffect, type ReactNode } from "react"
-import { Link } from "react-router"
+import { useEffect, useState, type ReactNode } from "react"
+import { Link, useNavigate } from "react-router"
+
+import { useAuth } from "../components/auth/AuthProvider"
+import { safeErrorMessage } from "../lib/api-errors"
+import { canAccessModule, type ErpModuleKey } from "../lib/rbac"
+import { notifyToast } from "../lib/toast"
+
+const HREF_MODULE_MAP: Record<string, ErpModuleKey> = {
+  "/customers": "customers",
+  "/inventory": "products",
+  "/employees": "hr",
+  "/sales": "sales",
+  "/reports": "reports",
+  "/users": "users",
+}
 
 import {
   DashboardIcon,
   DashboardLogo,
   navigationItems,
 } from "../components/dashboard/DashboardComponents"
-import {
-  getCurrentUser,
-  getUserDisplayName,
-  getUserInitials,
-  getUserRoleLabel,
-} from "../lib/auth"
-import ChangePasswordModal from "../components/auth/ChangePasswordModal"
-import Toast from "../components/ui/Toast"
 
 type DashboardLayoutProps = {
   children: ReactNode
@@ -28,21 +34,15 @@ export default function DashboardLayout({
   activeNavigation = "Dashboard",
   searchPlaceholder = "Search workspace",
 }: DashboardLayoutProps) {
+  const navigate = useNavigate()
+  const { logout, user } = useAuth()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => window.localStorage.getItem(sidebarPreferenceKey) === "true",
   )
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
-  const currentUser = getCurrentUser()
-  const [changePasswordOpen, setChangePasswordOpen] = useState(
-    () => currentUser?.mustChangePassword === true,
-  )
-  const [toastMessage, setToastMessage] = useState("")
 
   useEffect(() => {
-    window.localStorage.setItem(
-      sidebarPreferenceKey,
-      String(sidebarCollapsed),
-    )
+    window.localStorage.setItem(sidebarPreferenceKey, String(sidebarCollapsed))
   }, [sidebarCollapsed])
 
   return (
@@ -72,7 +72,10 @@ export default function DashboardLayout({
             Workspace
           </p>
           <ul className="space-y-1">
-            {navigationItems.map((item) => {
+            {navigationItems.filter((item) => {
+              const moduleKey = item.href ? HREF_MODULE_MAP[item.href] : undefined
+              return !moduleKey || canAccessModule(user, moduleKey)
+            }).map((item) => {
               const active = item.label === activeNavigation
               const className = `flex h-11 w-full items-center rounded-md text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
                 sidebarCollapsed ? "lg:justify-center lg:px-0" : "gap-3 px-3"
@@ -101,9 +104,9 @@ export default function DashboardLayout({
 
               return (
                 <li key={item.label}>
-                  {item.label === "Dashboard" || item.label === "Profile" ? (
+                  {item.href ? (
                     <Link
-                      to={item.label === "Profile" ? "/profile" : "/dashboard"}
+                      to={item.href}
                       title={sidebarCollapsed ? item.label : undefined}
                       className={className}
                       onClick={() => setMobileSidebarOpen(false)}
@@ -128,8 +131,37 @@ export default function DashboardLayout({
         <div className="border-t border-white/10 p-3">
           <button
             type="button"
+            onClick={async () => {
+              try {
+                await logout()
+                navigate("/", { replace: true })
+              } catch (error) {
+                notifyToast(safeErrorMessage(error), "error")
+              }
+            }}
+            className={`flex h-10 w-full items-center gap-3 rounded-md px-3 text-xs font-semibold text-slate-300 transition hover:bg-red-500/10 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 ${
+              sidebarCollapsed ? "lg:justify-center lg:gap-0 lg:px-0" : ""
+            }`}
+            aria-label="Log out"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-[18px] w-[18px] shrink-0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10" />
+            </svg>
+            <span className={sidebarCollapsed ? "lg:hidden" : ""}>Log Out</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setSidebarCollapsed((current) => !current)}
-            className={`hidden h-10 w-full items-center rounded-md text-xs font-semibold text-slate-300 transition hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 lg:flex ${
+            className={`mt-1 hidden h-10 w-full items-center rounded-md text-xs font-semibold text-slate-300 transition hover:bg-white/8 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 lg:flex ${
               sidebarCollapsed ? "justify-center" : "gap-3 px-3"
             }`}
             aria-label={
@@ -185,44 +217,15 @@ export default function DashboardLayout({
           <button
             type="button"
             aria-label="Notifications"
-            className="relative grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            className="relative ml-auto grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
           >
             <DashboardIcon name="bell" className="h-5 w-5" />
             <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full border-2 border-white bg-blue-700" />
           </button>
-
-          <Link
-            to="/profile"
-            className="ml-auto flex shrink-0 items-center gap-3 border-l border-slate-200 pl-3 sm:pl-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 sm:rounded-md sm:pr-2"
-          >
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-[#0d2743] text-xs font-bold text-white">
-              {getUserInitials(currentUser)}
-            </div>
-            <div className="hidden sm:block">
-              <p className="text-sm font-bold text-slate-900">
-                {getUserDisplayName(currentUser)}
-              </p>
-              <span className="mt-0.5 inline-block border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.12em] text-blue-800">
-                {getUserRoleLabel(currentUser)}
-              </span>
-            </div>
-          </Link>
         </header>
 
         {children}
       </div>
-      <ChangePasswordModal
-        open={changePasswordOpen}
-        required={currentUser?.mustChangePassword === true}
-        onClose={() => setChangePasswordOpen(false)}
-        onSuccess={() => {
-          setChangePasswordOpen(false)
-          setToastMessage("Password changed successfully.")
-        }}
-      />
-      {toastMessage && (
-        <Toast message={toastMessage} onDismiss={() => setToastMessage("")} />
-      )}
     </div>
   )
 }

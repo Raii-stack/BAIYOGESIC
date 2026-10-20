@@ -1,127 +1,117 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react"
 
 import type { Errors } from "../../types/auth"
-import { changePassword, getCurrentUser, saveCurrentUser } from "../../lib/auth"
-import PasswordStrengthMeter from "./PasswordStrengthMeter"
 import { Field, Submit } from "./AuthComponents"
+import PasswordStrengthMeter from "./PasswordStrengthMeter"
+import { useAuth } from "./AuthProvider"
+import { notifyToast } from "../../lib/toast"
 
-type ChangePasswordModalProps = {
-  open: boolean
-  required?: boolean
-  onClose: () => void
-  onSuccess: () => void
-}
-
-export default function ChangePasswordModal({
-  open,
-  required = false,
-  onClose,
-  onSuccess,
-}: ChangePasswordModalProps) {
+export default function ChangePasswordModal({ onComplete }: { onComplete: () => void }) {
+  const { changePassword, logout, user } = useAuth()
+  const dialogRef = useRef<HTMLDivElement>(null)
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [errors, setErrors] = useState<Errors>({})
-  const [submitError, setSubmitError] = useState("")
-  const [loading, setLoading] = useState(false)
+  const [serverError, setServerError] = useState("")
+  const [saving, setSaving] = useState(false)
 
-  if (!open) return null
+  useEffect(() => {
+    document.getElementById("change-current-password")?.focus()
+  }, [])
+
+  const trapFocus = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Tab") return
+    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+      'input, button:not([disabled])',
+    )
+    if (!focusable?.length) return
+    const first = focusable[0]
+    const last = focusable[focusable.length - 1]
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault()
+      last.focus()
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault()
+      first.focus()
+    }
+  }
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     const nextErrors: Errors = {}
-    if (!currentPassword) nextErrors.current = "Current password is required."
-    if (newPassword.length < 8) nextErrors.password = "Use at least 8 characters."
-    if (!confirmPassword || confirmPassword !== newPassword) {
-      nextErrors.confirm = "Passwords do not match."
-    }
+    if (!currentPassword) nextErrors.currentPassword = "Enter your current password."
+    if (newPassword.length < 8) nextErrors.newPassword = "Use at least 8 characters."
+    else if (newPassword === currentPassword) nextErrors.newPassword = "Choose a different password."
+    if (confirmPassword !== newPassword) nextErrors.confirmPassword = "Passwords do not match."
     setErrors(nextErrors)
-    setSubmitError("")
+    setServerError("")
     if (Object.keys(nextErrors).length) return
 
-    setLoading(true)
+    setSaving(true)
     try {
       await changePassword(currentPassword, newPassword)
-      const user = getCurrentUser()
-      if (user) saveCurrentUser({ ...user, mustChangePassword: false })
       setCurrentPassword("")
       setNewPassword("")
       setConfirmPassword("")
-      onSuccess()
+      notifyToast("Password changed successfully.")
+      onComplete()
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : "Unable to update your password.",
-      )
+      setServerError(error instanceof Error ? error.message : "Unable to update your password.")
     } finally {
-      setLoading(false)
+      setSaving(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 px-4 py-6">
-      <section
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#071b30]/75 p-4 sm:p-6">
+      <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="change-password-title"
-        className="w-full max-w-lg border border-slate-300 border-t-[3px] border-t-blue-900 bg-white p-6 shadow-[0_20px_60px_rgba(15,39,67,0.2)] sm:p-8"
+        aria-describedby="change-password-description"
+        onKeyDown={trapFocus}
+        className="w-full max-w-lg border border-slate-300 border-t-[3px] border-t-blue-900 bg-white px-6 py-7 shadow-[0_24px_70px_rgba(0,0,0,0.25)] sm:px-9 sm:py-9"
       >
-        <div className="flex items-start justify-between gap-5">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">
-              Account security
-            </p>
-            <h2
-              id="change-password-title"
-              className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
-            >
-              {required ? "Set your password" : "Change password"}
-            </h2>
-          </div>
-          {!required && (
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label="Close change password dialog"
-              className="text-2xl leading-none text-slate-400 hover:text-slate-800"
-            >
-              ×
-            </button>
-          )}
-        </div>
-        <p className="mt-3 text-sm leading-6 text-slate-600">
-          {required
-            ? "You are using the temporary password. Choose a new password before continuing."
-            : "Use your current password to set a new password for this account."}
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-800">
+          Account security
+        </p>
+        <h2 id="change-password-title" className="mt-3 text-2xl font-bold tracking-tight text-slate-950">
+          Change your default password
+        </h2>
+        <p id="change-password-description" className="mt-3 text-sm leading-6 text-slate-600">
+          {user?.email} must set a personal password before entering the workspace.
         </p>
 
         <form onSubmit={submit} noValidate className="mt-6">
           <Field
-            id="current-password"
+            id="change-current-password"
             label="Current password"
             type="password"
             autoComplete="current-password"
-            placeholder="Enter current password"
+            placeholder="Enter your default password"
             icon="lock"
             passwordToggle
             value={currentPassword}
             onChange={setCurrentPassword}
-            error={errors.current}
+            error={errors.currentPassword}
           />
           <Field
-            id="new-password"
+            id="change-new-password"
             label="New password"
             type="password"
             autoComplete="new-password"
-            placeholder="Enter a secure password"
+            placeholder="Create a new password"
             icon="lock"
             passwordToggle
             value={newPassword}
             onChange={setNewPassword}
-            error={errors.password}
+            error={errors.newPassword}
           />
           <PasswordStrengthMeter password={newPassword} />
           <Field
-            id="confirm-new-password"
+            id="change-confirm-password"
             label="Confirm new password"
             type="password"
             autoComplete="new-password"
@@ -130,29 +120,21 @@ export default function ChangePasswordModal({
             passwordToggle
             value={confirmPassword}
             onChange={setConfirmPassword}
-            error={errors.confirm}
+            error={errors.confirmPassword}
           />
-          {submitError && (
-            <p role="alert" className="mb-4 text-sm font-medium text-red-600">
-              {submitError}
-            </p>
-          )}
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            {!required && (
-              <button
-                type="button"
-                onClick={onClose}
-                className="h-11 rounded-md border border-slate-300 px-4 text-sm font-bold text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-            )}
-            <Submit loading={loading} loadingLabel="Updating password…">
-              Update password
-            </Submit>
-          </div>
+          {serverError && <p role="alert" className="mb-4 text-sm font-semibold text-red-700">{serverError}</p>}
+          <Submit loading={saving} loadingLabel="Updating password…">Update password</Submit>
         </form>
-      </section>
+        <button
+          type="button"
+          onClick={() => logout().catch((error: unknown) => {
+            setServerError(error instanceof Error ? error.message : "Unable to sign out.")
+          })}
+          className="mt-5 w-full text-center text-sm font-semibold text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+        >
+          Sign out
+        </button>
+      </div>
     </div>
   )
 }

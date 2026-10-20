@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     test: {
+      exclude: ['**/node_modules/**', 'tests/integration/**', 'tests/e2e/**'],
       environment: "jsdom",
       setupFiles: ["./src/test-setup.js"],
     },

@@ -77,4 +77,5 @@ export const customerApi = {
   create: (input: CustomerInput) => request<{ customer: CustomerRow }>("", "POST", input),
   update: (id: string, input: CustomerInput) => request<{ customer: CustomerRow }>(`/${encodeURIComponent(id)}`, "PUT", input),
   archive: (id: string) => request<{ customer: CustomerRow }>(`/${encodeURIComponent(id)}`, "DELETE"),
+  restore: (id: string) => request<{ customer: CustomerRow }>(`/${encodeURIComponent(id)}/restore`, "POST"),
 }

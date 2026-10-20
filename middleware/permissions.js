@@ -2,7 +2,7 @@ const PERMISSIONS = {
   administrator: {
     CRM: new Set(['view', 'edit', 'delete']),
     Inventory: new Set(['view', 'edit', 'delete']),
-    HR: new Set(['view', 'edit', 'salary'])
+    HR: new Set(['view', 'edit', 'delete', 'salary'])
   },
   admin: {
     CRM: new Set(['view', 'edit']),

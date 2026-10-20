@@ -112,6 +112,10 @@ test("creates, updates, and archives a product through the API", async () => {
       records = records.map((record) => record.prodcode === "PX0002" ? { ...record, is_deleted: true } : record)
       return success({ product: { ...product(2), is_deleted: true } })
     }
+    if (url.pathname === "/api/products/PX0002/restore" && init?.method === "POST") {
+      records = records.map((record) => record.prodcode === "PX0002" ? { ...record, is_deleted: false } : record)
+      return success({ product: { ...product(2), is_deleted: false } })
+    }
     throw new Error(`Unexpected request: ${url.pathname}`)
   })
   vi.stubGlobal("fetch", fetchMock)
@@ -144,6 +148,10 @@ test("creates, updates, and archives a product through the API", async () => {
   expect(screen.queryByRole("button", { name: "Archive PX0002" })).not.toBeInTheDocument()
   expect(screen.getByRole("status")).toHaveTextContent("Product archived successfully")
   expect(screen.getByText("Showing 1–2 of 2")).toBeInTheDocument()
+
+  await user.click(screen.getByRole("button", { name: "Restore PX0002" }))
+  await waitFor(() => expect(within(screen.getByRole("row", { name: /Updated product/ })).getByText("Active")).toBeInTheDocument())
+  expect(screen.getByRole("status")).toHaveTextContent("Product restored successfully")
 })
 
 test("shows a clear archive error when a product has active sales", async () => {

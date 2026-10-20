@@ -218,9 +218,36 @@ const deleteCustomer = asyncHandler(async (req, res) => {
   }
 });
 
+const restoreCustomer = asyncHandler(async (req, res) => {
+  const custno = typeof req.params.custno === 'string' ? req.params.custno.trim() : '';
+
+  if (!custno) {
+    throw requestError('custno is required', 400);
+  }
+
+  const customer = await withAuditContext(req.user.email, async (client) => {
+    const result = await client.query(
+      `UPDATE public.customer
+       SET is_deleted = false
+       WHERE custno = $1
+         AND is_deleted = true
+       RETURNING custno, custname, address, payterm, is_deleted, stamp`,
+      [custno]
+    );
+    return result.rows[0] || null;
+  });
+
+  if (!customer) {
+    throw requestError('Customer not found', 404);
+  }
+
+  res.json({ success: true, data: { customer } });
+});
+
 module.exports = {
   listCustomers,
   createCustomer,
   updateCustomer,
-  deleteCustomer
+  deleteCustomer,
+  restoreCustomer
 };

@@ -33,6 +33,10 @@ function ArchiveIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" /></svg>
 }
 
+function RestoreIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" /></svg>
+}
+
 function visiblePages(page: number, totalPages: number) {
   const count = Math.min(totalPages, 5)
   const start = Math.max(1, Math.min(page - 2, totalPages - count + 1))
@@ -47,6 +51,8 @@ export default function CustomerTable({
   onPageChange,
   onEdit,
   onArchive,
+  onRestore,
+  restoringId,
   canEdit,
   canDelete,
 }: {
@@ -57,6 +63,8 @@ export default function CustomerTable({
   onPageChange: (page: number) => void
   onEdit: (customer: Customer) => void
   onArchive: (customer: Customer) => void
+  onRestore?: (customer: Customer) => void
+  restoringId?: string | null
   canEdit: boolean
   canDelete: boolean
 }) {
@@ -98,7 +106,7 @@ export default function CustomerTable({
                   {customer.status === "Active" ? <>
                     {canEdit && <button type="button" onClick={() => onEdit(customer)} aria-label={`Edit ${customer.company}`} title="Edit customer" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-blue-100 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"><EditIcon /></button>}
                     {canDelete && <button type="button" onClick={() => onArchive(customer)} aria-label={`Archive ${customer.company}`} title="Archive customer" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><ArchiveIcon /></button>}
-                  </> : <span className="px-2 text-slate-400" aria-label="No actions for archived customer">—</span>}
+                  </> : canDelete && onRestore ? <button type="button" onClick={() => onRestore(customer)} disabled={restoringId === customer.id} aria-label={`Restore ${customer.company}`} title="Restore customer" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 disabled:cursor-wait disabled:opacity-50"><RestoreIcon /></button> : <span className="px-2 text-slate-400" aria-label="No actions for archived customer">—</span>}
                 </div></td>}
               </tr>
             ))}

@@ -69,4 +69,5 @@ export const productApi = {
   create: (input: ProductInput) => request<{ product: ProductRow }>("", "POST", input),
   update: (code: string, input: ProductInput) => request<{ product: ProductRow }>(`/${encodeURIComponent(code)}`, "PUT", input),
   archive: (code: string) => request<{ product: ProductRow }>(`/${encodeURIComponent(code)}`, "DELETE"),
+  restore: (code: string) => request<{ product: ProductRow }>(`/${encodeURIComponent(code)}/restore`, "POST"),
 }

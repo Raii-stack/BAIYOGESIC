@@ -39,6 +39,7 @@ export default function InventoryPage() {
   const [productToArchive, setProductToArchive] = useState<Product | null>(null)
   const [archiveError, setArchiveError] = useState("")
   const [archiving, setArchiving] = useState(false)
+  const [restoringCode, setRestoringCode] = useState<string | null>(null)
 
   useEffect(() => {
     document.title = "Products | HOPE, Inc."
@@ -111,6 +112,20 @@ export default function InventoryPage() {
     }
   }
 
+  const restoreProduct = async (product: Product) => {
+    setRestoringCode(product.code)
+    try {
+      await productApi.restore(product.code)
+      showNotice("Product restored successfully.")
+      if (status === "archived" && products.length === 1 && page > 1) setPage(page - 1)
+      else setRefresh((current) => current + 1)
+    } catch {
+      // Shared error toast is emitted by apiFailure
+    } finally {
+      setRestoringCode(null)
+    }
+  }
+
   return (
     <DashboardLayout activeNavigation="Products" searchPlaceholder="Search workspace">
       <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 xl:px-12">
@@ -157,7 +172,7 @@ export default function InventoryPage() {
           </section>
 
           {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4 hover:text-red-950">Try again</button></div>}
-          <ProductTable key={`${page}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} canEdit={Boolean(canEdit)} canDelete={canDelete} />
+          <ProductTable key={`${page}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} onRestore={restoreProduct} restoringCode={restoringCode} canEdit={Boolean(canEdit)} canDelete={canDelete} />
         </div>
       </main>
 

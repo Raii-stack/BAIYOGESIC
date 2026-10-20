@@ -39,6 +39,7 @@ export default function CustomerManagementPage() {
   const [customerToArchive, setCustomerToArchive] = useState<Customer | null>(null)
   const [archiveError, setArchiveError] = useState("")
   const [archiving, setArchiving] = useState(false)
+  const [restoringId, setRestoringId] = useState<string | null>(null)
 
   useEffect(() => {
     document.title = "Customers | HOPE, Inc."
@@ -131,6 +132,20 @@ export default function CustomerManagementPage() {
     }
   }
 
+  const restoreCustomer = async (customer: Customer) => {
+    setRestoringId(customer.id)
+    try {
+      await customerApi.restore(customer.id)
+      showNotice("Customer restored successfully.")
+      if (status === "archived" && customers.length === 1 && page > 1) setPage(page - 1)
+      else setRefresh((current) => current + 1)
+    } catch {
+      // Shared error toast is emitted by apiFailure
+    } finally {
+      setRestoringId(null)
+    }
+  }
+
   return (
     <DashboardLayout activeNavigation="Customers" searchPlaceholder="Search workspace">
       <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 xl:px-12">
@@ -181,7 +196,7 @@ export default function CustomerManagementPage() {
 
           {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4 hover:text-red-950">Try again</button></div>}
 
-          <CustomerTable customers={customers} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={openEditCustomerPanel} onArchive={(customer) => { setArchiveError(""); setCustomerToArchive(customer) }} canEdit={Boolean(canEdit)} canDelete={canDelete} />
+          <CustomerTable customers={customers} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={openEditCustomerPanel} onArchive={(customer) => { setArchiveError(""); setCustomerToArchive(customer) }} onRestore={restoreCustomer} restoringId={restoringId} canEdit={Boolean(canEdit)} canDelete={canDelete} />
         </div>
       </main>
 

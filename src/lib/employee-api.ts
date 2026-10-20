@@ -11,6 +11,8 @@ type Row = {
 type HistoryRow = { empno: string; jobcode: string; deptcode: string | null; effdate: string; jobdesc: string | null; deptname: string | null; salary: string | null; stamp: string | null }
 export type EmployeePagination = { page: number; limit: number; total: number; totalPages: number }
 export type Lookup = { code: string; name: string }
+export type JobRecord = { code: string; description: string; archived: boolean; stamp: string }
+export type DepartmentRecord = { code: string; name: string; archived: boolean; stamp: string }
 export type EmployeeInput = {
   firstname: string; lastname: string; email: string; gender: "M" | "F" | ""
   birthdate: string; hiredate: string; sepdate: string; jobcode: string; deptcode: string
@@ -66,4 +68,38 @@ export const employeeApi = {
   },
   create: (input: EmployeeInput) => request<{ empno: string }>("", "POST", input),
   update: (id: string, input: EmployeeInput) => request<{ empno: string }>(`/${encodeURIComponent(id)}`, "PUT", input),
+  archive: (id: string) => request<{ empno: string }>(`/${encodeURIComponent(id)}`, "DELETE"),
+  restore: (id: string) => request<{ empno: string }>(`/${encodeURIComponent(id)}/restore`, "POST"),
+  jobs: {
+    async list(options: { page: number; limit: number; search: string; status: string }, signal?: AbortSignal) {
+      const params = new URLSearchParams({ page: String(options.page), limit: String(options.limit) })
+      if (options.search) params.set("search", options.search)
+      if (options.status !== "all") params.set("status", options.status)
+      const data = await request<{ jobs: { jobcode: string; jobdesc: string | null; is_deleted: boolean; stamp: string | null }[]; pagination: EmployeePagination }>(`/jobs?${params}`, "GET", undefined, signal)
+      return {
+        jobs: data.jobs.map((row): JobRecord => ({ code: row.jobcode, description: row.jobdesc || "", archived: row.is_deleted, stamp: row.stamp || "" })),
+        pagination: data.pagination,
+      }
+    },
+    create: (input: { jobcode: string; jobdesc: string }) => request<{ job: object }>("/jobs", "POST", input),
+    update: (code: string, input: { jobdesc: string }) => request<{ job: object }>(`/jobs/${encodeURIComponent(code)}`, "PUT", input),
+    archive: (code: string) => request<{ job: object }>(`/jobs/${encodeURIComponent(code)}`, "DELETE"),
+    restore: (code: string) => request<{ job: object }>(`/jobs/${encodeURIComponent(code)}/restore`, "POST"),
+  },
+  departments: {
+    async list(options: { page: number; limit: number; search: string; status: string }, signal?: AbortSignal) {
+      const params = new URLSearchParams({ page: String(options.page), limit: String(options.limit) })
+      if (options.search) params.set("search", options.search)
+      if (options.status !== "all") params.set("status", options.status)
+      const data = await request<{ departments: { deptcode: string; deptname: string | null; is_deleted: boolean; stamp: string | null }[]; pagination: EmployeePagination }>(`/departments?${params}`, "GET", undefined, signal)
+      return {
+        departments: data.departments.map((row): DepartmentRecord => ({ code: row.deptcode, name: row.deptname || "", archived: row.is_deleted, stamp: row.stamp || "" })),
+        pagination: data.pagination,
+      }
+    },
+    create: (input: { deptcode: string; deptname: string }) => request<{ department: object }>("/departments", "POST", input),
+    update: (code: string, input: { deptname: string }) => request<{ department: object }>(`/departments/${encodeURIComponent(code)}`, "PUT", input),
+    archive: (code: string) => request<{ department: object }>(`/departments/${encodeURIComponent(code)}`, "DELETE"),
+    restore: (code: string) => request<{ department: object }>(`/departments/${encodeURIComponent(code)}/restore`, "POST"),
+  },
 }

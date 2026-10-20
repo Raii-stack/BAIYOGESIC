@@ -3,8 +3,10 @@ import { useEffect, useState } from "react"
 import { useAuth } from "../components/auth/AuthProvider"
 import SuccessToast from "../components/common/SuccessToast"
 import { DashboardIcon } from "../components/dashboard/DashboardComponents"
+import ArchiveEmployeeModal from "../components/employees/ArchiveEmployeeModal"
 import EmployeePanel from "../components/employees/EmployeePanel"
 import EmployeeTable from "../components/employees/EmployeeTable"
+import LookupSection from "../components/employees/LookupSection"
 import useDebouncedValue from "../hooks/useDebouncedValue"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { employeeApi, type EmployeeInput, type EmployeePagination, type Lookup } from "../lib/employee-api"
@@ -16,6 +18,9 @@ const emptyPagination: EmployeePagination = { page: 1, limit: PAGE_SIZE, total: 
 export default function EmployeeDirectoryPage() {
   const { user } = useAuth()
   const canEdit = user?.role === "administrator" || user?.role === "admin"
+  const canDelete = user?.role === "administrator"
+  const [activeTab, setActiveTab] = useState<"employees" | "jobs" | "departments">("employees")
+  const [lookupTotal, setLookupTotal] = useState<number | null>(null)
   const [query, setQuery] = useState("")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
@@ -33,6 +38,10 @@ export default function EmployeeDirectoryPage() {
   const [refresh, setRefresh] = useState(0)
   const [panelOpen, setPanelOpen] = useState(false)
   const [selected, setSelected] = useState<Employee | null>(null)
+  const [employeeToArchive, setEmployeeToArchive] = useState<Employee | null>(null)
+  const [archiveError, setArchiveError] = useState("")
+  const [archiving, setArchiving] = useState(false)
+  const [restoringId, setRestoringId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null)
 
   useEffect(() => {
@@ -71,44 +80,114 @@ export default function EmployeeDirectoryPage() {
     return () => controller.abort()
   }, [page, debouncedQuery, searchPending, department, job, status, refresh])
 
+  const showNotice = (message: string) => setNotice((current) => ({ id: (current?.id ?? 0) + 1, message }))
+
   const save = async (input: EmployeeInput) => {
     if (selected) await employeeApi.update(selected.id, input)
     else await employeeApi.create(input)
-    setNotice((current) => ({ id: (current?.id ?? 0) + 1, message: selected ? "Employee updated successfully." : "Employee added successfully." }))
+    showNotice(selected ? "Employee updated successfully." : "Employee added successfully.")
     if (!selected) { setPage(1); setStatus("all") }
     setRefresh((current) => current + 1)
   }
+
+  const archiveEmployee = async () => {
+    if (!employeeToArchive) return
+    setArchiving(true)
+    setArchiveError("")
+    try {
+      await employeeApi.archive(employeeToArchive.id)
+      setEmployeeToArchive(null)
+      showNotice("Employee archived successfully.")
+      if ((status === "active" || status === "separated") && employees.length === 1 && page > 1) setPage(page - 1)
+      else setRefresh((current) => current + 1)
+    } catch (cause) {
+      setArchiveError(cause instanceof Error ? cause.message : "Unable to archive employee.")
+    } finally {
+      setArchiving(false)
+    }
+  }
+
+  const restoreEmployee = async (employee: Employee) => {
+    setRestoringId(employee.id)
+    try {
+      await employeeApi.restore(employee.id)
+      showNotice("Employee restored successfully.")
+      if (status === "archived" && employees.length === 1 && page > 1) setPage(page - 1)
+      else setRefresh((current) => current + 1)
+    } catch {
+      // Shared error toast is emitted by apiFailure
+    } finally {
+      setRestoringId(null)
+    }
+  }
+
+  const headerCount = activeTab === "employees"
+    ? (loading || error ? "—" : pagination.total)
+    : (lookupTotal === null ? "—" : lookupTotal)
 
   return (
     <DashboardLayout activeNavigation="Human Resources" searchPlaceholder="Search workspace">
       <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 xl:px-12">
         <div className="mx-auto max-w-7xl">
-          <header className="mb-7 flex flex-col gap-5 border-b border-slate-300 pb-7 sm:flex-row sm:items-end sm:justify-between">
+          <header className="mb-6 flex flex-col gap-5 border-b border-slate-300 pb-7 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-800">Human Resources / Personnel register</p>
               <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-slate-950 sm:text-4xl">Employee Directory</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Find personnel records, current roles, and employment status.</p>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Manage employees, job titles, departments, and assignment history.</p>
             </div>
             <div className="flex items-center gap-3 self-start border-l-2 border-blue-800 pl-4 sm:self-auto">
-              <span className="text-3xl font-bold tabular-nums tracking-tight text-slate-950">{loading || error ? "—" : pagination.total}</span>
+              <span className="text-3xl font-bold tabular-nums tracking-tight text-slate-950">{headerCount}</span>
               <span className="max-w-20 text-[10px] font-bold uppercase leading-4 tracking-[0.12em] text-slate-500">Matching records</span>
             </div>
           </header>
 
-          <section aria-label="Employee filters" className="mb-5 grid gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-[0_8px_28px_rgba(15,39,67,0.04)] md:grid-cols-2 lg:grid-cols-[minmax(200px,1fr)_160px_160px_145px_auto] lg:items-end">
-            <label><span className="mb-2 block text-xs font-bold text-slate-700">Search employees</span><span className="relative block"><DashboardIcon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" /><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder="Name, ID, or email" className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm outline-none transition focus:border-blue-700 focus:bg-white focus:ring-3 focus:ring-blue-100" /></span></label>
-            <FilterSelect label="Department" value={department} onChange={(value) => { setDepartment(value); setPage(1) }} options={departments} allLabel="All departments" />
-            <FilterSelect label="Job title" value={job} onChange={(value) => { setJob(value); setPage(1) }} options={jobs} allLabel="All job titles" />
-            <label><span className="mb-2 block text-xs font-bold text-slate-700">Status</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }} className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-blue-700"><option value="all">All statuses</option><option value="active">Active</option><option value="separated">Separated</option><option value="archived">Archived</option></select></label>
-            {canEdit && <button type="button" onClick={() => { setSelected(null); setPanelOpen(true) }} className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:ring-4 focus-visible:ring-blue-200">+ Add employee</button>}
-          </section>
+          <div role="tablist" aria-label="Human Resources sections" className="mb-5 flex items-center gap-1 border-b border-slate-300">
+            {([
+              { id: "employees", label: "Employees" },
+              { id: "jobs", label: "Jobs" },
+              { id: "departments", label: "Departments" },
+            ] as const).map((tab) => {
+              const selectedTab = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={selectedTab}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 ${
+                    selectedTab
+                      ? "border-blue-800 text-blue-900"
+                      : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+          </div>
 
-          {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{error}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
-          {optionsError && !error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"><span>Department and job options are unavailable. Please retry before saving an employee.</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
-          <EmployeeTable employees={employees} pagination={pagination} loading={loading} error={Boolean(error)} onPageChange={setPage} onEdit={(employee) => { setSelected(employee); setPanelOpen(true) }} canEdit={Boolean(canEdit)} />
+          {activeTab === "employees" ? (
+            <>
+              <section aria-label="Employee filters" className="mb-5 grid gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-[0_8px_28px_rgba(15,39,67,0.04)] md:grid-cols-2 lg:grid-cols-[minmax(200px,1fr)_160px_160px_145px_auto] lg:items-end">
+                <label><span className="mb-2 block text-xs font-bold text-slate-700">Search employees</span><span className="relative block"><DashboardIcon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" /><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder="Name, ID, or email" className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm outline-none transition focus:border-blue-700 focus:bg-white focus:ring-3 focus:ring-blue-100" /></span></label>
+                <FilterSelect label="Department" value={department} onChange={(value) => { setDepartment(value); setPage(1) }} options={departments} allLabel="All departments" />
+                <FilterSelect label="Job title" value={job} onChange={(value) => { setJob(value); setPage(1) }} options={jobs} allLabel="All job titles" />
+                <label><span className="mb-2 block text-xs font-bold text-slate-700">Status</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }} className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-blue-700"><option value="all">All statuses</option><option value="active">Active</option><option value="separated">Separated</option><option value="archived">Archived</option></select></label>
+                {canEdit && <button type="button" onClick={() => { setSelected(null); setPanelOpen(true) }} className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:ring-4 focus-visible:ring-blue-200">+ Add employee</button>}
+              </section>
+
+              {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{error}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
+              {optionsError && !error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"><span>Department and job options are unavailable. Please retry before saving an employee.</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
+              <EmployeeTable key={`${page}-${department}-${job}-${status}-${refresh}`} employees={employees} pagination={pagination} loading={loading} error={Boolean(error)} onPageChange={setPage} onEdit={(employee) => { setSelected(employee); setPanelOpen(true) }} onArchive={(employee) => { setArchiveError(""); setEmployeeToArchive(employee) }} onRestore={restoreEmployee} restoringId={restoringId} canEdit={Boolean(canEdit)} canDelete={canDelete} />
+            </>
+          ) : (
+            <LookupSection key={activeTab} kind={activeTab} canEdit={Boolean(canEdit)} canDelete={canDelete} onChanged={() => setRefresh((current) => current + 1)} onNotice={showNotice} onTotalChange={setLookupTotal} />
+          )}
         </div>
       </main>
       {canEdit && <EmployeePanel employee={selected} open={panelOpen} departments={departments} jobs={jobs} onClose={() => setPanelOpen(false)} onSave={save} />}
+      {canDelete && <ArchiveEmployeeModal employeeName={employeeToArchive?.fullName ?? ""} open={Boolean(employeeToArchive)} onCancel={() => setEmployeeToArchive(null)} onConfirm={archiveEmployee} loading={archiving} error={archiveError} />}
       {notice && <SuccessToast key={notice.id} message={notice.message} onClose={() => setNotice((current) => current?.id === notice.id ? null : current)} />}
     </DashboardLayout>
   )

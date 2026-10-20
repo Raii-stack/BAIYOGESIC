@@ -10,7 +10,7 @@ export default function SuccessToast({ message, onClose }: { message: string; on
   }, [])
 
   return (
-    <div role="status" className="fixed right-4 top-4 z-[70] flex w-[calc(100%-2rem)] max-w-sm items-start gap-3 rounded-lg border border-emerald-200 bg-white p-4 text-emerald-950 shadow-[0_16px_48px_rgba(15,39,67,0.18)] sm:right-6 sm:top-6">
+    <div role="status" className="fixed bottom-4 right-4 z-[70] flex w-[calc(100%-2rem)] max-w-sm items-start gap-3 rounded-lg border border-emerald-200 bg-white p-4 text-emerald-950 shadow-[0_16px_48px_rgba(15,39,67,0.18)] sm:bottom-6 sm:right-6">
       <span aria-hidden="true" className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-700">
         <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m4 10 4 4 8-8" /></svg>
       </span>

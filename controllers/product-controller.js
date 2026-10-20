@@ -213,4 +213,29 @@ const archiveProduct = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { product } });
 });
 
-module.exports = { listProducts, getPriceHistory, createProduct, updateProduct, archiveProduct };
+const restoreProduct = asyncHandler(async (req, res) => {
+  const prodcode = String(req.params.prodcode || '').trim();
+  const product = await withAuditContext(req.user.email, async (client) => {
+    const existing = await client.query(
+      'SELECT prodcode FROM public.product WHERE prodcode = $1 AND is_deleted = true FOR UPDATE',
+      [prodcode]
+    );
+    if (!existing.rows.length) return null;
+
+    const result = await client.query(
+      `UPDATE public.product SET is_deleted = false
+       WHERE prodcode = $1 AND is_deleted = true
+       RETURNING prodcode, description, unit, is_deleted, stamp`,
+      [prodcode]
+    );
+    await client.query(
+      'UPDATE public.pricehist SET is_deleted = false WHERE prodcode = $1 AND is_deleted = true',
+      [prodcode]
+    );
+    return result.rows[0];
+  });
+  if (!product) throw requestError('Product not found', 404);
+  res.json({ success: true, data: { product } });
+});
+
+module.exports = { listProducts, getPriceHistory, createProduct, updateProduct, archiveProduct, restoreProduct };

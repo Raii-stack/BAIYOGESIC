@@ -141,7 +141,7 @@ export function Field({
   const inputType = passwordToggle && visible ? "text" : type
 
   return (
-    <div>
+    <div className="mb-5">
       <label
         htmlFor={id}
         className="mb-2 block text-[13px] font-semibold text-slate-700"
@@ -189,11 +189,13 @@ export function Field({
       <p
         id={errorId}
         aria-live="polite"
-        className={`min-h-6 pt-1.5 text-xs font-medium ${
-          error ? "text-red-600" : "opacity-0"
-        }`}
+        className={
+          error
+            ? "mt-2 text-xs font-medium leading-4 text-red-600"
+            : "sr-only"
+        }
       >
-        {error || "\u00a0"}
+        {error}
       </p>
     </div>
   )
@@ -209,7 +211,7 @@ export function RoleField({
   error?: string
 }) {
   return (
-    <div>
+    <div className="mb-5">
       <label
         htmlFor="account-role"
         className="mb-2 block text-[13px] font-semibold text-slate-700"
@@ -259,11 +261,13 @@ export function RoleField({
       <p
         id="account-role-error"
         aria-live="polite"
-        className={`min-h-6 pt-1.5 text-xs font-medium ${
-          error ? "text-red-600" : "opacity-0"
-        }`}
+        className={
+          error
+            ? "mt-2 text-xs font-medium leading-4 text-red-600"
+            : "sr-only"
+        }
       >
-        {error || "\u00a0"}
+        {error}
       </p>
     </div>
   )

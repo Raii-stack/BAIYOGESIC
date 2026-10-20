@@ -80,7 +80,7 @@ export default function LoginPage() {
           }}
           error={errors.password}
         />
-        <div className="mb-6 flex items-center justify-end">
+        <div className={`-mt-2 flex items-center justify-end ${authenticationError ? "mb-3" : "mb-6"}`}>
           <Link
             to="/reset-password"
             className="text-[13px] font-semibold text-blue-800 transition hover:text-blue-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"

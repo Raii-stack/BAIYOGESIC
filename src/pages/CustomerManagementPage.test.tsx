@@ -164,6 +164,10 @@ test("creates and archives customers through the API", async () => {
       records = records.map((record) => record.custno === "CUS-2" ? { ...record, is_deleted: true } : record)
       return success({ customer: { ...customer(2), is_deleted: true } })
     }
+    if (url.pathname === "/api/customers/CUS-2/restore" && init?.method === "POST") {
+      records = records.map((record) => record.custno === "CUS-2" ? { ...record, is_deleted: false } : record)
+      return success({ customer: { ...customer(2), is_deleted: false } })
+    }
     throw new Error(`Unexpected request: ${url.pathname}`)
   })
   vi.stubGlobal("fetch", fetchMock)
@@ -187,6 +191,10 @@ test("creates and archives customers through the API", async () => {
   expect(screen.getByText("Showing 1–2 of 2")).toBeInTheDocument()
   expect(screen.getByRole("status")).toHaveTextContent("Customer archived successfully")
   expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith("/CUS-2") && init?.method === "DELETE")).toBe(true)
+
+  await user.click(screen.getByRole("button", { name: "Restore New account" }))
+  await waitFor(() => expect(within(screen.getByRole("row", { name: /New account/ })).getByText("Active")).toBeInTheDocument())
+  expect(screen.getByRole("status")).toHaveTextContent("Customer restored successfully")
 })
 
 test("explains why a customer with active sales cannot be archived", async () => {

@@ -1,3 +1,5 @@
+import { safeApiMessage } from "./api-errors"
+
 export type AuthUser = {
   userId: string | number
   empno: string | null
@@ -31,19 +33,21 @@ async function request<T>(path: string, body?: object): Promise<T> {
       body: body ? JSON.stringify(body) : undefined,
     })
   } catch {
-    throw new AuthApiError("Unable to reach the server. Please try again.", 0)
+    throw new AuthApiError("The service is temporarily unavailable. Please try again.", 0)
   }
 
   const result = await response.json().catch(() => null) as ApiResponse<T> | null
   if (!response.ok || !result?.success || !result.data) {
+    const authDetail = result?.error?.message
+    const knownAuthError = response.status === 401 && authDetail &&
+      /^(Email or password is incorrect|Invalid email or password|Current password is incorrect)\.?$/i.test(authDetail)
     throw new AuthApiError(
-      result?.error?.message || "The request could not be completed. Please try again.",
+      knownAuthError ? authDetail : safeApiMessage(response.status, result),
       response.status,
     )
   }
   return result.data
 }
-
 export const authApi = {
   login: (email: string, password: string) =>
     request<{ user: AuthUser }>("/login", { email, password }),
@@ -51,4 +55,5 @@ export const authApi = {
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ message: string }>("/change-password", { currentPassword, newPassword }),
   logout: () => request<{ message: string }>("/logout", {}),
+  resetPassword: (token: string, password: string) => request<{ user: AuthUser }>("/reset-password", { token, password }),
 }

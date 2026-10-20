@@ -4,6 +4,11 @@ import type { Employee } from "../../types/employee"
 
 const field = "h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-700 focus:ring-3 focus:ring-blue-100"
 const empty: EmployeeInput = { firstname: "", lastname: "", email: "", gender: "", birthdate: "", hiredate: "", sepdate: "", jobcode: "", deptcode: "", effdate: "", salary: 0 }
+const businessDate = () => {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date())
+  const value = (type: string) => parts.find((part) => part.type === type)?.value || ""
+  return `${value("year")}-${value("month")}-${value("day")}`
+}
 
 export default function EmployeePanel({ employee, open, departments, jobs, onClose, onSave }: {
   employee: Employee | null; open: boolean; departments: Lookup[]; jobs: Lookup[]
@@ -19,7 +24,7 @@ export default function EmployeePanel({ employee, open, departments, jobs, onClo
       firstname: employee.firstName || "", lastname: employee.lastName || "", email: employee.email || "",
       gender: employee.gender || "", birthdate: employee.birthDate || "", hiredate: employee.hireDate || "",
       sepdate: employee.separationDate || "", jobcode: employee.jobCode || "", deptcode: employee.departmentCode || "",
-      effdate: new Date().toISOString().slice(0, 10), salary: employee.salary,
+      effdate: businessDate(), salary: employee.salary,
     } : empty)
     setSalaryText(employee ? String(employee.salary) : "")
     setError("")

@@ -2,7 +2,6 @@ const { requirePool } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
 
 const canViewSalary = (user) => ['administrator', 'admin'].includes(user.role);
-const canEdit = (user) => ['administrator', 'admin'].includes(user.role);
 
 function requestError(message, statusCode) {
   const error = new Error(message);

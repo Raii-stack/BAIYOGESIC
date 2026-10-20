@@ -1,23 +1,27 @@
 import { useState, type FormEvent } from "react"
-import { Link } from "react-router"
+import { Link, useSearchParams } from "react-router"
 
+import { authApi } from "../../lib/auth"
+import { safeErrorMessage } from "../../lib/api-errors"
+import { notifyToast } from "../../lib/toast"
 import type { Errors } from "../../types/auth"
 import {
   Field,
   Logo,
   Submit,
-  SuccessMessage,
-  useFakeSubmission,
 } from "../auth/AuthComponents"
 import PasswordStrengthMeter from "../auth/PasswordStrengthMeter"
 
 export default function ResetPasswordPage() {
+  const [searchParams] = useSearchParams()
+  const token = searchParams.get("token") || ""
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [errors, setErrors] = useState<Errors>({})
-  const submission = useFakeSubmission()
+  const [submitting, setSubmitting] = useState(false)
+  const [done, setDone] = useState(false)
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
     const nextErrors: Errors = {}
     if (password.length < 8) {
@@ -27,7 +31,17 @@ export default function ResetPasswordPage() {
       nextErrors.confirm = "Passwords do not match."
     }
     setErrors(nextErrors)
-    if (!Object.keys(nextErrors).length) submission.run()
+    if (Object.keys(nextErrors).length || !token) return
+    setSubmitting(true)
+    try {
+      await authApi.resetPassword(token, password)
+      setDone(true)
+      setPassword("")
+      setConfirm("")
+      notifyToast("Password updated. You can now sign in.")
+    } catch (error) {
+      notifyToast(safeErrorMessage(error), "error")
+    } finally { setSubmitting(false) }
   }
 
   return (
@@ -49,17 +63,10 @@ export default function ResetPasswordPage() {
             >
               Create New Password
             </h1>
-            <div className="mt-4 border-l-2 border-emerald-600 bg-emerald-50 px-4 py-3">
-              <p className="text-sm font-semibold text-emerald-900">
-                Your reset token has been verified.
-              </p>
-              <p className="mt-1 text-xs leading-5 text-emerald-800">
-                Choose a new password to restore access to your workspace.
-              </p>
-            </div>
+            <p className="mt-4 text-sm leading-6 text-slate-600">{token ? "Choose a new password using your reset link." : "A valid password-reset link is required. Return to sign in to request one."}</p>
           </div>
 
-          <form onSubmit={submit} noValidate className="mt-7">
+          {token && !done && <form onSubmit={submit} noValidate className="mt-7">
             <Field
               id="reset-password"
               label="New Password"
@@ -87,18 +94,14 @@ export default function ResetPasswordPage() {
             />
             <div className="mt-1">
               <Submit
-                loading={submission.loading}
+                loading={submitting}
                 loadingLabel="Updating password…"
               >
                 Update Password
               </Submit>
             </div>
-            {submission.done && (
-              <SuccessMessage>
-                Password updated. You can now sign in with your new password.
-              </SuccessMessage>
-            )}
-          </form>
+          </form>}
+          {done && <p role="status" className="mt-7 text-sm font-semibold text-emerald-800">Password updated. You can now sign in.</p>}
 
           <p className="mt-7 text-center text-sm text-slate-600">
             <Link

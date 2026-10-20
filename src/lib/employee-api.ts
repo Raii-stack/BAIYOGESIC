@@ -1,4 +1,5 @@
 import type { Employee, JobHistoryEntry } from "../types/employee"
+import { apiFailure } from "./api-errors"
 
 type Row = {
   empno: string; firstname: string | null; lastname: string | null; email: string
@@ -24,10 +25,10 @@ async function request<T>(path: string, method = "GET", body?: object, signal?: 
     response = await fetch(`${apiBase}/api/employees${path}`, { method, credentials: "include", headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined, signal })
   } catch (error) {
     if (signal?.aborted) throw error
-    throw new Error("Unable to reach the employee service. Please try again.")
+    throw apiFailure(0)
   }
   const result = await response.json().catch(() => null) as { success: boolean; data?: T; error?: { message?: string } } | null
-  if (!response.ok || !result?.success || !result.data) throw new Error(result?.error?.message || "Unable to load employee records.")
+  if (!response.ok || !result?.success || !result.data) throw apiFailure(response.status, result)
   return result.data
 }
 

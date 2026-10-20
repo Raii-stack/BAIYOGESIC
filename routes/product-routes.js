@@ -1,10 +1,10 @@
 const express = require('express');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireActiveUser } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 const { listProducts, getPriceHistory, createProduct, updateProduct, archiveProduct } = require('../controllers/product-controller');
 
 const router = express.Router();
-router.use(authenticate);
+router.use(authenticate, requireActiveUser);
 router.get('/', requirePermission('Inventory', 'view'), listProducts);
 router.get('/:prodcode/prices', requirePermission('Inventory', 'view'), getPriceHistory);
 router.post('/', requirePermission('Inventory', 'edit'), createProduct);

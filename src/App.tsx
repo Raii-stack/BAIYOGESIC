@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router"
 
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider"
+import ToastHost from "./components/common/ToastHost"
 
 import DashboardPage from "./components/pages/DashboardPage"
 import LoginPage from "./components/pages/LoginPage"
@@ -15,14 +16,15 @@ import ReportsPage from "./pages/ReportsPage"
 import SalesManagementPage from "./pages/SalesManagementPage"
 import UserManagementPage from "./pages/UserManagementPage"
 
-function ProtectedPage({ children }: { children: ReactNode }) {
+function ProtectedPage({ children, roles }: { children: ReactNode; roles?: string[] }) {
   const { user, loading } = useAuth()
   if (loading) return <div role="status" className="grid min-h-screen place-items-center bg-slate-100 text-sm text-slate-600">Checking your session…</div>
-  if (!user || user.mustChangePassword) return <Navigate to="/" replace />
+  if (!user || user.status !== "active" || user.mustChangePassword) return <Navigate to="/" replace />
+  if (roles && !roles.includes(user.role)) return <Navigate to="/dashboard" replace />
   return children
 }
 
-const protectedPage = (page: ReactNode) => <ProtectedPage>{page}</ProtectedPage>
+const protectedPage = (page: ReactNode, roles?: string[]) => <ProtectedPage roles={roles}>{page}</ProtectedPage>
 
 const router = createBrowserRouter([
   { path: "/", Component: LoginPage },
@@ -36,10 +38,10 @@ const router = createBrowserRouter([
   { path: "/employees/:employeeId", element: protectedPage(<EmployeeProfilePage />) },
   { path: "/sales/new", element: protectedPage(<CreateSalePage />) },
   { path: "/sales", element: protectedPage(<SalesManagementPage />) },
-  { path: "/users", element: protectedPage(<UserManagementPage />) },
+  { path: "/users", element: protectedPage(<UserManagementPage />, ["administrator", "admin"]) },
   { path: "*", Component: LoginPage },
 ])
 
 export default function App() {
-  return <AuthProvider><RouterProvider router={router} /></AuthProvider>
+  return <AuthProvider><ToastHost /><RouterProvider router={router} /></AuthProvider>
 }

@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from "react"
 import { Link, useNavigate } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
+import { safeErrorMessage } from "../lib/api-errors"
+import { notifyToast } from "../lib/toast"
 
 import {
   DashboardIcon,
@@ -23,8 +25,7 @@ export default function DashboardLayout({
   searchPlaceholder = "Search workspace",
 }: DashboardLayoutProps) {
   const navigate = useNavigate()
-  const { logout } = useAuth()
-  const [logoutError, setLogoutError] = useState("")
+  const { logout, user } = useAuth()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(
     () => window.localStorage.getItem(sidebarPreferenceKey) === "true",
   )
@@ -61,7 +62,7 @@ export default function DashboardLayout({
             Workspace
           </p>
           <ul className="space-y-1">
-            {navigationItems.map((item) => {
+            {navigationItems.filter((item) => item.href !== "/users" || user?.role === "administrator" || user?.role === "admin").map((item) => {
               const active = item.label === activeNavigation
               const className = `flex h-11 w-full items-center rounded-md text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
                 sidebarCollapsed ? "lg:justify-center lg:px-0" : "gap-3 px-3"
@@ -118,12 +119,11 @@ export default function DashboardLayout({
           <button
             type="button"
             onClick={async () => {
-              setLogoutError("")
               try {
                 await logout()
                 navigate("/", { replace: true })
               } catch (error) {
-                setLogoutError(error instanceof Error ? error.message : "Unable to sign out.")
+                notifyToast(safeErrorMessage(error), "error")
               }
             }}
             className={`flex h-10 w-full items-center gap-3 rounded-md px-3 text-xs font-semibold text-slate-300 transition hover:bg-red-500/10 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-300 ${
@@ -145,7 +145,6 @@ export default function DashboardLayout({
             </svg>
             <span className={sidebarCollapsed ? "lg:hidden" : ""}>Log Out</span>
           </button>
-          {logoutError && <p role="alert" className="px-3 text-xs text-red-200">{logoutError}</p>}
           <button
             type="button"
             onClick={() => setSidebarCollapsed((current) => !current)}

@@ -49,6 +49,13 @@ codes and a price entry effective on the Asia/Manila business date. Editing a pr
 entry. Archiving also archives price history and is blocked if active sales use
 the product.
 
+The Employee Directory reads real personnel and latest job-history records from
+`GET /api/employees`, with server-side search, department, job, status, and
+pagination filters. Employee profiles load live job history. Administrators and
+admins can add and edit employee details and assignments; other roles can view
+the directory without salary values. Employee creation does not create a login
+account—the account-management flow remains separate.
+
 Run `npm install`, then use `npm run dev` to start the API and frontend together.
 Run `npm test` for the frontend and helper tests
 and `npm run build` to create the production bundle.

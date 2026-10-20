@@ -1,4 +1,5 @@
 import type { PriceHistoryEntry, Product, UnitType } from "../types/product"
+import { apiFailure } from "./api-errors"
 
 type ProductRow = {
   prodcode: string
@@ -30,12 +31,12 @@ async function request<T>(path: string, method = "GET", body?: object, signal?: 
     })
   } catch (error) {
     if (signal?.aborted) throw error
-    throw new Error("Unable to reach the product service. Please try again.")
+    throw apiFailure(0)
   }
 
   const result = await response.json().catch(() => null) as ApiResponse<T> | null
   if (!response.ok || !result?.success || !result.data) {
-    throw new Error(result?.error?.message || "Unable to load product records.")
+    throw apiFailure(response.status, result)
   }
   return result.data
 }

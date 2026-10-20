@@ -6,6 +6,7 @@ import SaleDetailsModal from "../components/sales/SaleDetailsModal"
 import SalesTable from "../components/sales/SalesTable"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { salesTransactions } from "../lib/sales"
+import { notifyToast } from "../lib/toast"
 import type { RecordStatus, SalePayment, SaleTransaction } from "../types/sale"
 
 type StatusView = RecordStatus | "All"
@@ -48,6 +49,7 @@ export default function SalesManagementPage() {
     transactionNo: string,
     status: SaleTransaction["status"],
   ) => {
+    notifyToast(`Preview only: ${status === "Inactive" ? "archiving" : "restoring"} a sale is not saved to the database yet.`, "info")
     setTransactions((current) =>
       current.map((sale) =>
         sale.transactionNo === transactionNo
@@ -65,6 +67,7 @@ export default function SalesManagementPage() {
   }
 
   const updatePayments = (transactionNo: string, payments: SalePayment[]) => {
+    notifyToast("Preview only: payment changes are not saved to the database yet.", "info")
     setTransactions((current) =>
       current.map((sale) =>
         sale.transactionNo === transactionNo ? { ...sale, payments } : sale,

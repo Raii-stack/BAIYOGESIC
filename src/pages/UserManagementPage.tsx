@@ -5,6 +5,7 @@ import RightsModal from "../components/users/RightsModal"
 import UserTable from "../components/users/UserTable"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { systemUsers } from "../lib/users"
+import { notifyToast } from "../lib/toast"
 import type { SystemUser } from "../types/user"
 
 export default function UserManagementPage() {
@@ -25,6 +26,7 @@ export default function UserManagementPage() {
   }, [query, users])
 
   const toggleBlock = (userId: string) => {
+    notifyToast("Preview only: account status changes are not saved yet.", "info")
     setUsers((current) =>
       current.map((user) =>
         user.id === userId && user.role === "USER"
@@ -38,6 +40,7 @@ export default function UserManagementPage() {
   }
 
   const saveRights = (userId: string, rights: string[]) => {
+    notifyToast("Preview only: rights changes are not saved yet.", "info")
     setUsers((current) =>
       current.map((user) =>
         user.id === userId && user.role === "USER" ? { ...user, rights } : user,

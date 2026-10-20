@@ -34,6 +34,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { active = false }
   }, [])
 
+  useEffect(() => {
+    const expire = () => setUser(null)
+    window.addEventListener("hope:session-expired", expire)
+    return () => window.removeEventListener("hope:session-expired", expire)
+  }, [])
+
   const login = async (email: string, password: string) => {
     const { user: signedInUser } = await authApi.login(email.trim().toLowerCase(), password)
     setUser(signedInUser)

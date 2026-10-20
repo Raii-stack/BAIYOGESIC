@@ -1,4 +1,5 @@
 import type { Customer, PaymentTerm } from "../types/customer"
+import { apiFailure } from "./api-errors"
 
 type CustomerRow = {
   custno: string
@@ -42,12 +43,12 @@ async function request<T>(path: string, method = "GET", body?: object, signal?: 
     })
   } catch (error) {
     if (signal?.aborted) throw error
-    throw new Error("Unable to reach the customer service. Please try again.")
+    throw apiFailure(0)
   }
 
   const result = await response.json().catch(() => null) as ApiResponse<T> | null
   if (!response.ok || !result?.success || !result.data) {
-    throw new Error(result?.error?.message || "Unable to load customer records.")
+    throw apiFailure(response.status, result)
   }
   return result.data
 }

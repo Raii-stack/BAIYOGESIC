@@ -6,19 +6,18 @@ import EmployeeCombobox from "../components/sales/EmployeeCombobox"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { customers } from "../lib/customers"
 import { employees } from "../lib/employees"
+import { notifyToast } from "../lib/toast"
 
 export default function CreateSalePage() {
   const [customerId, setCustomerId] = useState("")
   const [employeeId, setEmployeeId] = useState("")
-  const [saved, setSaved] = useState(false)
   const salesDate = new Intl.DateTimeFormat("en-CA").format(new Date())
 
   const submit = (event: FormEvent) => {
     event.preventDefault()
     if (!customerId || !employeeId) return
 
-    setSaved(true)
-    window.setTimeout(() => setSaved(false), 4000)
+    notifyToast("Preview only: this sale was not saved to the database.", "info")
   }
 
   return (
@@ -117,20 +116,6 @@ export default function CreateSalePage() {
           </div>
         </main>
 
-        {saved && (
-          <div
-            role="status"
-            className="fixed bottom-5 right-5 z-50 flex w-[calc(100%-2.5rem)] max-w-sm items-start gap-3 border border-emerald-300 border-l-[3px] border-l-emerald-600 bg-white px-4 py-4 shadow-[0_18px_50px_rgba(15,23,42,0.18)]"
-          >
-            <span className="mt-1 h-2.5 w-2.5 shrink-0 bg-emerald-600" />
-            <div>
-              <p className="text-sm font-bold text-slate-950">Sale saved</p>
-              <p className="mt-1 text-xs leading-5 text-slate-600">
-                The transaction header was created successfully.
-              </p>
-            </div>
-          </div>
-        )}
       </>
     </DashboardLayout>
   )

@@ -5,12 +5,12 @@ const {
   updateCustomer,
   deleteCustomer
 } = require('../controllers/customer-controller');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireActiveUser } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 
 const router = express.Router();
 
-router.use(authenticate);
+router.use(authenticate, requireActiveUser);
 router.get('/', requirePermission('CRM', 'view'), listCustomers);
 router.post('/', requirePermission('CRM', 'edit'), createCustomer);
 router.put('/:custno', requirePermission('CRM', 'edit'), updateCustomer);

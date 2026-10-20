@@ -1,10 +1,10 @@
 const express = require('express');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireActiveUser } = require('../middleware/auth');
 const { requirePermission } = require('../middleware/permissions');
 const { listEmployees, getEmployee, listOptions, createEmployee, updateEmployee } = require('../controllers/employee-controller');
 
 const router = express.Router();
-router.use(authenticate);
+router.use(authenticate, requireActiveUser);
 router.get('/', requirePermission('HR', 'view'), listEmployees);
 router.get('/options', requirePermission('HR', 'view'), listOptions);
 router.get('/:empno', requirePermission('HR', 'view'), getEmployee);

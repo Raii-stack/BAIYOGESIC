@@ -27,6 +27,7 @@ export default function EmployeeDirectoryPage() {
   const [pagination, setPagination] = useState<EmployeePagination>(emptyPagination)
   const [departments, setDepartments] = useState<Lookup[]>([])
   const [jobs, setJobs] = useState<Lookup[]>([])
+  const [optionsError, setOptionsError] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [refresh, setRefresh] = useState(0)
@@ -42,8 +43,8 @@ export default function EmployeeDirectoryPage() {
   useEffect(() => {
     const controller = new AbortController()
     employeeApi.options(controller.signal).then((options) => {
-      if (!controller.signal.aborted) { setDepartments(options.departments); setJobs(options.jobs) }
-    }).catch(() => { /* Directory data error is handled below; filters remain optional. */ })
+      if (!controller.signal.aborted) { setDepartments(options.departments); setJobs(options.jobs); setOptionsError(false) }
+    }).catch(() => { if (!controller.signal.aborted) setOptionsError(true) })
     return () => controller.abort()
   }, [refresh])
 
@@ -103,6 +104,7 @@ export default function EmployeeDirectoryPage() {
           </section>
 
           {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{error}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
+          {optionsError && !error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"><span>Department and job options are unavailable. Please retry before saving an employee.</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
           <EmployeeTable employees={employees} pagination={pagination} loading={loading} error={Boolean(error)} onPageChange={setPage} onEdit={(employee) => { setSelected(employee); setPanelOpen(true) }} canEdit={Boolean(canEdit)} />
         </div>
       </main>

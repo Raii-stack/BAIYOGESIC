@@ -20,8 +20,9 @@ function AddIcon() {
 
 export default function CustomerManagementPage() {
   const { user } = useAuth()
-  const canEdit = user?.role === "administrator" || user?.role === "admin"
-  const canDelete = user?.role === "administrator"
+  const isSuperOrAdmin = user?.role === "superadmin" || user?.role === "administrator" || user?.role === "admin"
+  const canEdit = isSuperOrAdmin || Boolean(user?.rights?.some((r) => r === "customers.add" || r === "customers.edit"))
+  const canDelete = isSuperOrAdmin || Boolean(user?.rights?.includes("customers.delete"))
   const [query, setQuery] = useState("")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery

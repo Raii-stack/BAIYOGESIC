@@ -6,7 +6,24 @@ export type AuthUser = {
   email: string
   role: string
   status: string
+  isBlocked?: boolean
   mustChangePassword: boolean
+  rights?: string[]
+}
+
+export function isSuperAdminRole(role?: string | null): boolean {
+  return role === "superadmin" || role === "administrator"
+}
+
+export function isAdminRole(role?: string | null): boolean {
+  return isSuperAdminRole(role) || role === "admin"
+}
+
+export function hasUserRight(user: AuthUser | null | undefined, ...rightCodes: string[]): boolean {
+  if (!user) return false
+  if (isAdminRole(user.role)) return true
+  if (!Array.isArray(user.rights)) return false
+  return rightCodes.some((code) => user.rights!.includes(code))
 }
 
 type ApiResponse<T> = {
@@ -39,8 +56,10 @@ async function request<T>(path: string, body?: object): Promise<T> {
   const result = await response.json().catch(() => null) as ApiResponse<T> | null
   if (!response.ok || !result?.success || !result.data) {
     const authDetail = result?.error?.message
-    const knownAuthError = response.status === 401 && authDetail &&
-      /^(Email or password is incorrect|Invalid email or password|Current password is incorrect)\.?$/i.test(authDetail)
+    const knownAuthError =
+      (response.status === 401 && authDetail &&
+        /^(Email or password is incorrect|Invalid email or password|Current password is incorrect)\.?$/i.test(authDetail)) ||
+      (response.status === 403 && authDetail && /blocked/i.test(authDetail))
     throw new AuthApiError(
       knownAuthError ? authDetail : safeApiMessage(response.status, result),
       response.status,
@@ -48,6 +67,7 @@ async function request<T>(path: string, body?: object): Promise<T> {
   }
   return result.data
 }
+
 export const authApi = {
   login: (email: string, password: string) =>
     request<{ user: AuthUser }>("/login", { email, password }),

@@ -1,68 +1,9 @@
-import type { PermissionGroup, SystemUser } from "../types/user"
-
-export const systemUsers: SystemUser[] = [
-  {
-    id: "USR-001",
-    name: "Superadmin Account",
-    email: "superadmin@hope.example",
-    role: "SUPERADMIN",
-    status: "Active",
-    rights: [],
-  },
-  {
-    id: "USR-005",
-    name: "System Administrator",
-    email: "admin@hope.example",
-    role: "ADMIN",
-    status: "Active",
-    rights: [],
-  },
-  {
-    id: "USR-002",
-    name: "Alex Rivera",
-    email: "alex.rivera@hope.example",
-    role: "USER",
-    status: "Blocked",
-    rights: [
-      "customers.add",
-      "products.add",
-      "sales.add",
-      "sales.details.view",
-    ],
-  },
-  {
-    id: "USR-003",
-    name: "User Account 03",
-    email: "user03@hope.example",
-    role: "USER",
-    status: "Active",
-    rights: [
-      "customers.edit",
-      "products.edit",
-      "sales.add",
-      "sales.details.view",
-      "reports.top-customers",
-    ],
-  },
-  {
-    id: "USR-004",
-    name: "User Account 04",
-    email: "user04@hope.example",
-    role: "USER",
-    status: "Active",
-    rights: [
-      "hr.employee.add",
-      "hr.employee.edit",
-      "hr.history.view",
-      "reports.active-employees",
-      "reports.all-employees",
-    ],
-  },
-]
+import type { PermissionGroup } from "../types/user"
 
 export const permissionGroups: PermissionGroup[] = [
   {
     module: "Customer Management",
+    accessRight: "customers.access",
     permissions: [
       { id: "customers.add", label: "Add Customer" },
       { id: "customers.edit", label: "Edit Customer" },
@@ -71,6 +12,7 @@ export const permissionGroups: PermissionGroup[] = [
   },
   {
     module: "Product Management",
+    accessRight: "products.access",
     permissions: [
       { id: "products.add", label: "Add Product" },
       { id: "products.edit", label: "Edit Product" },
@@ -82,6 +24,7 @@ export const permissionGroups: PermissionGroup[] = [
   },
   {
     module: "Human Resources",
+    accessRight: "hr.access",
     permissions: [
       { id: "hr.job.add", label: "Add Job" },
       { id: "hr.job.edit", label: "Edit Job" },
@@ -100,6 +43,7 @@ export const permissionGroups: PermissionGroup[] = [
   },
   {
     module: "Sales",
+    accessRight: "sales.access",
     permissions: [
       { id: "sales.add", label: "Add Sale" },
       { id: "sales.edit", label: "Edit Sale" },
@@ -112,6 +56,7 @@ export const permissionGroups: PermissionGroup[] = [
   },
   {
     module: "Reports",
+    accessRight: "reports.access",
     permissions: [
       { id: "reports.top-customers", label: "Top Customers" },
       { id: "reports.product-master", label: "Product Master List" },

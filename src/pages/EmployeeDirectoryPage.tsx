@@ -17,8 +17,9 @@ const emptyPagination: EmployeePagination = { page: 1, limit: PAGE_SIZE, total: 
 
 export default function EmployeeDirectoryPage() {
   const { user } = useAuth()
-  const canEdit = user?.role === "administrator" || user?.role === "admin"
-  const canDelete = user?.role === "administrator"
+  const isSuperOrAdmin = user?.role === "superadmin" || user?.role === "administrator" || user?.role === "admin"
+  const canEdit = isSuperOrAdmin || Boolean(user?.rights?.some((r) => r.startsWith("hr.") && (r.endsWith(".add") || r.endsWith(".edit"))))
+  const canDelete = isSuperOrAdmin || Boolean(user?.rights?.some((r) => r.startsWith("hr.") && r.endsWith(".delete")))
   const [activeTab, setActiveTab] = useState<"employees" | "jobs" | "departments">("employees")
   const [lookupTotal, setLookupTotal] = useState<number | null>(null)
   const [query, setQuery] = useState("")

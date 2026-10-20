@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 
 import { permissionGroups } from "../../lib/users"
-import type { SystemUser } from "../../types/user"
+import type { PermissionGroup, SystemUser } from "../../types/user"
 
 function CloseIcon() {
   return (
@@ -26,39 +26,78 @@ export default function RightsModal({
 }: {
   user: SystemUser | null
   onClose: () => void
-  onSave: (userId: string, rights: string[]) => void
+  onSave: (userId: string, rights: string[]) => Promise<void>
 }) {
   const [selectedRights, setSelectedRights] = useState<string[]>([])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     setSelectedRights(user?.rights ?? [])
+    setSaving(false)
+    setError("")
 
     if (!user) return
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
+      if (event.key === "Escape" && !saving) onClose()
     }
 
     window.addEventListener("keydown", closeOnEscape)
     return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [onClose, user])
+  }, [onClose, saving, user])
 
   if (!user) return null
 
-  const setModuleRights = (permissionIds: string[], selected: boolean) => {
+  const toggleModuleAccess = (group: PermissionGroup) => {
+    const actionIds = group.permissions.map((p) => p.id)
+    const allModuleCodes = [group.accessRight, ...actionIds]
+    const isEnabled =
+      selectedRights.includes(group.accessRight) ||
+      actionIds.some((id) => selectedRights.includes(id))
+
     setSelectedRights((current) => {
-      const withoutModule = current.filter(
-        (right) => !permissionIds.includes(right),
-      )
-      return selected ? [...withoutModule, ...permissionIds] : withoutModule
+      const withoutModule = current.filter((code) => !allModuleCodes.includes(code))
+      return isEnabled ? withoutModule : [...withoutModule, group.accessRight]
     })
   }
 
-  const toggleRight = (permissionId: string) => {
-    setSelectedRights((current) =>
-      current.includes(permissionId)
-        ? current.filter((right) => right !== permissionId)
-        : [...current, permissionId],
-    )
+  const setModuleRights = (group: PermissionGroup, selected: boolean) => {
+    const actionIds = group.permissions.map((p) => p.id)
+    const allModuleCodes = [group.accessRight, ...actionIds]
+    setSelectedRights((current) => {
+      const withoutModule = current.filter((right) => !allModuleCodes.includes(right))
+      return selected ? [...withoutModule, ...allModuleCodes] : withoutModule
+    })
+  }
+
+  const toggleRight = (group: PermissionGroup, permissionId: string) => {
+    setSelectedRights((current) => {
+      if (current.includes(permissionId)) {
+        return current.filter((right) => right !== permissionId)
+      }
+      const next = [...current, permissionId]
+      if (!next.includes(group.accessRight)) {
+        next.push(group.accessRight)
+      }
+      return next
+    })
+  }
+
+  const actionRightsCount = permissionGroups
+    .flatMap((group) => group.permissions.map((p) => p.id))
+    .filter((id) => selectedRights.includes(id)).length
+
+  const handleSave = async () => {
+    setSaving(true)
+    setError("")
+    try {
+      await onSave(user.userId, selectedRights)
+      onClose()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to save user rights.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -66,7 +105,9 @@ export default function RightsModal({
       <button
         type="button"
         aria-label="Close rights assignment"
-        onClick={onClose}
+        onClick={() => {
+          if (!saving) onClose()
+        }}
         className="absolute inset-0 bg-slate-950/70"
       />
 
@@ -87,13 +128,17 @@ export default function RightsModal({
             >
               Rights — {user.name}
             </h2>
-            <p className="mt-1 text-sm text-slate-500">{user.email}</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {user.email}
+              {user.empno ? ` · Emp #${user.empno}` : ""}
+            </p>
           </div>
           <button
             type="button"
             onClick={onClose}
+            disabled={saving}
             aria-label="Close rights assignment"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 disabled:opacity-50"
           >
             <CloseIcon />
           </button>
@@ -102,28 +147,45 @@ export default function RightsModal({
         <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-8">
           <div className="border-l-2 border-blue-800 bg-blue-50 px-4 py-3">
             <p className="text-xs font-semibold leading-5 text-blue-900">
-              Assign only the permissions required for this user’s
-              responsibilities. Changes apply to their next authorized request.
+              Ticking a module switch enables module access; the switches inside each
+              group grant specific Add, Edit, Delete, or Report actions. Changes apply
+              immediately on the user’s next request.
             </p>
           </div>
 
+          {error && (
+            <div
+              role="alert"
+              className="mt-4 rounded-md border border-red-200 border-l-4 border-l-red-600 bg-red-50 px-4 py-3 text-xs font-semibold text-red-800"
+            >
+              {error}
+            </div>
+          )}
+
           <div className="mt-5 space-y-4">
             {permissionGroups.map((group) => {
-              const permissionIds = group.permissions.map(
-                (permission) => permission.id,
-              )
+              const permissionIds = group.permissions.map((permission) => permission.id)
               const selectedCount = permissionIds.filter((permissionId) =>
                 selectedRights.includes(permissionId),
               ).length
+              const moduleEnabled =
+                selectedRights.includes(group.accessRight) || selectedCount > 0
 
               return (
                 <section
                   key={group.module}
                   aria-labelledby={`rights-${group.module.replaceAll(" ", "-")}`}
-                  className="border border-slate-300"
+                  className="overflow-hidden rounded-md border border-slate-300"
                 >
                   <div className="flex items-center justify-between gap-4 border-b border-slate-300 bg-slate-100 px-4 py-3">
                     <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={moduleEnabled}
+                        onChange={() => toggleModuleAccess(group)}
+                        aria-label={`Enable ${group.module} module`}
+                        className="h-4 w-4 rounded border-slate-300 text-blue-800 focus:ring-blue-700"
+                      />
                       <h3
                         id={`rights-${group.module.replaceAll(" ", "-")}`}
                         className="text-sm font-bold text-slate-900"
@@ -137,7 +199,7 @@ export default function RightsModal({
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => setModuleRights(permissionIds, true)}
+                        onClick={() => setModuleRights(group, true)}
                         className="text-xs font-bold text-blue-800 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
                       >
                         All
@@ -145,7 +207,7 @@ export default function RightsModal({
                       <span className="text-slate-300">/</span>
                       <button
                         type="button"
-                        onClick={() => setModuleRights(permissionIds, false)}
+                        onClick={() => setModuleRights(group, false)}
                         className="text-xs font-bold text-slate-600 underline-offset-4 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
                       >
                         None
@@ -162,7 +224,7 @@ export default function RightsModal({
                           type="button"
                           role="switch"
                           aria-checked={selected}
-                          onClick={() => toggleRight(permission.id)}
+                          onClick={() => toggleRight(group, permission.id)}
                           key={permission.id}
                           className={`flex items-center gap-3 bg-white px-4 py-3.5 text-left transition hover:bg-slate-50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-700 ${
                             selected ? "text-slate-950" : "text-slate-600"
@@ -199,25 +261,24 @@ export default function RightsModal({
 
         <footer className="flex shrink-0 items-center justify-between gap-4 border-t border-slate-300 bg-slate-50 px-6 py-4 sm:px-8">
           <p className="hidden text-xs text-slate-500 sm:block">
-            {selectedRights.length} permissions selected
+            {actionRightsCount} action permissions selected
           </p>
           <div className="ml-auto flex gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="h-11 px-3 text-sm font-bold text-slate-600 underline-offset-4 transition hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+              disabled={saving}
+              className="h-11 px-3 text-sm font-bold text-slate-600 underline-offset-4 transition hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="button"
-              onClick={() => {
-                onSave(user.id, selectedRights)
-                onClose()
-              }}
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+              disabled={saving}
+              onClick={handleSave}
+              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 disabled:cursor-wait disabled:opacity-60"
             >
-              Save Rights
+              {saving ? "Saving…" : "Save Rights"}
             </button>
           </div>
         </footer>

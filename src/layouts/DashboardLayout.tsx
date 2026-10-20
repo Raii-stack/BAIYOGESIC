@@ -62,7 +62,7 @@ export default function DashboardLayout({
             Workspace
           </p>
           <ul className="space-y-1">
-            {navigationItems.filter((item) => item.href !== "/users" || user?.role === "administrator" || user?.role === "admin").map((item) => {
+            {navigationItems.filter((item) => item.href !== "/users" || user?.role === "superadmin" || user?.role === "administrator" || user?.role === "admin").map((item) => {
               const active = item.label === activeNavigation
               const className = `flex h-11 w-full items-center rounded-md text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
                 sidebarCollapsed ? "lg:justify-center lg:px-0" : "gap-3 px-3"

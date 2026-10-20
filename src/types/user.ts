@@ -1,17 +1,36 @@
-export type UserRole = "SUPERADMIN" | "ADMIN" | "USER"
-export type UserStatus = "Active" | "Blocked"
+export type UserRole = "superadmin" | "admin" | "employee"
+export type AccountStatus = "active" | "pending" | "disabled"
 
 export type SystemUser = {
-  id: string
+  userId: string
+  empno: string | null
+  firstName: string
+  lastName: string
   name: string
   email: string
   role: UserRole
-  status: UserStatus
+  status: AccountStatus
+  isBlocked: boolean
+  mustChangePassword: boolean
+  jobTitle: string | null
+  departmentName: string | null
+  stamp: string | null
   rights: string[]
+}
+
+export type AvailableEmployee = {
+  empno: string
+  firstName: string
+  lastName: string
+  name: string
+  email: string
+  jobTitle: string | null
+  departmentName: string | null
 }
 
 export type PermissionGroup = {
   module: string
+  accessRight: string
   permissions: {
     id: string
     label: string

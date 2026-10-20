@@ -59,6 +59,7 @@ test("default-password login requires a successful password change before openin
   const user = userEvent.setup()
 
   render(<App />)
+  expect(screen.queryByRole("link", { name: "Create an account" })).not.toBeInTheDocument()
   await user.type(await screen.findByLabelText("Work email"), "user@example.com")
   await user.type(screen.getByLabelText("Password"), "default-pass")
   await user.click(screen.getByRole("button", { name: "Sign in" }))
@@ -91,4 +92,23 @@ test("default-password login requires a successful password change before openin
     "/api/auth/change-password",
     "/api/auth/change-password",
   ])
+})
+
+test("shows a failed login as inline error text", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path.endsWith("/session")) return failure(401, "Authentication required")
+    if (path.endsWith("/login")) return failure(401, "Email or password is incorrect")
+    throw new Error(`Unexpected request: ${path}`)
+  }))
+  const user = userEvent.setup()
+  render(<App />)
+  await user.type(await screen.findByLabelText("Work email"), "user@example.com")
+  await user.type(screen.getByLabelText("Password"), "wrong-password")
+  await user.click(screen.getByRole("button", { name: "Sign in" }))
+  const error = await screen.findByRole("alert")
+  expect(error).toHaveTextContent("Email or password is incorrect")
+  expect(error.tagName).toBe("P")
+  expect(error).toHaveClass("text-red-700")
+  expect(error).not.toHaveClass("bg-red-50")
 })

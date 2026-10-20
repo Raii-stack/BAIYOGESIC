@@ -88,43 +88,12 @@ export default function LoginPage() {
             Forgot password?
           </Link>
         </div>
-        {authenticationError && (
-          <div
-            role="alert"
-            className="mb-5 flex items-start gap-3 border border-red-200 border-l-[3px] border-l-red-600 bg-red-50 px-4 py-3 text-sm font-semibold leading-5 text-red-800"
-          >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 20 20"
-              className="mt-0.5 h-4 w-4 shrink-0"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="10" cy="10" r="8" />
-              <path d="M10 6v5M10 14h.01" />
-            </svg>
-            {authenticationError}
-          </div>
-        )}
+        {authenticationError && <p role="alert" className="mb-4 text-[13px] font-medium leading-5 text-red-700">{authenticationError}</p>}
         <Submit loading={submitting} loadingLabel="Signing you in…">
           Sign in
         </Submit>
       </form>
 
-      <div className="mt-8 border-t border-slate-200 pt-6">
-        <p className="text-sm text-slate-600">
-          Authorized HR or system administrator?{" "}
-          <Link
-            to="/create-account"
-            className="font-semibold text-blue-800 underline-offset-4 hover:text-blue-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
-          >
-            Create an account
-          </Link>
-        </p>
-      </div>
       {user?.mustChangePassword && (
         <ChangePasswordModal onComplete={() => navigate("/dashboard", { replace: true })} />
       )}

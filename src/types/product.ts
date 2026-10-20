@@ -10,8 +10,8 @@ export type Product = {
   code: string
   description: string
   unitType: UnitType
-  currentPrice: number
+  currentPrice: number | null
+  priceEffectiveDate: string | null
   status: "Active" | "Inactive"
   stamp: string
-  priceHistory: PriceHistoryEntry[]
 }

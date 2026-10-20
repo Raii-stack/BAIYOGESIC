@@ -1,8 +1,8 @@
 const { requirePool } = require('../db');
 const { nextProductCode } = require('../lib/product-code');
+const { UNITS, validateProduct } = require('../lib/product-validation');
 const { asyncHandler } = require('../middleware/error-handler');
 
-const UNITS = new Set(['pc', 'ea', 'mtr', 'pkg', 'ltr']);
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 
@@ -15,26 +15,6 @@ function requestError(message, statusCode) {
 function positiveInteger(value, fallback, maximum) {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, maximum) : fallback;
-}
-
-function validateProduct(body) {
-  const source = body || {};
-  const description = typeof source.description === 'string' ? source.description.trim() : '';
-  const unit = typeof source.unit === 'string' ? source.unit.trim().toLowerCase() : '';
-  const priceText = String(source.unitprice ?? '');
-  const unitprice = Number(priceText);
-
-  if (!description || description.length > 30) {
-    throw requestError('Description is required and must be at most 30 characters', 400);
-  }
-  if (!UNITS.has(unit)) {
-    throw requestError('Unit must be pc, ea, mtr, pkg, or ltr', 400);
-  }
-  if (!/^\d+(?:\.\d{1,2})?$/.test(priceText) || !Number.isFinite(unitprice) || unitprice <= 0 || unitprice > 99999999.99) {
-    throw requestError('Unit price must be greater than zero, at most 99,999,999.99, and have no more than two decimal places', 400);
-  }
-
-  return { description, unit, unitprice };
 }
 
 async function withAuditContext(username, callback) {
@@ -58,9 +38,11 @@ const listProducts = asyncHandler(async (req, res) => {
   const limit = positiveInteger(req.query.limit, DEFAULT_LIMIT, MAX_LIMIT);
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
   const unit = typeof req.query.unit === 'string' ? req.query.unit.trim().toLowerCase() : '';
+  const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
   if (unit && !UNITS.has(unit)) throw requestError('Invalid unit filter', 400);
+  if (!['all', 'active', 'archived'].includes(status)) throw requestError('Invalid status filter', 400);
 
-  const filters = ['p.is_deleted = false'];
+  const filters = [];
   const values = [];
   if (search) {
     values.push(`%${search}%`);
@@ -70,7 +52,11 @@ const listProducts = asyncHandler(async (req, res) => {
     values.push(unit);
     filters.push(`p.unit = $${values.length}`);
   }
-  const whereClause = `WHERE ${filters.join(' AND ')}`;
+  if (status !== 'all') {
+    values.push(status === 'archived');
+    filters.push(`p.is_deleted = $${values.length}`);
+  }
+  const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const countValues = [...values];
   const offset = (page - 1) * limit;
   values.push(limit, offset);
@@ -81,11 +67,11 @@ const listProducts = asyncHandler(async (req, res) => {
               price.unitprice, price.effdate::text AS effdate
        FROM public.product p
        LEFT JOIN (
-         SELECT DISTINCT ON (prodcode) prodcode, unitprice, effdate
+         SELECT DISTINCT ON (prodcode, is_deleted) prodcode, is_deleted, unitprice, effdate
          FROM public.pricehist
-         WHERE is_deleted = false AND effdate <= CURRENT_DATE
-         ORDER BY prodcode, effdate DESC
-       ) price ON price.prodcode = p.prodcode
+         WHERE effdate <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+         ORDER BY prodcode, is_deleted, effdate DESC
+       ) price ON price.prodcode = p.prodcode AND price.is_deleted = p.is_deleted
        ${whereClause}
        ORDER BY p.description ASC, p.prodcode ASC
        LIMIT $${values.length - 1} OFFSET $${values.length}`,
@@ -109,7 +95,7 @@ const listProducts = asyncHandler(async (req, res) => {
 const getPriceHistory = asyncHandler(async (req, res) => {
   const prodcode = String(req.params.prodcode || '').trim();
   const productResult = await requirePool().query(
-    'SELECT 1 FROM public.product WHERE prodcode = $1 AND is_deleted = false',
+    'SELECT is_deleted FROM public.product WHERE prodcode = $1',
     [prodcode]
   );
   if (!productResult.rows.length) throw requestError('Product not found', 404);
@@ -117,9 +103,9 @@ const getPriceHistory = asyncHandler(async (req, res) => {
   const historyResult = await requirePool().query(
     `SELECT effdate::text AS effdate, unitprice, stamp
      FROM public.pricehist
-     WHERE prodcode = $1 AND is_deleted = false
+     WHERE prodcode = $1 AND is_deleted = $2
      ORDER BY effdate DESC`,
-    [prodcode]
+    [prodcode, productResult.rows[0].is_deleted]
   );
   res.json({ success: true, data: { prices: historyResult.rows } });
 });
@@ -140,7 +126,7 @@ const createProduct = asyncHandler(async (req, res) => {
       );
       const priceResult = await client.query(
         `INSERT INTO public.pricehist (effdate, prodcode, unitprice, is_deleted)
-         VALUES (CURRENT_DATE, $1, $2, false)
+         VALUES ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date, $1, $2, false)
          RETURNING effdate::text AS effdate, unitprice`,
         [prodcode, unitprice]
       );
@@ -169,14 +155,14 @@ const updateProduct = asyncHandler(async (req, res) => {
 
     const currentPrice = await client.query(
       `SELECT unitprice FROM public.pricehist
-       WHERE prodcode = $1 AND is_deleted = false AND effdate <= CURRENT_DATE
+       WHERE prodcode = $1 AND is_deleted = false AND effdate <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
        ORDER BY effdate DESC LIMIT 1`,
       [prodcode]
     );
     if (!currentPrice.rows.length || Number(currentPrice.rows[0].unitprice) !== unitprice) {
       await client.query(
         `INSERT INTO public.pricehist (effdate, prodcode, unitprice, is_deleted)
-         VALUES (CURRENT_DATE, $1, $2, false)
+         VALUES ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date, $1, $2, false)
          ON CONFLICT (effdate, prodcode)
          DO UPDATE SET unitprice = EXCLUDED.unitprice, is_deleted = false`,
         [prodcode, unitprice]
@@ -190,31 +176,39 @@ const updateProduct = asyncHandler(async (req, res) => {
 
 const archiveProduct = asyncHandler(async (req, res) => {
   const prodcode = String(req.params.prodcode || '').trim();
-  const product = await withAuditContext(req.user.email, async (client) => {
-    const existing = await client.query(
-      'SELECT prodcode FROM public.product WHERE prodcode = $1 AND is_deleted = false FOR UPDATE',
-      [prodcode]
-    );
-    if (!existing.rows.length) return null;
+  let product;
+  try {
+    product = await withAuditContext(req.user.email, async (client) => {
+      const existing = await client.query(
+        'SELECT prodcode FROM public.product WHERE prodcode = $1 AND is_deleted = false FOR UPDATE',
+        [prodcode]
+      );
+      if (!existing.rows.length) return null;
 
-    const activeSale = await client.query(
-      'SELECT 1 FROM public.salesdetail WHERE prodcode = $1 AND is_deleted = false LIMIT 1',
-      [prodcode]
-    );
-    if (activeSale.rows.length) throw requestError('Cannot archive product while active sales records exist.', 409);
+      const activeSale = await client.query(
+        'SELECT 1 FROM public.salesdetail WHERE prodcode = $1 AND is_deleted = false LIMIT 1',
+        [prodcode]
+      );
+      if (activeSale.rows.length) throw requestError('Cannot archive product while active sales records exist.', 409);
 
-    await client.query(
-      'UPDATE public.pricehist SET is_deleted = true WHERE prodcode = $1 AND is_deleted = false',
-      [prodcode]
-    );
-    const result = await client.query(
-      `UPDATE public.product SET is_deleted = true
-       WHERE prodcode = $1 AND is_deleted = false
-       RETURNING prodcode, description, unit, is_deleted, stamp`,
-      [prodcode]
-    );
-    return result.rows[0];
-  });
+      await client.query(
+        'UPDATE public.pricehist SET is_deleted = true WHERE prodcode = $1 AND is_deleted = false',
+        [prodcode]
+      );
+      const result = await client.query(
+        `UPDATE public.product SET is_deleted = true
+         WHERE prodcode = $1 AND is_deleted = false
+         RETURNING prodcode, description, unit, is_deleted, stamp`,
+        [prodcode]
+      );
+      return result.rows[0];
+    });
+  } catch (error) {
+    if (error.code === 'P0001' && /active related record/i.test(error.message || '')) {
+      throw requestError('Cannot archive product while active sales records exist.', 409);
+    }
+    throw error;
+  }
   if (!product) throw requestError('Product not found', 404);
   res.json({ success: true, data: { product } });
 });

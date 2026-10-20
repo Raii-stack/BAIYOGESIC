@@ -1,294 +1,65 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react"
-
+import { useEffect, useState, type FormEvent } from "react"
+import type { EmployeeInput, Lookup } from "../../lib/employee-api"
 import type { Employee } from "../../types/employee"
 
-type EmployeePanelProps = {
-  employee: Employee | null
-  open: boolean
-  onClose: () => void
-}
+const field = "h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-700 focus:ring-3 focus:ring-blue-100"
+const empty: EmployeeInput = { firstname: "", lastname: "", email: "", gender: "", birthdate: "", hiredate: "", sepdate: "", jobcode: "", deptcode: "", effdate: "", salary: 0 }
 
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
-}
-
-function CalendarIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-[18px] w-[18px]"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <rect x="3" y="5" width="18" height="16" rx="2" />
-      <path d="M8 3v4M16 3v4M3 10h18" />
-    </svg>
-  )
-}
-
-export default function EmployeePanel({
-  employee,
-  open,
-  onClose,
-}: EmployeePanelProps) {
-  const [fullName, setFullName] = useState("")
-  const [department, setDepartment] = useState("")
-  const [jobTitle, setJobTitle] = useState("")
-  const [birthDate, setBirthDate] = useState("")
-  const [hireDate, setHireDate] = useState("")
-  const [separationDate, setSeparationDate] = useState("")
-  const [salary, setSalary] = useState("")
-
+export default function EmployeePanel({ employee, open, departments, jobs, onClose, onSave }: {
+  employee: Employee | null; open: boolean; departments: Lookup[]; jobs: Lookup[]
+  onClose: () => void; onSave: (input: EmployeeInput) => Promise<void>
+}) {
+  const [form, setForm] = useState<EmployeeInput>(empty)
+  const [salaryText, setSalaryText] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
   useEffect(() => {
     if (!open) return
+    setForm(employee ? {
+      firstname: employee.firstName || "", lastname: employee.lastName || "", email: employee.email || "",
+      gender: employee.gender || "", birthdate: employee.birthDate || "", hiredate: employee.hireDate || "",
+      sepdate: employee.separationDate || "", jobcode: employee.jobCode || "", deptcode: employee.departmentCode || "",
+      effdate: new Date().toISOString().slice(0, 10), salary: employee.salary,
+    } : empty)
+    setSalaryText(employee ? String(employee.salary) : "")
+    setError("")
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose() }
+    window.addEventListener("keydown", escape)
+    return () => window.removeEventListener("keydown", escape)
+  }, [employee, open, onClose])
 
-    setFullName(employee?.fullName ?? "")
-    setDepartment(employee?.department ?? "")
-    setJobTitle(employee?.jobTitle ?? "")
-    setBirthDate(employee?.birthDate ?? "")
-    setHireDate(employee?.hireDate ?? "")
-    setSeparationDate(employee?.separationDate ?? "")
-    setSalary(employee ? String(employee.salary) : "")
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-
-    window.addEventListener("keydown", closeOnEscape)
-    return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [employee, onClose, open])
-
-  const submit = (event: FormEvent) => {
+  if (!open) return null
+  const set = <K extends keyof EmployeeInput>(key: K, value: EmployeeInput[K]) => setForm((current) => ({ ...current, [key]: value }))
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
-    onClose()
+    setSaving(true)
+    setError("")
+    try {
+      await onSave({ ...form, firstname: form.firstname.trim(), lastname: form.lastname.trim(), email: form.email.trim(), salary: Number(salaryText), effdate: form.effdate || form.hiredate })
+      onClose()
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to save employee.") }
+    finally { setSaving(false) }
   }
 
-  return (
-    <div
-      className={`fixed inset-0 z-50 ${
-        open ? "pointer-events-auto" : "pointer-events-none"
-      }`}
-      aria-hidden={!open}
-    >
-      <button
-        type="button"
-        aria-label="Close employee form"
-        onClick={onClose}
-        tabIndex={open ? 0 : -1}
-        className={`absolute inset-0 bg-slate-950/45 transition-opacity duration-200 ${
-          open ? "opacity-100" : "opacity-0"
-        }`}
-      />
-
-      <aside
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="employee-panel-title"
-        className={`absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col border-l border-slate-300 bg-white shadow-[-20px_0_60px_rgba(15,23,42,0.14)] transition-transform duration-300 ease-out ${
-          open ? "translate-x-0" : "translate-x-full"
-        }`}
-      >
-        <header className="flex shrink-0 items-start justify-between gap-6 border-b border-slate-300 px-6 py-6 sm:px-8">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">
-              Human Resources / Employee record
-            </p>
-            <h2
-              id="employee-panel-title"
-              className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
-            >
-              {employee ? "Edit Employee" : "Add Employee"}
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Maintain employment details and lifecycle dates.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close employee form"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
-          >
-            <CloseIcon />
-          </button>
-        </header>
-
-        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-y-auto px-6 py-7 sm:px-8">
-            <div className="grid gap-x-5 gap-y-5 sm:grid-cols-2">
-              <label className="block sm:col-span-2">
-                <FieldLabel>Employee ID</FieldLabel>
-                <input
-                  type="text"
-                  readOnly
-                  value={employee?.id ?? "Auto-generated on save"}
-                  className="h-11 w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 text-sm font-medium text-slate-500 outline-none"
-                />
-              </label>
-
-              <label className="block sm:col-span-2">
-                <FieldLabel>Full Name</FieldLabel>
-                <input
-                  type="text"
-                  required
-                  value={fullName}
-                  onChange={(event) => setFullName(event.target.value)}
-                  placeholder="Enter employee full name"
-                  className={fieldClass}
-                />
-              </label>
-
-              <label className="block">
-                <FieldLabel>Department</FieldLabel>
-                <input
-                  type="text"
-                  required
-                  value={department}
-                  onChange={(event) => setDepartment(event.target.value)}
-                  placeholder="Enter department"
-                  className={fieldClass}
-                />
-              </label>
-
-              <label className="block">
-                <FieldLabel>Job Title</FieldLabel>
-                <input
-                  type="text"
-                  required
-                  value={jobTitle}
-                  onChange={(event) => setJobTitle(event.target.value)}
-                  placeholder="Enter job title"
-                  className={fieldClass}
-                />
-              </label>
-
-              <DateField
-                label="Birth Date"
-                value={birthDate}
-                onChange={setBirthDate}
-                required
-              />
-              <DateField
-                label="Hire Date"
-                value={hireDate}
-                onChange={setHireDate}
-                required
-              />
-
-              <label className="block sm:col-span-2">
-                <FieldLabel>Separation Date</FieldLabel>
-                <span className="relative block">
-                  <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-slate-400">
-                    <CalendarIcon />
-                  </span>
-                  <input
-                    type="date"
-                    value={separationDate}
-                    min={hireDate || undefined}
-                    onChange={(event) => setSeparationDate(event.target.value)}
-                    className={`${fieldClass} pl-11`}
-                  />
-                </span>
-                <p className="mt-2 text-xs italic leading-5 text-slate-500">
-                  Use this for resigning employees. Do not use the Delete button
-                  unless the record was created by mistake.
-                </p>
-              </label>
-
-              <label className="block sm:col-span-2">
-                <FieldLabel>Salary</FieldLabel>
-                <span className="relative block">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">
-                    $
-                  </span>
-                  <input
-                    type="number"
-                    min="0"
-                    required
-                    value={salary}
-                    onChange={(event) => setSalary(event.target.value)}
-                    placeholder="0"
-                    className={`${fieldClass} pl-7`}
-                  />
-                </span>
-              </label>
-            </div>
-          </div>
-
-          <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-300 bg-white px-6 py-4 sm:px-8">
-            <button
-              type="button"
-              onClick={onClose}
-              className="h-11 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
-            >
-              Save Employee
-            </button>
-          </footer>
-        </form>
-      </aside>
-    </div>
-  )
+  return <div className="fixed inset-0 z-50"><button type="button" aria-label="Close employee form" onClick={onClose} className="absolute inset-0 bg-slate-950/50" /><aside role="dialog" aria-modal="true" aria-labelledby="employee-panel-title" className="absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col border-l border-slate-300 bg-white shadow-[-20px_0_60px_rgba(15,23,42,0.14)]">
+    <header className="flex items-start justify-between gap-6 border-b border-slate-300 px-6 py-6 sm:px-8"><div><p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">Human Resources / Employee record</p><h2 id="employee-panel-title" className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950">{employee ? "Edit employee" : "Add employee"}</h2><p className="mt-2 text-sm text-slate-600">Personnel details and current assignment</p></div><button type="button" onClick={onClose} aria-label="Close employee form" className="grid h-10 w-10 place-items-center rounded-md text-xl text-slate-500 hover:bg-slate-100">×</button></header>
+    <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col"><div className="flex-1 overflow-y-auto px-6 py-7 sm:px-8"><div className="grid gap-5 sm:grid-cols-2">
+      <label className="sm:col-span-2"><Label>Employee ID</Label><input readOnly value={employee?.id ?? "Auto-generated on save"} className={`${field} bg-slate-100 text-slate-500`} /></label>
+      <label><Label>First name</Label><input required maxLength={15} value={form.firstname} onChange={(event) => set("firstname", event.target.value)} className={field} /></label>
+      <label><Label>Last name</Label><input required maxLength={15} value={form.lastname} onChange={(event) => set("lastname", event.target.value)} className={field} /></label>
+      <label className="sm:col-span-2"><Label>Work email</Label><input type="email" required value={form.email} onChange={(event) => set("email", event.target.value)} className={field} /></label>
+      <label><Label>Gender (optional)</Label><select value={form.gender} onChange={(event) => set("gender", event.target.value as EmployeeInput["gender"])} className={field}><option value="">Not specified</option><option value="M">Male</option><option value="F">Female</option></select></label>
+      <label><Label>Birth date (optional)</Label><input type="date" value={form.birthdate} onChange={(event) => set("birthdate", event.target.value)} className={field} /></label>
+      <label><Label>Hire date</Label><input type="date" required value={form.hiredate} onChange={(event) => set("hiredate", event.target.value)} className={field} /></label>
+      <label><Label>Separation date (optional)</Label><input type="date" min={form.hiredate || undefined} value={form.sepdate} onChange={(event) => set("sepdate", event.target.value)} className={field} /></label>
+      <label><Label>Department</Label><select required value={form.deptcode} onChange={(event) => set("deptcode", event.target.value)} className={field}><option value="">Select department</option>{departments.map((item) => <option key={item.code} value={item.code}>{item.name || item.code}</option>)}</select></label>
+      <label><Label>Job title</Label><select required value={form.jobcode} onChange={(event) => set("jobcode", event.target.value)} className={field}><option value="">Select job title</option>{jobs.map((item) => <option key={item.code} value={item.code}>{item.name || item.code}</option>)}</select></label>
+      <label><Label>Salary</Label><input type="number" required min="0" step="0.01" value={salaryText} onChange={(event) => setSalaryText(event.target.value)} className={field} /></label>
+      <label><Label>Job effective date</Label><input type="date" required min={form.hiredate || undefined} value={form.effdate || form.hiredate} onChange={(event) => set("effdate", event.target.value)} className={field} /></label>
+    </div>{employee && <p className="mt-5 text-xs leading-5 text-slate-500">Changing the department, job title, or salary records a new job-history entry on the effective date.</p>}{error && <p role="alert" className="mt-5 text-sm font-semibold text-red-700">{error}</p>}</div>
+    <footer className="flex items-center justify-end gap-3 border-t border-slate-300 px-6 py-4 sm:px-8"><button type="button" onClick={onClose} className="h-11 rounded-md border border-slate-300 px-5 text-sm font-bold text-slate-700 hover:bg-slate-50">Cancel</button><button type="submit" disabled={saving || jobs.length === 0 || departments.length === 0} className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white hover:bg-blue-900 disabled:opacity-50">{saving ? "Saving…" : employee ? "Save changes" : "Create employee"}</button></footer>
+    </form>
+  </aside></div>
 }
 
-function DateField({
-  label,
-  value,
-  onChange,
-  required = false,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-  required?: boolean
-}) {
-  return (
-    <label className="block">
-      <FieldLabel>{label}</FieldLabel>
-      <span className="relative block">
-        <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-slate-400">
-          <CalendarIcon />
-        </span>
-        <input
-          type="date"
-          required={required}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-          className={`${fieldClass} pl-11`}
-        />
-      </span>
-    </label>
-  )
-}
-
-function FieldLabel({ children }: { children: ReactNode }) {
-  return (
-    <span className="mb-2 block text-xs font-bold text-slate-700">
-      {children}
-    </span>
-  )
-}
-
-const fieldClass =
-  "h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+function Label({ children }: { children: React.ReactNode }) { return <span className="mb-2 block text-xs font-bold text-slate-700">{children}</span> }

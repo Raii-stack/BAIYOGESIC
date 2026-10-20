@@ -84,9 +84,8 @@ export default function DeleteConfirmationModal({
             id="archive-dialog-description"
             className="mx-auto mt-4 max-w-md text-sm leading-6 text-slate-600"
           >
-            Are you sure you want to delete this customer? This action will hide
-            the record from active views. If this customer has active sales
-            records, the deletion will be blocked by the system.
+            Archive this customer? The record will stay in the directory with
+            Archived status. Customers with active sales cannot be archived.
           </p>
         </div>
 

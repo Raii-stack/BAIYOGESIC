@@ -9,6 +9,14 @@ export type Employee = {
   salary: number
   canViewSalary: boolean
   stamp: string
+  firstName?: string
+  lastName?: string
+  email?: string
+  gender?: "M" | "F" | null
+  jobCode?: string
+  departmentCode?: string
+  effectiveDate?: string
+  archived?: boolean
 }
 
 export type JobHistoryEntry = {
@@ -18,4 +26,5 @@ export type JobHistoryEntry = {
   department: string
   salary: number
   stamp: string
+  canViewSalary?: boolean
 }

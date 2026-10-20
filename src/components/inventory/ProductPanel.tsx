@@ -1,11 +1,13 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 
+import type { ProductInput } from "../../lib/product-api"
 import type { Product, UnitType } from "../../types/product"
 
 type ProductPanelProps = {
   product: Product | null
   open: boolean
   onClose: () => void
+  onSave: (input: ProductInput) => Promise<void>
 }
 
 function CloseIcon() {
@@ -28,6 +30,7 @@ export default function ProductPanel({
   product,
   open,
   onClose,
+  onSave,
 }: ProductPanelProps) {
   const [description, setDescription] = useState("")
   const [unitType, setUnitType] = useState<UnitType | "">("")
@@ -37,37 +40,56 @@ export default function ProductPanel({
     unitType: "",
     unitPrice: "",
   })
+  const [saveError, setSaveError] = useState("")
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
 
     setDescription(product?.description ?? "")
     setUnitType(product?.unitType ?? "")
-    setUnitPrice(product ? String(product.currentPrice) : "")
+    setUnitPrice(product?.currentPrice === null || !product ? "" : String(product.currentPrice))
     setErrors({ description: "", unitType: "", unitPrice: "" })
+    setSaveError("")
+  }, [open, product])
+
+  useEffect(() => {
+    if (!open) return
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
+      if (event.key === "Escape" && !saving) onClose()
     }
 
     window.addEventListener("keydown", closeOnEscape)
     return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [onClose, open, product])
+  }, [onClose, open, saving])
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
+    const normalizedPrice = unitPrice.trim()
+    const price = Number(normalizedPrice)
     const nextErrors = {
-      description: description.trim() ? "" : "Product Description is required.",
+      description: !description.trim()
+        ? "Product Description is required."
+        : description.trim().length > 30 ? "Description must be 30 characters or fewer." : "",
       unitType: unitType ? "" : "Unit Type is required.",
-      unitPrice:
-        Number(unitPrice) > 0
-          ? ""
-          : "Current Unit Price must be greater than zero.",
+      unitPrice: /^\d+(?:\.\d{1,2})?$/.test(normalizedPrice) && price > 0 && price <= 99999999.99
+        ? ""
+        : "Enter a price above zero with up to two decimal places.",
     }
 
     setErrors(nextErrors)
     if (Object.values(nextErrors).some(Boolean)) return
-    onClose()
+    setSaving(true)
+    setSaveError("")
+    try {
+      await onSave({ description: description.trim(), unit: unitType as UnitType, unitprice: price })
+      onClose()
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to save product.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -76,11 +98,12 @@ export default function ProductPanel({
         open ? "pointer-events-auto" : "pointer-events-none"
       }`}
       aria-hidden={!open}
+      inert={!open}
     >
       <button
         type="button"
         aria-label="Close product form"
-        onClick={onClose}
+        onClick={() => { if (!saving) onClose() }}
         tabIndex={open ? 0 : -1}
         className={`absolute inset-0 bg-slate-950/45 transition-opacity duration-200 ${
           open ? "opacity-100" : "opacity-0"
@@ -106,13 +129,11 @@ export default function ProductPanel({
             >
               {product ? "Edit Product" : "Add Product"}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Maintain the product identity, unit, and current catalog price.
-            </p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">Maintain the product identity, unit, and current catalog price.</p>
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { if (!saving) onClose() }}
             aria-label="Close product form"
             className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
           >
@@ -157,6 +178,7 @@ export default function ProductPanel({
                 <input
                   type="text"
                   value={description}
+                  maxLength={30}
                   onChange={(event) => {
                     setDescription(event.target.value)
                     if (errors.description) {
@@ -246,22 +268,26 @@ export default function ProductPanel({
                   />
                 </span>
               </ValidatedField>
+              <p className="text-xs leading-5 text-slate-500">A changed price takes effect today and is recorded in price history.</p>
             </div>
           </div>
 
           <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-300 bg-white px-6 py-4 sm:px-8">
+            {saveError && <p role="alert" className="mr-auto text-xs font-semibold text-red-700">{saveError}</p>}
             <button
               type="button"
               onClick={onClose}
+              disabled={saving}
               className="h-11 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+              disabled={saving}
+              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 disabled:cursor-wait disabled:opacity-70"
             >
-              Save Product
+              {saving ? "Saving…" : product ? "Save changes" : "Create product"}
             </button>
           </footer>
         </form>

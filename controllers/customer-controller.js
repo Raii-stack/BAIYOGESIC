@@ -68,8 +68,12 @@ const listCustomers = asyncHandler(async (req, res) => {
   const limit = parsePositiveInteger(req.query.limit, DEFAULT_LIMIT, MAX_LIMIT);
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
   const payterm = typeof req.query.payterm === 'string' ? req.query.payterm.trim().toUpperCase() : '';
+  const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
   if (payterm && !PAYMENT_TERMS.has(payterm)) {
     throw requestError('payterm must be COD, 30D, or 45D', 400);
+  }
+  if (!['all', 'active', 'archived'].includes(status)) {
+    throw requestError('status must be all, active, or archived', 400);
   }
   const offset = (page - 1) * limit;
   const values = [];
@@ -83,6 +87,10 @@ const listCustomers = asyncHandler(async (req, res) => {
     values.push(payterm);
     filters.push(`payterm = $${values.length}`);
   }
+  if (status !== 'all') {
+    values.push(status === 'archived');
+    filters.push(`is_deleted = $${values.length}`);
+  }
 
   const filterValues = [...values];
   values.push(limit, offset);
@@ -91,7 +99,7 @@ const listCustomers = asyncHandler(async (req, res) => {
   const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const result = await requirePool().query(
     `SELECT custno, custname, address, payterm, is_deleted, stamp
-     FROM public.customer_active
+     FROM public.customer
      ${whereClause}
      ORDER BY custname ASC, custno ASC
      LIMIT $${limitParameter} OFFSET $${offsetParameter}`,
@@ -100,7 +108,7 @@ const listCustomers = asyncHandler(async (req, res) => {
 
   const countResult = await requirePool().query(
     `SELECT count(*)::integer AS total
-     FROM public.customer_active
+     FROM public.customer
      ${whereClause}`,
     filterValues
   );
@@ -203,8 +211,8 @@ const deleteCustomer = asyncHandler(async (req, res) => {
 
     res.json({ success: true, data: { customer } });
   } catch (error) {
-    if (error.code === 'P0001' && /active sales records/i.test(error.message || '')) {
-      throw requestError('Cannot delete customer: Active sales records exist.', 400);
+    if (error.code === 'P0001' && /Cannot delete customer row: \d+ active related record\(s\) still exist\./i.test(error.message || '')) {
+      throw requestError('Cannot archive customer while active sales records exist.', 409);
     }
     throw error;
   }

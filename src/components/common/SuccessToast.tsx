@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 
-export default function CustomerToast({ message, onClose }: { message: string; onClose: () => void }) {
+export default function SuccessToast({ message, onClose }: { message: string; onClose: () => void }) {
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
 

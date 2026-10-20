@@ -16,7 +16,7 @@ const termStyles: Record<Customer["paymentTerm"], string> = {
 function SkeletonRows({ showActions }: { showActions: boolean }) {
   return Array.from({ length: 8 }, (_, index) => (
     <tr key={index} className="border-b border-slate-100 last:border-0" aria-hidden="true">
-      {["w-20", "w-40", "w-52", "w-24", "w-36", ...(showActions ? ["w-16"] : [])].map((width, column) => (
+      {["w-20", "w-40", "w-52", "w-24", "w-16", "w-36", ...(showActions ? ["w-16"] : [])].map((width, column) => (
         <td key={column} className="px-5 py-5 first:pl-6 last:pr-6">
           <div className={`h-3.5 ${width} max-w-full animate-pulse rounded bg-slate-200`} />
         </td>
@@ -69,7 +69,7 @@ export default function CustomerTable({
       <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-4">
         <div>
           <h2 className="text-sm font-bold text-slate-900">Customer directory</h2>
-          <p className="mt-0.5 text-xs text-slate-500">Active customer accounts and their payment terms</p>
+          <p className="mt-0.5 text-xs text-slate-500">Customer accounts, payment terms, and archive status</p>
         </div>
         <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-900">
           {loading ? "Loading…" : error ? "Unavailable" : `${pagination.total} records`}
@@ -77,25 +77,28 @@ export default function CustomerTable({
       </div>
 
       <div className="overflow-x-auto" aria-busy={loading}>
-        <table className="w-full min-w-[930px] border-collapse text-left">
+        <table className="w-full min-w-[1010px] border-collapse text-left">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              {["Customer ID", "Customer", "Address", "Payment terms", "Last change", ...(showActions ? ["Actions"] : [])].map((heading) => (
+              {["Customer ID", "Customer", "Address", "Payment terms", "Status", "Last change", ...(showActions ? ["Actions"] : [])].map((heading) => (
                 <th key={heading} scope="col" className={`px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 first:pl-6 last:pr-6 ${heading === "Actions" ? "sticky right-0 z-10 border-l border-slate-200 bg-slate-50" : ""}`}>{heading}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? <SkeletonRows showActions={showActions} /> : customers.map((customer) => (
-              <tr key={customer.id} className="border-b border-slate-100 transition-colors last:border-0 hover:bg-blue-50/40">
+              <tr key={customer.id} className={`border-b border-slate-100 transition-colors last:border-0 ${customer.status === "Active" ? "hover:bg-blue-50/40" : "bg-slate-50/70 hover:bg-slate-100"}`}>
                 <td className="whitespace-nowrap px-5 py-4 pl-6 font-mono text-xs font-semibold text-blue-800">{customer.id}</td>
                 <td className="min-w-48 px-5 py-4 text-sm font-semibold text-slate-900">{customer.company}</td>
                 <td className="max-w-72 px-5 py-4 text-sm leading-5 text-slate-600">{customer.address}</td>
                 <td className="whitespace-nowrap px-5 py-4"><span className={`inline-flex rounded border px-2.5 py-1 text-xs font-semibold ${termStyles[customer.paymentTerm] ?? "border-slate-200 bg-slate-50 text-slate-700"}`}>{termLabels[customer.paymentTerm] || customer.paymentTerm}</span></td>
+                <td className="whitespace-nowrap px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${customer.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{customer.status === "Active" ? "Active" : "Archived"}</span></td>
                 <td className="max-w-52 px-5 py-4 font-mono text-[11px] leading-5 text-slate-500">{customer.stamp || "—"}</td>
-                {showActions && <td className="sticky right-0 z-10 border-l border-slate-100 bg-white px-5 py-4 pr-6"><div className="flex items-center gap-1">
-                  {canEdit && <button type="button" onClick={() => onEdit(customer)} aria-label={`Edit ${customer.company}`} title="Edit customer" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-blue-100 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"><EditIcon /></button>}
-                  {canDelete && <button type="button" onClick={() => onArchive(customer)} aria-label={`Archive ${customer.company}`} title="Archive customer" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><ArchiveIcon /></button>}
+                {showActions && <td className={`sticky right-0 z-10 border-l border-slate-100 px-5 py-4 pr-6 ${customer.status === "Active" ? "bg-white" : "bg-slate-50"}`}><div className="flex items-center gap-1">
+                  {customer.status === "Active" ? <>
+                    {canEdit && <button type="button" onClick={() => onEdit(customer)} aria-label={`Edit ${customer.company}`} title="Edit customer" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-blue-100 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"><EditIcon /></button>}
+                    {canDelete && <button type="button" onClick={() => onArchive(customer)} aria-label={`Archive ${customer.company}`} title="Archive customer" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><ArchiveIcon /></button>}
+                  </> : <span className="px-2 text-slate-400" aria-label="No actions for archived customer">—</span>}
                 </div></td>}
               </tr>
             ))}
@@ -104,7 +107,7 @@ export default function CustomerTable({
         {!loading && !error && customers.length === 0 && (
           <div className="border-t border-slate-100 px-6 py-14 text-center">
             <p className="text-sm font-semibold text-slate-800">No customers found</p>
-            <p className="mt-1 text-xs text-slate-500">Try a different search or payment term.</p>
+            <p className="mt-1 text-xs text-slate-500">Try a different search, status, or payment term.</p>
           </div>
         )}
       </div>

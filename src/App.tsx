@@ -3,7 +3,6 @@ import { createBrowserRouter, Navigate, RouterProvider } from "react-router"
 
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider"
 
-import CreateAccountPage from "./components/pages/CreateAccountPage"
 import DashboardPage from "./components/pages/DashboardPage"
 import LoginPage from "./components/pages/LoginPage"
 import ResetPasswordPage from "./components/pages/ResetPasswordPage"
@@ -27,7 +26,7 @@ const protectedPage = (page: ReactNode) => <ProtectedPage>{page}</ProtectedPage>
 
 const router = createBrowserRouter([
   { path: "/", Component: LoginPage },
-  { path: "/create-account", Component: CreateAccountPage },
+  { path: "/create-account", element: <Navigate to="/" replace /> },
   { path: "/reset-password", Component: ResetPasswordPage },
   { path: "/dashboard", element: protectedPage(<DashboardPage />) },
   { path: "/customers", element: protectedPage(<CustomerManagementPage />) },

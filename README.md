@@ -29,19 +29,28 @@ sends requests with credentials and keeps the signed-in user in React Context;
 it does not expose or persist the token in JavaScript. If the backend returns
 `mustChangePassword`, the user must complete the password-change dialog before
 entering the workspace.
-Registration sends `firstName`, `lastName`, and `email`, creating an account
-that remains pending until administrator approval.
+Public account creation is disabled until an administrator/HR-managed flow is available.
 
-Customer Management loads active records from `GET /api/customers` with
-server-side search, payment-term filtering, and pagination. Administrators can
+Customer Management loads active and archived records from `GET /api/customers` with
+debounced server-side search, status and payment-term filtering, and pagination. Administrators can
 create, edit, and archive customers; admins can create and edit; employees and
 users can view the directory. Payment terms use the database codes `30D`,
 `45D`, and `COD`. If the database's direct hostname is IPv6-only in your
 environment, set `DATABASE_POOLER_HOST` to the session pooler hostname shown
 by Supabase; the server keeps the database password in `DATABASE_URL`.
 
+Inventory & Product Management loads active and archived products from `GET /api/products`
+with debounced server-side search, status and unit filtering, and pagination. Listed prices are the
+latest matching price-history entries effective today or earlier; expanding
+a product loads its full history from `GET /api/products/:prodcode/prices`.
+Administrators can create, edit, and archive products; admins can create and
+edit; employees and users can view. New products receive six-character `PX`
+codes and a price entry effective on the Asia/Manila business date. Editing a price adds or updates that day's
+entry. Archiving also archives price history and is blocked if active sales use
+the product.
+
 Run `npm install`, then use `npm run dev` to start the API and frontend together.
-Run `npm test` for the auth flow test
+Run `npm test` for the frontend and helper tests
 and `npm run build` to create the production bundle.
 
 ### Possible project structure

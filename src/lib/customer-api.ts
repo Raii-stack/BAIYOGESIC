@@ -65,10 +65,11 @@ export function toCustomer(row: CustomerRow): Customer {
 }
 
 export const customerApi = {
-  async list(options: { page: number; limit: number; search: string; payterm: PaymentTerm | "" }, signal?: AbortSignal) {
+  async list(options: { page: number; limit: number; search: string; payterm: PaymentTerm | ""; status: "all" | "active" | "archived" }, signal?: AbortSignal) {
     const params = new URLSearchParams({ page: String(options.page), limit: String(options.limit) })
     if (options.search) params.set("search", options.search)
     if (options.payterm) params.set("payterm", options.payterm)
+    if (options.status !== "all") params.set("status", options.status)
     const data = await request<{ customers: CustomerRow[]; pagination: CustomerPagination }>(`?${params}`, "GET", undefined, signal)
     return { customers: data.customers.map(toCustomer), pagination: data.pagination }
   },

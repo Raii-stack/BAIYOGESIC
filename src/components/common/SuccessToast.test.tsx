@@ -1,17 +1,17 @@
 import { act, cleanup, render, screen } from "@testing-library/react"
 import { afterEach, expect, test, vi } from "vitest"
 
-import CustomerToast from "./CustomerToast"
+import SuccessToast from "./SuccessToast"
 
 afterEach(() => {
   cleanup()
   vi.useRealTimers()
 })
 
-test("automatically dismisses a customer notification", () => {
+test("automatically dismisses a success notification", () => {
   vi.useFakeTimers()
   const onClose = vi.fn()
-  render(<CustomerToast message="Customer updated successfully." onClose={onClose} />)
+  render(<SuccessToast message="Customer updated successfully." onClose={onClose} />)
 
   expect(screen.getByRole("status")).toHaveTextContent("Customer updated successfully.")
   act(() => vi.advanceTimersByTime(4499))

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parsePrerequisiteNumbers } from './project-automation.js';
+import { parsePrerequisiteNumbers, formatReadyNotification } from './project-automation.js';
 
 describe('project-automation', () => {
   it('parses None as empty prerequisites', () => {
@@ -19,5 +19,17 @@ describe('project-automation', () => {
   it('handles empty or missing prerequisites gracefully', () => {
     expect(parsePrerequisiteNumbers('')).toEqual([]);
     expect(parsePrerequisiteNumbers(null)).toEqual([]);
+  });
+
+  it('formats developer ready notification with mentions', () => {
+    const text = formatReadyNotification(['itsmechloe', 'alainmnts']);
+    expect(text).toContain('@itsmechloe');
+    expect(text).toContain('@alainmnts');
+    expect(text).toContain('ready to be picked up');
+  });
+
+  it('formats fallback notification when assignees array is empty', () => {
+    const text = formatReadyNotification([]);
+    expect(text).toContain('@team');
   });
 });

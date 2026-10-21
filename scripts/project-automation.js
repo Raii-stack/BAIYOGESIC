@@ -1,8 +1,8 @@
 // scripts/project-automation.js
-// Automates Project #5 status transitions:
+// Automates Project #5 status transitions & developer notifications:
 // - PR opened / review requested with linked issue -> In review
 // - PR merged with linked issue -> Done
-// - Issue closed -> Checks dependent issues; if all prerequisites are closed -> Ready
+// - Issue closed -> Checks dependent issues; if all prerequisites are closed -> moves to Ready & notifies assigned developer
 
 const PROJECT_ID = 'PVT_kwHOCu4u2c4Bm3EV';
 const STATUS_FIELD_ID = 'PVTSSF_lAHOCu4u2c4Bm3EVzhleT70';
@@ -13,6 +13,13 @@ const STATUS_OPTIONS = {
   IN_REVIEW: 'df73e18b',
   DONE: '98236657'
 };
+
+function formatReadyNotification(assignees) {
+  const mentions = Array.isArray(assignees) && assignees.length > 0
+    ? assignees.map((a) => (a.startsWith('@') ? a : `@${a}`)).join(' ')
+    : '@team';
+  return `👋 ${mentions}: All prerequisite tasks for this issue have been completed! This task is now in the **Ready** column on the [Sprint Plan](https://github.com/users/Raii-stack/projects/5) board and is ready to be picked up.`;
+}
 
 async function graphql(token, query, variables = {}) {
   const authHeader = token.startsWith('Bearer ') || token.startsWith('token ') ? token : `Bearer ${token}`;
@@ -63,6 +70,61 @@ function parsePrerequisiteNumbers(body) {
   return issueNums;
 }
 
+async function notifyReady(token, issueNum, assignees, body) {
+  const authHeader = token.startsWith('Bearer ') || token.startsWith('token ') ? token : `Bearer ${token}`;
+
+  // 1. Check if notification comment was already posted
+  const commentsRes = await fetch(`https://api.github.com/repos/Raii-stack/BAIYOGESIC/issues/${issueNum}/comments`, {
+    headers: {
+      Authorization: authHeader,
+      'User-Agent': 'GitHub-Action-Automation',
+      Accept: 'application/vnd.github.v3+json'
+    }
+  });
+
+  if (commentsRes.ok) {
+    const comments = await commentsRes.json();
+    const alreadyNotified = comments.some(
+      (c) => c.body && c.body.includes('ready to be picked up')
+    );
+    if (alreadyNotified) {
+      console.log(`Issue #${issueNum} was already notified. Skipping.`);
+      return;
+    }
+  }
+
+  // Determine handles to mention
+  let targetAssignees = assignees;
+  if (!targetAssignees || targetAssignees.length === 0) {
+    const match = (body || '').match(/\*\*Assignee:\*\*\s*([^\r\n]+)/i);
+    if (match) {
+      const parsed = match[1].match(/@([a-zA-Z0-9_-]+)/g);
+      if (parsed) {
+        targetAssignees = parsed.map((p) => p.replace('@', ''));
+      }
+    }
+  }
+
+  const commentText = formatReadyNotification(targetAssignees);
+  const postRes = await fetch(`https://api.github.com/repos/Raii-stack/BAIYOGESIC/issues/${issueNum}/comments`, {
+    method: 'POST',
+    headers: {
+      Authorization: authHeader,
+      'Content-Type': 'application/json',
+      'User-Agent': 'GitHub-Action-Automation',
+      Accept: 'application/vnd.github.v3+json'
+    },
+    body: JSON.stringify({ body: commentText })
+  });
+
+  if (postRes.ok) {
+    console.log(`Successfully posted Ready notification on Issue #${issueNum}.`);
+  } else {
+    const err = await postRes.text();
+    console.error(`Failed to post comment on #${issueNum}:`, err);
+  }
+}
+
 async function handleEvent() {
   const token = process.env.PROJECT_PAT || process.env.GITHUB_TOKEN;
   if (!token) {
@@ -77,7 +139,7 @@ async function handleEvent() {
 
   console.log(`Processing event: ${eventName}, action: ${eventPayload.action}`);
 
-  // Fetch all items from Project #5
+  // Fetch all items from Project #5 with assignees
   const projectQuery = `query {
     user(login: "Raii-stack") {
       projectV2(number: 5) {
@@ -91,6 +153,9 @@ async function handleEvent() {
                 title
                 state
                 body
+                assignees(first: 5) {
+                  nodes { login }
+                }
               }
               ... on PullRequest {
                 id
@@ -166,26 +231,32 @@ async function handleEvent() {
     }
   }
 
-  // 2. Check Prerequisites for all items in Backlog
-  // If all prerequisites are closed, promote to Ready
+  // 2. Check Prerequisites for items
+  // If all prerequisites are closed, promote to Ready and notify developer
   for (const it of items) {
     if (!it.content || !it.content.number) continue;
     const issueNum = it.content.number;
     const isClosed = it.content.state === 'CLOSED';
     if (isClosed) continue;
 
-    const statusVal = it.fieldValues.nodes.find(f => f.field && f.field.name === 'Status');
+    const statusVal = it.fieldValues.nodes.find((f) => f.field && f.field.name === 'Status');
     const currentStatus = statusVal ? statusVal.name : 'Backlog';
+
+    const assignees = it.content.assignees?.nodes?.map((n) => n.login) || [];
 
     if (currentStatus === 'Backlog' || !statusVal) {
       const prereqs = parsePrerequisiteNumbers(it.content.body);
       if (prereqs.length > 0) {
-        const allMet = prereqs.every(req => closedIssueNums.has(req));
+        const allMet = prereqs.every((req) => closedIssueNums.has(req));
         if (allMet) {
           console.log(`All prerequisites [${prereqs.join(', ')}] met for Issue #${issueNum}! Moving to Ready.`);
           await updateItemStatus(token, it.id, STATUS_OPTIONS.READY);
+          await notifyReady(token, issueNum, assignees, it.content.body);
         }
       }
+    } else if (currentStatus === 'Ready') {
+      // Ensure assignee has been notified for ready item
+      await notifyReady(token, issueNum, assignees, it.content.body);
     }
   }
 
@@ -199,4 +270,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { handleEvent, parsePrerequisiteNumbers };
+module.exports = { handleEvent, parsePrerequisiteNumbers, formatReadyNotification };

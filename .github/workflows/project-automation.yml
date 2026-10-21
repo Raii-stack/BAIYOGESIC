@@ -1,0 +1,31 @@
+name: Project Board Automation
+
+on:
+  issues:
+    types: [closed, reopened]
+  pull_request:
+    types: [opened, reopened, ready_for_review, closed]
+
+jobs:
+  automate-project:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+      repository-projects: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run Project Automation
+        env:
+          PROJECT_PAT: ${{ secrets.PROJECT_PAT || secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+        run: node scripts/project-automation.js

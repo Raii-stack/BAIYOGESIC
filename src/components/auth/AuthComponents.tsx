@@ -394,87 +394,91 @@ export function AuthShell({
   const details = pageDetails[page]
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#edf1f5] px-4 py-5 font-sans antialiased sm:px-6 sm:py-8 lg:grid lg:place-items-center lg:px-8">
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_24px_70px_rgba(15,39,67,0.10)] lg:grid lg:min-h-[720px] lg:flex-none lg:grid-cols-[0.82fr_1.18fr]">
-        <aside className="relative hidden min-h-[300px] flex-col bg-[#0d2743] p-7 text-white sm:p-10 lg:flex lg:min-h-full lg:p-12">
-          <Logo inverse />
+    <div className="flex min-h-screen flex-col justify-between bg-[#edf1f5] font-sans antialiased">
+      <main className="flex flex-1 items-center justify-center px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-[0_24px_70px_rgba(15,39,67,0.10)] lg:grid lg:min-h-[620px] lg:grid-cols-[0.82fr_1.18fr]">
+          <aside className="relative hidden min-h-[300px] flex-col bg-[#0d2743] p-7 text-white sm:p-10 lg:flex lg:min-h-full lg:p-10">
+            <Logo inverse />
 
-          <div className="my-auto max-w-sm py-12 lg:py-20">
-            <div className="mb-7 flex items-center gap-4 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-200">
-              <span className="text-4xl font-light tracking-[-0.05em] text-white/30">
-                {details.index}
-              </span>
-              <span className="h-px w-10 bg-blue-300/50" />
-              {details.label}
-            </div>
-            <p className="text-3xl font-semibold leading-tight tracking-[-0.035em] sm:text-4xl">
-              {details.heading}
-            </p>
-            <p className="mt-5 max-w-xs text-sm leading-6 text-slate-300">
-              {details.copy}
-            </p>
-          </div>
-
-          <ul className="grid gap-2 border-t border-white/15 pt-6 text-xs font-medium text-slate-300">
-            {details.points.map((point) => (
-              <li key={point} className="flex items-center gap-3">
-                <span className="h-1.5 w-1.5 bg-blue-300" />
-                {point}
-              </li>
-            ))}
-          </ul>
-        </aside>
-
-        <section
-          aria-labelledby={headingId}
-          className="flex flex-1 items-center px-6 py-10 sm:px-12 sm:py-14 lg:px-16 xl:px-20"
-        >
-          <div className="mx-auto w-full max-w-[440px]">
-            <div className="mb-8 text-center lg:text-left">
-              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-800">
-                HOPE secure identity
+            <div className="my-auto max-w-sm py-8 lg:py-12">
+              <div className="mb-6 flex items-center gap-4 text-[11px] font-bold uppercase tracking-[0.2em] text-blue-200">
+                <span className="text-4xl font-light tracking-[-0.05em] text-white/30">
+                  {details.index}
+                </span>
+                <span className="h-px w-10 bg-blue-300/50" />
+                {details.label}
+              </div>
+              <p className="text-3xl font-semibold leading-tight tracking-[-0.035em] sm:text-4xl">
+                {details.heading}
               </p>
-              <h1
-                id={headingId}
-                className="mt-3 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-[34px]"
-              >
-                {title}
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-slate-600">
-                {subtitle}
+              <p className="mt-4 max-w-xs text-sm leading-6 text-slate-300">
+                {details.copy}
               </p>
             </div>
-            {children}
-          </div>
-        </section>
-      </div>
 
-      <footer className="mx-auto mt-5 flex w-full max-w-6xl flex-col items-center justify-between gap-3 text-center text-xs text-slate-500 sm:flex-row sm:text-left">
-        <p>© {new Date().getFullYear()} HOPE, Inc. All rights reserved.</p>
-        <nav
-          aria-label="Legal and support links"
-          className="flex items-center gap-5"
-        >
-          <a
-            href="#privacy"
-            className="transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            <ul className="grid gap-2 border-t border-white/15 pt-5 text-xs font-medium text-slate-300">
+              {details.points.map((point) => (
+                <li key={point} className="flex items-center gap-3">
+                  <span className="h-1.5 w-1.5 bg-blue-300" />
+                  {point}
+                </li>
+              ))}
+            </ul>
+          </aside>
+
+          <section
+            aria-labelledby={headingId}
+            className="flex flex-1 items-center px-6 py-8 sm:px-12 sm:py-12 lg:px-16 xl:px-20"
           >
-            Privacy
-          </a>
-          <a
-            href="#security"
-            className="transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            <div className="mx-auto w-full max-w-[440px]">
+              <div className="mb-7 text-center lg:text-left">
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-800">
+                  HOPE secure identity
+                </p>
+                <h1
+                  id={headingId}
+                  className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-[34px]"
+                >
+                  {title}
+                </h1>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {subtitle}
+                </p>
+              </div>
+              {children}
+            </div>
+          </section>
+        </div>
+      </main>
+
+      <footer className="w-full shrink-0 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex w-full max-w-6xl flex-col items-center justify-between gap-3 text-center text-xs text-slate-500 sm:flex-row sm:text-left">
+          <p>© {new Date().getFullYear()} HOPE, Inc. All rights reserved.</p>
+          <nav
+            aria-label="Legal and support links"
+            className="flex items-center gap-5"
           >
-            Security
-          </a>
-          <a
-            href="#support"
-            className="transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
-          >
-            Support
-          </a>
-        </nav>
+            <a
+              href="#privacy"
+              className="transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            >
+              Privacy
+            </a>
+            <a
+              href="#security"
+              className="transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            >
+              Security
+            </a>
+            <a
+              href="#support"
+              className="transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            >
+              Support
+            </a>
+          </nav>
+        </div>
       </footer>
-    </main>
+    </div>
   )
 }

@@ -10,7 +10,7 @@ jobs:
   # -------------------------------------------------------------
   # Acceptance Criteria 1 & 3: Testing, & Dependency Audit
   # -------------------------------------------------------------
-build-and-test:
+  build-and-test:
     name: Build, Test & Dependency Audit
     runs-on: ubuntu-latest
 
@@ -32,12 +32,12 @@ build-and-test:
 
       - name: Audit Dependencies for Critical CVEs
         run: npm audit --audit-level=critical
-        
+
   # -------------------------------------------------------------
   # Acceptance Criteria 2: Secret Scanning
   # -------------------------------------------------------------
   secret-scan:
-    name: Secret Scanning
+    name: Secret Scanning (TruffleHog)
     runs-on: ubuntu-latest
 
     steps:

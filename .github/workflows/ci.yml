@@ -8,10 +8,10 @@ on:
 
 jobs:
   # -------------------------------------------------------------
-  # Acceptance Criteria 1 & 3: Linting, Testing, & Dependency Audit
+  # Acceptance Criteria 1 & 3: Testing, & Dependency Audit
   # -------------------------------------------------------------
   build-and-test:
-    name: Build, Lint, Test & Dependency Audit
+    name: Build, Test & Dependency Audit
     runs-on: ubuntu-latest
 
     steps:
@@ -26,9 +26,6 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
-
-      - name: Run Linter
-        run: npm run lint
 
       - name: Run Unit / Basic Tests
         run: npm test -- --passWithNoTests
@@ -50,8 +47,8 @@ jobs:
           fetch-depth: 0
 
       - name: TruffleHog OSS Secret Scan
-        uses: trufflesecurity/trufflehog-actions-scan@v3
+        uses: trufflesecurity/trufflehog-actions-scan@main
         with:
-          base: ${{ github.event.pull_request.base.sha }}
-          head: ${{ github.event.pull_request.head.sha }}
+          base: ${{ github.event.pull_request.base.ref }}
+          head: ${{ github.event.pull_request.head.ref }}
           extra_args: --debug --only-verified

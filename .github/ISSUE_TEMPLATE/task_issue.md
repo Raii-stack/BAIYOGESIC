@@ -3,7 +3,6 @@ name: Task Issue
 about: "Standard task issue template for HOPE, Inc. ERP"
 title: "[TASK-ID] Task Title"
 labels: task
-assignees: ""
 
 ---
 

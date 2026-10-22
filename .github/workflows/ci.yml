@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           cache: 'npm'
 
       - name: Install Dependencies
@@ -32,12 +32,12 @@ jobs:
 
       - name: Audit Dependencies for Critical CVEs
         run: npm audit --audit-level=critical
-
+        
   # -------------------------------------------------------------
   # Acceptance Criteria 2: Secret Scanning
   # -------------------------------------------------------------
   secret-scan:
-    name: Secret Scanning (TruffleHog)
+    name: Secret Scanning
     runs-on: ubuntu-latest
 
     steps:
@@ -46,9 +46,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: TruffleHog OSS Secret Scan
-        uses: trufflesecurity/trufflehog-actions-scan@main
+      - name: Run TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
         with:
-          base: ${{ github.event.pull_request.base.ref }}
-          head: ${{ github.event.pull_request.head.ref }}
+          path: ./
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
           extra_args: --debug --only-verified

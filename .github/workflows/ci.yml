@@ -28,8 +28,8 @@ jobs:
         run: npm ci
 
       - name: Run Unit / Basic Tests
-        run: npx vitest run --passWithNoTests --pool=threads --poolOptions.threads.singleThread=true
-
+        run: npx vitest run --passWithNoTests --pool=threads
+        
       - name: Audit Dependencies for Critical CVEs
         run: npm audit --audit-level=critical
 

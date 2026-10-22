@@ -1,9 +1,10 @@
 ---
 name: Task Issue
-about: Standard task issue template for HOPE, Inc. ERP
+about: "Standard task issue template for HOPE, Inc. ERP"
 title: "[TASK-ID] Task Title"
-labels: ["task"]
-assignees: []
+labels: task
+assignees: ""
+
 ---
 
 ### [TASK-ID] Task Title

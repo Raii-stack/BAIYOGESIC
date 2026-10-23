@@ -1,0 +1,64 @@
+name: CI & Security Scanning
+
+on:
+  pull_request:
+    branches:
+      - main
+      - test
+
+jobs:
+  # -------------------------------------------------------------
+  # Acceptance Criteria 1 & 3: Testing & Dependency Audit
+  # -------------------------------------------------------------
+  build-and-test:
+    name: Build, Test & Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          check-latest: true
+          cache: 'npm'
+
+      - name: Show versions
+        run: |
+          node -v
+          npm ls undici || true
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Run Unit / Basic Tests
+        run: npx vitest run
+        env:
+          SUPABASE_URL: 'https://mock.supabase.co'
+          SUPABASE_KEY: 'mock-supabase-key-for-ci'
+
+      - name: Audit Dependencies for Critical CVEs
+        run: npm audit --audit-level=critical
+
+  # -------------------------------------------------------------
+  # Acceptance Criteria 2: Secret Scanning
+  # -------------------------------------------------------------
+  secret-scan:
+    name: Secret Scanning (TruffleHog)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Run TruffleHog OSS
+        uses: trufflesecurity/trufflehog@v3.90.0
+        with:
+          path: ./
+          base: ${{ github.event.pull_request.base.sha }}
+          head: ${{ github.event.pull_request.head.sha }}
+          extra_args: --debug

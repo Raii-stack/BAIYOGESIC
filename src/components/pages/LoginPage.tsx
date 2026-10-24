@@ -41,14 +41,14 @@ export default function LoginPage() {
     }
   }
 
-  if (loading) return <div role="status" className="grid min-h-screen place-items-center bg-[#edf1f5] text-sm text-slate-600">Checking your session…</div>
+  if (loading) return <div role="status" className="grid min-h-screen place-items-center bg-[#f6f6f7] text-sm text-neutral-500">Checking your session…</div>
   if (user && !user.mustChangePassword) return <Navigate to="/dashboard" replace />
 
   return (
     <AuthShell
       page="login"
-      title="Sign in to your workspace"
-      subtitle="Use your corporate credentials to continue to your organization."
+      title="Log in to HOPE, Inc."
+      subtitle="Enter your work email and password to continue."
     >
       <form onSubmit={submit} noValidate>
         <Field
@@ -73,6 +73,7 @@ export default function LoginPage() {
           placeholder="Enter your password"
           icon="lock"
           passwordToggle
+          className="mb-0"
           value={password}
           onChange={(value) => {
             setPassword(value)
@@ -80,15 +81,15 @@ export default function LoginPage() {
           }}
           error={errors.password}
         />
-        <div className={`-mt-2 flex items-center justify-end ${authenticationError ? "mb-3" : "mb-6"}`}>
+        {authenticationError && <p role="alert" className="mt-2 text-xs font-medium leading-4 text-red-600">{authenticationError}</p>}
+        <div className="my-4 flex items-center justify-end">
           <Link
             to="/reset-password"
-            className="text-[13px] font-semibold text-blue-800 transition hover:text-blue-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            className="rounded text-[13px] font-medium text-neutral-600 underline-offset-4 transition hover:text-neutral-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
           >
             Forgot password?
           </Link>
         </div>
-        {authenticationError && <p role="alert" className="mb-4 text-[13px] font-medium leading-5 text-red-700">{authenticationError}</p>}
         <Submit loading={submitting} loadingLabel="Signing you in…">
           Sign in
         </Submit>

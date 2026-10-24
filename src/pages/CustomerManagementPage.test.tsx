@@ -67,9 +67,9 @@ test("loads customer pages, shows skeletons, and applies server-side payment ter
 
   expect(await screen.findByText("Customer 1")).toBeInTheDocument()
   expect(screen.getByText("Showing 1–10 of 23")).toBeInTheDocument()
-  expect(within(screen.getByRole("row", { name: /Customer 1 / })).getByText("Net 30")).toHaveClass("bg-blue-50")
-  expect(within(screen.getByRole("row", { name: /Customer 2 / })).getByText("Net 45")).toHaveClass("bg-violet-50")
-  expect(within(screen.getByRole("row", { name: /Customer 3 / })).getByText("Cash on delivery")).toHaveClass("bg-amber-50")
+  expect(within(screen.getByRole("row", { name: /Customer 1 / })).getByText("Net 30")).toBeInTheDocument()
+  expect(within(screen.getByRole("row", { name: /Customer 2 / })).getByText("Net 45")).toBeInTheDocument()
+  expect(within(screen.getByRole("row", { name: /Customer 3 / })).getByText("Cash on delivery")).toBeInTheDocument()
   expect(within(screen.getByRole("row", { name: /Customer 3 / })).getByText("Archived")).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Edit Customer 3" })).not.toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Next" }))

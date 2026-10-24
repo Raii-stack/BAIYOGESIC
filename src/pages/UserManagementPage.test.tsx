@@ -109,7 +109,7 @@ test("loads user accounts with skeletons, filters, and server pagination for sup
 
   expect(await screen.findByText("User1 Account")).toBeInTheDocument()
   expect(screen.getByText("Showing 1–10 of 14")).toBeInTheDocument()
-  expect(within(screen.getByRole("row", { name: /User1 Account/ })).getByText("SUPERADMIN")).toBeInTheDocument()
+  expect(within(screen.getByRole("row", { name: /User1 Account/ })).getByText("Superadmin")).toBeInTheDocument()
 
   await user.click(screen.getByRole("button", { name: "Next" }))
   expect(await screen.findByText("User11 Account")).toBeInTheDocument()
@@ -256,7 +256,7 @@ test("creates and edits a user account through the slide-over panel", async () =
   await user.click(within(editPanel).getByRole("button", { name: "Save changes" }))
 
   await waitFor(() =>
-    expect(within(screen.getByRole("row", { name: /Maria Santos/ })).getByText("ADMIN")).toBeInTheDocument(),
+    expect(within(screen.getByRole("row", { name: /Maria Santos/ })).getByText("Admin")).toBeInTheDocument(),
   )
   expect(screen.getByRole("status")).toHaveTextContent("User account updated successfully.")
 })

@@ -3,12 +3,30 @@ import { safeApiMessage } from "./api-errors"
 export type AuthUser = {
   userId: string | number
   empno: string | null
+  firstName?: string
+  lastName?: string
+  name?: string
   email: string
   role: string
   status: string
   isBlocked?: boolean
   mustChangePassword: boolean
+  jobTitle?: string | null
+  departmentName?: string | null
   rights?: string[]
+}
+
+export function getUserDisplayName(user: AuthUser | null | undefined): string {
+  return user?.name?.trim()
+    || [user?.firstName, user?.lastName].filter(Boolean).join(" ")
+    || user?.email
+    || "Workspace user"
+}
+
+export function getUserInitials(user: AuthUser | null | undefined): string {
+  const name = getUserDisplayName(user)
+  const parts = name.split(/\s+/).filter(Boolean)
+  return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)?.[0]}` : name.slice(0, 2)).toUpperCase()
 }
 
 export function isSuperAdminRole(role?: string | null): boolean {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
 import SuccessToast from "../components/common/SuccessToast"
@@ -8,6 +9,7 @@ import EmployeePanel from "../components/employees/EmployeePanel"
 import EmployeeTable from "../components/employees/EmployeeTable"
 import LookupSection from "../components/employees/LookupSection"
 import useDebouncedValue from "../hooks/useDebouncedValue"
+import usePageQuery from "../hooks/usePageQuery"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { employeeApi, type EmployeeInput, type EmployeePagination, type Lookup } from "../lib/employee-api"
 import { getHrPermissions } from "../lib/rbac"
@@ -18,6 +20,7 @@ const emptyPagination: EmployeePagination = { page: 1, limit: PAGE_SIZE, total: 
 
 export default function EmployeeDirectoryPage() {
   const { user } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const {
     canAddEmployee,
     canEditEmployee,
@@ -32,15 +35,14 @@ export default function EmployeeDirectoryPage() {
     canViewAudit,
   } = getHrPermissions(user)
   const canOpenEmployeePanel = canAddEmployee || canEditEmployee
-  const [activeTab, setActiveTab] = useState<"employees" | "jobs" | "departments">("employees")
-  const [lookupTotal, setLookupTotal] = useState<number | null>(null)
-  const [query, setQuery] = useState("")
+  const activeTab = searchParams.get("view") === "jobs" ? "jobs" : searchParams.get("view") === "departments" ? "departments" : "employees"
+  const [query, setQuery] = useState(() => searchParams.get("search") || "")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
   const [department, setDepartment] = useState("")
   const [job, setJob] = useState("")
   const [status, setStatus] = useState("all")
-  const [page, setPage] = useState(1)
+  const [page, setPage] = usePageQuery()
   const [employees, setEmployees] = useState<Employee[]>([])
   const [pagination, setPagination] = useState<EmployeePagination>(emptyPagination)
   const [departments, setDepartments] = useState<Lookup[]>([])
@@ -71,6 +73,7 @@ export default function EmployeeDirectoryPage() {
   }, [refresh])
 
   useEffect(() => {
+    if (activeTab !== "employees") return
     if (searchPending) { setLoading(true); setError(""); return }
     const controller = new AbortController()
     setLoading(true)
@@ -78,7 +81,7 @@ export default function EmployeeDirectoryPage() {
     employeeApi.list({ page, limit: PAGE_SIZE, search: debouncedQuery, department, job, status }, controller.signal)
       .then((result) => {
         if (controller.signal.aborted) return
-        if (result.pagination.totalPages > 0 && page > result.pagination.totalPages) { setPage(result.pagination.totalPages); return }
+        if (page > Math.max(1, result.pagination.totalPages)) { setPage(Math.max(1, result.pagination.totalPages)); return }
         setEmployees(result.employees)
         setPagination(result.pagination)
       })
@@ -91,7 +94,7 @@ export default function EmployeeDirectoryPage() {
       })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [page, debouncedQuery, searchPending, department, job, status, refresh])
+  }, [activeTab, page, debouncedQuery, searchPending, department, job, status, refresh])
 
   const showNotice = (message: string) => setNotice((current) => ({ id: (current?.id ?? 0) + 1, message }))
 
@@ -134,27 +137,18 @@ export default function EmployeeDirectoryPage() {
     }
   }
 
-  const headerCount = activeTab === "employees"
-    ? (loading || error ? "—" : pagination.total)
-    : (lookupTotal === null ? "—" : lookupTotal)
-
   return (
-    <DashboardLayout activeNavigation="Human Resources" searchPlaceholder="Search workspace">
-      <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 xl:px-12">
+    <DashboardLayout activeNavigation="Employees" searchPlaceholder="Search workspace">
+      <main className="workspace-page">
         <div className="mx-auto max-w-7xl">
-          <header className="mb-6 flex flex-col gap-5 border-b border-slate-300 pb-7 sm:flex-row sm:items-end sm:justify-between">
+          <header className="workspace-page-header">
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-800">Human Resources / Personnel register</p>
-              <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-slate-950 sm:text-4xl">Employee Directory</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">Manage employees, job titles, departments, and assignment history.</p>
-            </div>
-            <div className="flex items-center gap-3 self-start border-l-2 border-blue-800 pl-4 sm:self-auto">
-              <span className="text-3xl font-bold tabular-nums tracking-tight text-slate-950">{headerCount}</span>
-              <span className="max-w-20 text-[10px] font-bold uppercase leading-4 tracking-[0.12em] text-slate-500">Matching records</span>
+              <h1 className="workspace-page-title">Employees</h1>
+              <p className="workspace-page-description">Manage your team, departments, and job assignments.</p>
             </div>
           </header>
 
-          <div role="tablist" aria-label="Human Resources sections" className="mb-5 flex items-center gap-1 border-b border-slate-300">
+          <div role="tablist" aria-label="Human Resources sections" className="workspace-tabs">
             {([
               { id: "employees", label: "Employees" },
               { id: "jobs", label: "Jobs" },
@@ -167,12 +161,8 @@ export default function EmployeeDirectoryPage() {
                   type="button"
                   role="tab"
                   aria-selected={selectedTab}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`-mb-px border-b-2 px-4 py-2.5 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 ${
-                    selectedTab
-                      ? "border-blue-800 text-blue-900"
-                      : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"
-                  }`}
+                  onClick={() => setSearchParams((current) => { const next = new URLSearchParams(current); next.set("view", tab.id); next.set("page", "1"); return next })}
+                  className="workspace-tab"
                 >
                   {tab.label}
                 </button>
@@ -182,12 +172,12 @@ export default function EmployeeDirectoryPage() {
 
           {activeTab === "employees" ? (
             <>
-              <section aria-label="Employee filters" className="mb-5 grid gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-[0_8px_28px_rgba(15,39,67,0.04)] md:grid-cols-2 lg:grid-cols-[minmax(200px,1fr)_160px_160px_145px_auto] lg:items-end">
-                <label><span className="mb-2 block text-xs font-bold text-slate-700">Search employees</span><span className="relative block"><DashboardIcon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400" /><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder="Name, ID, or email" className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm outline-none transition focus:border-blue-700 focus:bg-white focus:ring-3 focus:ring-blue-100" /></span></label>
+              <section aria-label="Employee filters" className="workspace-panel workspace-filters">
+                <label className="workspace-filter-search"><span className="workspace-label">Search employees</span><span className="relative block"><DashboardIcon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder="Name, ID, or email" className="workspace-control workspace-control--search" /></span></label>
                 <FilterSelect label="Department" value={department} onChange={(value) => { setDepartment(value); setPage(1) }} options={departments} allLabel="All departments" />
                 <FilterSelect label="Job title" value={job} onChange={(value) => { setJob(value); setPage(1) }} options={jobs} allLabel="All job titles" />
-                {canViewAudit && <label><span className="mb-2 block text-xs font-bold text-slate-700">Status</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }} className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-blue-700"><option value="all">All statuses</option><option value="active">Active</option><option value="separated">Separated</option><option value="archived">Archived</option></select></label>}
-                {canAddEmployee && <button type="button" onClick={() => { setSelected(null); setPanelOpen(true) }} className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:ring-4 focus-visible:ring-blue-200">+ Add employee</button>}
+                {canViewAudit && <label><span className="workspace-label">Status</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }} className="workspace-control"><option value="all">All statuses</option><option value="active">Active</option><option value="separated">Separated</option><option value="archived">Archived</option></select></label>}
+                {canAddEmployee && <button type="button" onClick={() => { setSelected(null); setPanelOpen(true) }} className="workspace-primary-action">+ Add employee</button>}
               </section>
 
               {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{error}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
@@ -204,7 +194,6 @@ export default function EmployeeDirectoryPage() {
               canViewAudit={canViewAudit}
               onChanged={() => setRefresh((current) => current + 1)}
               onNotice={showNotice}
-              onTotalChange={setLookupTotal}
             />
           )}
         </div>
@@ -217,5 +206,5 @@ export default function EmployeeDirectoryPage() {
 }
 
 function FilterSelect({ label, value, onChange, options, allLabel }: { label: string; value: string; onChange: (value: string) => void; options: Lookup[]; allLabel: string }) {
-  return <label><span className="mb-2 block text-xs font-bold text-slate-700">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-700 focus:border-blue-700"><option value="">{allLabel}</option>{options.map((option) => <option key={option.code} value={option.code}>{option.name || option.code}</option>)}</select></label>
+  return <label><span className="workspace-label">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="workspace-control"><option value="">{allLabel}</option>{options.map((option) => <option key={option.code} value={option.code}>{option.name || option.code}</option>)}</select></label>
 }

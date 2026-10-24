@@ -9,12 +9,9 @@ export type NavigationItem = {
 
 export type ModuleDefinition = {
   id: string
-  index: string
   title: string
   description: string
-  href?: string
+  href: string
   icon: DashboardIconName
-  accent: string
-  iconStyle: string
   visible: boolean
 }

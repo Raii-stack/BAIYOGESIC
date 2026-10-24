@@ -50,7 +50,7 @@ test("loads real product pages, history, skeletons, and server-side unit filters
 
   expect(await screen.findByText("Product 1")).toBeInTheDocument()
   expect(screen.getByText("Showing 1–10 of 23")).toBeInTheDocument()
-  expect(within(screen.getByRole("row", { name: /PX0002 Product 2/ })).getByText("ea")).toHaveClass("bg-emerald-50")
+  expect(within(screen.getByRole("row", { name: /PX0002 Product 2/ })).getByText("ea")).toBeInTheDocument()
   expect(within(screen.getByRole("row", { name: /PX0003 Product 3/ })).getByText("Archived")).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Edit PX0003" })).not.toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Show price history for PX0001" }))

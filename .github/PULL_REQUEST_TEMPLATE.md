@@ -1,60 +1,60 @@
 ## Description
-<!-- Provide a clear and concise summary of the changes introduced by this PR. -->
-<!-- Explain *why* this change is being made if it's not immediately obvious. -->
+<!-- Provide a clear and concise summary of the changes introduced by this pull request. -->
+<!-- Explain the motivation and context behind these changes. -->
 
-## Linked Issue(s)
-<!-- Link the issue(s) this PR resolves. Using "Closes #123" will automatically close the issue when merged. -->
+## Linked Issues
+<!-- Link the issue(s) resolved by this pull request. Example: "Closes #123". -->
 Closes #
 
 ## Type of Change
-<!-- Check the appropriate box (x) -->
-- [ ] 🐛 Bug fix (non-breaking change which fixes an issue)
-- [ ] ✨ New feature (non-breaking change which adds functionality)
-- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] 🛠️ Chore/Refactor (no production code change, e.g., documentation, testing, CI/CD)
+<!-- Select the appropriate change category. -->
+- [ ] Bug fix (non-breaking change resolving an issue or defect)
+- [ ] New feature (non-breaking change adding new functionality)
+- [ ] Breaking change (modification that alters existing functionality or interfaces)
+- [ ] Refactor / Maintenance (code improvements, documentation, dependencies, or CI/CD without functional change)
 
 ---
 
-## 📋 Definition of Done (Role Checklists)
+## Definition of Done
 
-### 💻 Developer / General
-- [ ] My code follows the project's style guidelines and passes linting (`npm run lint`).
-- [ ] I have performed a self-review of my own code.
-- [ ] I have commented my code, particularly in hard-to-understand areas.
-- [ ] There are no hardcoded secrets or plaintext passwords.
+### General and Code Quality
+- [ ] Code follows project style guidelines and passes automated lint checks (`npm run lint`).
+- [ ] Self-review conducted prior to submitting for peer review.
+- [ ] Code is documented where appropriate, especially complex logic.
+- [ ] Verified that no secrets, credentials, or plaintext passwords are committed.
 
-### 🗄️ DB Admin / Backend
-- [ ] Any new API routes validate the user session and verify module permissions (View, Edit, Delete).
-- [ ] Database migrations are idempotent and safely handle soft-deletes (no hard deletes).
-- [ ] Any rights changes or sensitive actions are properly recorded via the `audit_log`.
+### Database and Backend
+- [ ] API routes enforce authentication, session validation, and granular role permissions (View, Edit, Delete).
+- [ ] Database migrations are idempotent and enforce referential integrity and soft-delete policies.
+- [ ] Rights modifications and sensitive state transitions are recorded in `audit_log`.
 
-### 🎨 UI/UX Designer (If UI changes are included)
-- [ ] The implementation matches the Figma design system (colors, typography, spacing).
-- [ ] The UI is fully responsive across standard breakpoints.
-- [ ] Explicit UI states are handled: **Loading**, **Success**, **Error**, and **Empty**.
-- [ ] Basic accessibility (a11y) is intact (keyboard navigation, aria-labels).
+### User Interface and User Experience
+- [ ] Visual implementation matches design system specifications (typography, colors, spacing).
+- [ ] Layout is responsive across desktop, tablet, and mobile viewport breakpoints.
+- [ ] Explicit UI states are handled: loading, success, error, and empty states.
+- [ ] WCAG AA accessibility standards are met (contrast ratios, keyboard focus navigation, ARIA attributes).
 
-### 🧪 QA / Tester
-- [ ] I have added/updated unit or integration tests that prove my fix is effective or my feature works.
-- [ ] All new and existing tests pass locally.
-- [ ] Edge cases and negative paths (e.g., expired tokens, insufficient permissions) have been considered and tested.
+### Quality Assurance and Testing
+- [ ] Added or updated automated unit/integration tests verifying the change.
+- [ ] All automated tests pass locally (`npm test`).
+- [ ] Negative paths and edge cases (unauthorized roles, input validation boundaries, conflicts) are covered.
 
-### 🔒 DevSecOps
-- [ ] Required Vercel environment variables have been documented or updated.
-- [ ] Vercel Preview deployment builds successfully without exposing sensitive data.
+### Security and Deployment
+- [ ] Environment variables and configuration updates are documented.
+- [ ] Preview deployments build successfully with clean build logs.
 
 ---
 
-## 📸 Screenshots / Screen Recordings (if applicable)
-<!-- For UI changes, please provide Before and After screenshots to help the reviewer. -->
+## Visual Evidence (if applicable)
+<!-- For user interface changes, provide before and after visual comparisons. -->
 | Before | After |
 | ------ | ----- |
 |        |       |
 
-## 🧪 How to Test
-<!-- Provide step-by-step instructions so the reviewer can manually test your changes. -->
-1. Check out this branch: `git checkout my-branch-name`
-2. Run local Supabase (if needed): `supabase start`
-3. Log in as a [Superadmin/Admin/User]
-4. Navigate to `/path/to/feature`
-5. Verify that...
+## Verification Steps
+<!-- Provide exact steps for reviewers to manually verify and test the changes. -->
+1. Check out the branch: `git checkout <branch-name>`
+2. Start the development environment: `npm run dev`
+3. Authenticate with appropriate role credentials (Superadmin / Admin / Employee)
+4. Navigate to the relevant route or feature view
+5. Verify expected functionality and error handling

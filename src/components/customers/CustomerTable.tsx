@@ -7,12 +7,6 @@ const termLabels: Record<Customer["paymentTerm"], string> = {
   COD: "Cash on delivery",
 }
 
-const termStyles: Record<Customer["paymentTerm"], string> = {
-  "30D": "border-blue-200 bg-blue-50 text-blue-800",
-  "45D": "border-violet-200 bg-violet-50 text-violet-800",
-  COD: "border-amber-200 bg-amber-50 text-amber-900",
-}
-
 function SkeletonRows({ showActions, canViewAudit }: { showActions: boolean; canViewAudit: boolean }) {
   const widths = [
     "w-20",
@@ -25,7 +19,7 @@ function SkeletonRows({ showActions, canViewAudit }: { showActions: boolean; can
   return Array.from({ length: 8 }, (_, index) => (
     <tr key={index} className="border-b border-slate-100 last:border-0" aria-hidden="true">
       {widths.map((width, column) => (
-        <td key={column} className="px-5 py-5 first:pl-6 last:pr-6">
+        <td key={column}>
           <div className={`h-3.5 ${width} max-w-full animate-pulse rounded bg-slate-200`} />
         </td>
       ))}
@@ -91,63 +85,63 @@ export default function CustomerTable({
   ]
 
   return (
-    <section aria-label="Customer records" className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-[0_8px_28px_rgba(15,39,67,0.05)]">
-      <div className="flex items-center justify-between gap-4 border-b border-slate-200 px-6 py-4">
+    <section aria-label="Customer records" className="workspace-panel">
+      <div className="workspace-table-header">
         <div>
-          <h2 className="text-sm font-bold text-slate-900">Customer directory</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">Customer directory</h2>
           <p className="mt-0.5 text-xs text-slate-500">Customer accounts, payment terms, and archive status</p>
         </div>
-        <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-900">
+        <span className="workspace-badge workspace-badge--neutral">
           {loading ? "Loading…" : error ? "Unavailable" : `${pagination.total} records`}
         </span>
       </div>
 
       <div className="overflow-x-auto" aria-busy={loading}>
-        <table className="w-full min-w-[820px] border-collapse text-left">
+        <table className="workspace-table min-w-[820px]">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
               {headings.map((heading) => (
-                <th key={heading} scope="col" className={`px-5 py-3.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 first:pl-6 last:pr-6 ${heading === "Actions" ? "sticky right-0 z-10 border-l border-slate-200 bg-slate-50" : ""}`}>{heading}</th>
+                <th key={heading} scope="col" className={`workspace-table-heading ${heading === "Actions" ? "workspace-table-actions" : ""}`}>{heading}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {loading ? <SkeletonRows showActions={showActions} canViewAudit={canViewAudit} /> : customers.map((customer) => (
-              <tr key={customer.id} className={`border-b border-slate-100 transition-colors last:border-0 ${customer.status === "Active" ? "hover:bg-blue-50/40" : "bg-slate-50/70 hover:bg-slate-100"}`}>
-                <td className="whitespace-nowrap px-5 py-4 pl-6 font-mono text-xs font-semibold text-blue-800">{customer.id}</td>
-                <td className="min-w-48 px-5 py-4 text-sm font-semibold text-slate-900">{customer.company}</td>
-                <td className="max-w-72 px-5 py-4 text-sm leading-5 text-slate-600">{customer.address}</td>
-                <td className="whitespace-nowrap px-5 py-4"><span className={`inline-flex rounded border px-2.5 py-1 text-xs font-semibold ${termStyles[customer.paymentTerm] ?? "border-slate-200 bg-slate-50 text-slate-700"}`}>{termLabels[customer.paymentTerm] || customer.paymentTerm}</span></td>
-                {canViewAudit && <td className="whitespace-nowrap px-5 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${customer.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"}`}>{customer.status === "Active" ? "Active" : "Archived"}</span></td>}
-                {canViewAudit && <td className="max-w-52 px-5 py-4 font-mono text-[11px] leading-5 text-slate-500">{customer.stamp || "—"}</td>}
-                {showActions && <td className={`sticky right-0 z-10 border-l border-slate-100 px-5 py-4 pr-6 ${customer.status === "Active" ? "bg-white" : "bg-slate-50"}`}><div className="flex items-center gap-1">
+              <tr key={customer.id} className={`border-b border-slate-100 transition-colors last:border-0 ${customer.status === "Active" ? "hover:bg-neutral-50" : "is-muted"}`}>
+                <td className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">{customer.id}</td>
+                <td className="min-w-48 text-[13px] font-medium text-neutral-900">{customer.company}</td>
+                <td className="max-w-72 text-sm leading-5 text-slate-600">{customer.address}</td>
+                <td className="whitespace-nowrap"><span className="workspace-badge workspace-badge--neutral" data-term={customer.paymentTerm}>{termLabels[customer.paymentTerm] || customer.paymentTerm}</span></td>
+                {canViewAudit && <td className="whitespace-nowrap"><span className={`workspace-badge ${customer.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-600"}`}>{customer.status === "Active" ? "Active" : "Archived"}</span></td>}
+                {canViewAudit && <td className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">{customer.stamp || "—"}</td>}
+                {showActions && <td className={`workspace-table-actions ${customer.status === "Active" ? "bg-white" : "bg-slate-50"}`}><div className="flex items-center gap-1">
                   {customer.status === "Active" ? <>
-                    {canEdit && <button type="button" onClick={() => onEdit(customer)} aria-label={`Edit ${customer.company}`} title="Edit customer" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-blue-100 hover:text-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"><EditIcon /></button>}
-                    {canDelete && <button type="button" onClick={() => onArchive(customer)} aria-label={`Archive ${customer.company}`} title="Archive customer" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-red-50 hover:text-red-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-600"><ArchiveIcon /></button>}
-                  </> : canDelete && onRestore ? <button type="button" onClick={() => onRestore(customer)} disabled={restoringId === customer.id} aria-label={`Restore ${customer.company}`} title="Restore customer" className="grid h-9 w-9 place-items-center rounded-md text-slate-500 transition hover:bg-emerald-50 hover:text-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 disabled:cursor-wait disabled:opacity-50"><RestoreIcon /></button> : <span className="px-2 text-slate-400" aria-label="No actions for archived customer">—</span>}
+                    {canEdit && <button type="button" onClick={() => onEdit(customer)} aria-label={`Edit ${customer.company}`} title="Edit customer" className="workspace-icon-action"><EditIcon /></button>}
+                    {canDelete && <button type="button" onClick={() => onArchive(customer)} aria-label={`Archive ${customer.company}`} title="Archive customer" className="workspace-icon-action workspace-icon-action--danger"><ArchiveIcon /></button>}
+                  </> : canDelete && onRestore ? <button type="button" onClick={() => onRestore(customer)} disabled={restoringId === customer.id} aria-label={`Restore ${customer.company}`} title="Restore customer" className="workspace-icon-action"><RestoreIcon /></button> : <span className="px-2 text-slate-400" aria-label="No actions for archived customer">—</span>}
                 </div></td>}
               </tr>
             ))}
           </tbody>
         </table>
         {!loading && !error && customers.length === 0 && (
-          <div className="border-t border-slate-100 px-6 py-14 text-center">
+          <div className="workspace-empty-state">
             <p className="text-sm font-semibold text-slate-800">No customers found</p>
             <p className="mt-1 text-xs text-slate-500">Try a different search, status, or payment term.</p>
           </div>
         )}
       </div>
 
-      <div className="flex flex-col gap-4 border-t border-slate-200 bg-slate-50/50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+      <div className="workspace-table-footer">
         <p className="text-xs font-medium text-slate-600" aria-live="polite">
           {loading ? "Loading customer records…" : error ? "Customer records unavailable" : `Showing ${start}–${end} of ${pagination.total}`}
         </p>
-        <nav aria-label="Customer table pagination" className="flex items-center gap-1">
-          <button type="button" onClick={() => onPageChange(pagination.page - 1)} disabled={loading || pagination.page <= 1} className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white">Previous</button>
+        <nav aria-label="Customer table pagination" className="workspace-pagination">
+          <button type="button" onClick={() => onPageChange(pagination.page - 1)} disabled={loading || pagination.page <= 1}>Previous</button>
           {visiblePages(pagination.page, pagination.totalPages).map((page) => (
-            <button key={page} type="button" onClick={() => onPageChange(page)} disabled={loading} aria-label={`Page ${page}`} aria-current={page === pagination.page ? "page" : undefined} className={`h-9 min-w-9 rounded-md border text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 disabled:cursor-wait ${page === pagination.page ? "border-blue-800 bg-blue-800 text-white" : "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"}`}>{page}</button>
+            <button key={page} type="button" onClick={() => onPageChange(page)} disabled={loading} aria-label={`Page ${page}`} aria-current={page === pagination.page ? "page" : undefined}>{page}</button>
           ))}
-          <button type="button" onClick={() => onPageChange(pagination.page + 1)} disabled={loading || pagination.page >= pagination.totalPages} className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-white">Next</button>
+          <button type="button" onClick={() => onPageChange(pagination.page + 1)} disabled={loading || pagination.page >= pagination.totalPages}>Next</button>
         </nav>
       </div>
     </section>

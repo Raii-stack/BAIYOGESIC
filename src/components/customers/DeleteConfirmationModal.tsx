@@ -62,9 +62,9 @@ export default function DeleteConfirmationModal({
         aria-modal="true"
         aria-labelledby="archive-dialog-title"
         aria-describedby="archive-dialog-description"
-        className="relative w-full max-w-lg overflow-hidden rounded-lg border border-slate-300 border-t-[3px] border-t-red-600 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.30)]"
+        className="relative w-full max-w-lg workspace-panel shadow-xl"
       >
-        <div className="px-6 pb-7 pt-8 text-center sm:px-9">
+        <div className="p-6 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-red-200 bg-red-50 text-red-700">
             <WarningIcon />
           </div>
@@ -73,7 +73,7 @@ export default function DeleteConfirmationModal({
           </p>
           <h2
             id="archive-dialog-title"
-            className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
+            className="mt-2 text-xl font-semibold tracking-tight text-neutral-900"
           >
             Archive this record?
           </h2>
@@ -89,14 +89,14 @@ export default function DeleteConfirmationModal({
           </p>
         </div>
 
-        {error && <p role="alert" className="px-6 pb-4 text-sm font-semibold text-red-700 sm:px-9">{error}</p>}
-        <div className="grid grid-cols-2 gap-3 border-t border-slate-300 bg-slate-50 px-5 py-4 sm:px-8">
+        {error && <p role="alert" className="px-6 pb-4 text-sm font-semibold text-red-700">{error}</p>}
+        <div className="workspace-drawer-footer">
           <button
             type="button"
             onClick={onCancel}
               disabled={loading}
             autoFocus
-            className="h-11 rounded-md border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 sm:text-sm"
+            className="workspace-secondary-action"
           >
             Cancel
           </button>
@@ -104,7 +104,7 @@ export default function DeleteConfirmationModal({
             type="button"
             onClick={onConfirm}
               disabled={loading}
-              className="h-11 rounded-md bg-red-700 px-3 text-xs font-bold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-200 disabled:cursor-wait disabled:opacity-70 sm:text-sm"
+              className="workspace-danger-action"
           >
               {loading ? "Archiving…" : "Yes, Archive Record"}
           </button>

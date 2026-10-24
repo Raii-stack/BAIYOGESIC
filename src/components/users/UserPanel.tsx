@@ -219,15 +219,13 @@ export default function UserPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby="user-panel-title"
-        className={`absolute inset-y-0 right-0 flex w-full max-w-xl flex-col border-l border-slate-300 bg-white shadow-[-20px_0_60px_rgba(15,23,42,0.14)] transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-0 right-0 flex w-full max-w-xl flex-col border-l border-neutral-200 bg-white shadow-xl workspace-drawer transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <header className="flex shrink-0 items-start justify-between gap-6 border-b border-slate-300 px-6 py-6 sm:px-8">
+        <header className="workspace-drawer-header">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">
-              Administration / User account
-            </p>
+
             <h2
               id="user-panel-title"
               className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
@@ -246,15 +244,15 @@ export default function UserPanel({
               if (!saving) onClose()
             }}
             aria-label="Close user details"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            className="workspace-icon-action"
           >
             <CloseIcon />
           </button>
         </header>
 
         <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
-          <div className="flex-1 overflow-y-auto px-6 py-7 sm:px-8">
-            <div className="border-l-2 border-blue-800 bg-blue-50 px-4 py-3">
+          <div className="workspace-drawer-body">
+            <div className="workspace-notice">
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-900">
                 Role hierarchy
               </p>
@@ -268,14 +266,14 @@ export default function UserPanel({
             <div className="mt-6 space-y-4">
               {!isEditing && availableEmployees.length > 0 && (
                 <label className="block">
-                  <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+                  <span className="workspace-label workspace-label--row">
                     Link to Existing Employee
                     <span className="font-medium text-slate-400">Optional</span>
                   </span>
                   <select
                     value={selectedEmpno}
                     onChange={(event) => handleSelectEmployee(event.target.value)}
-                    className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                    className="workspace-control"
                   >
                     <option value="">Create new employee record automatically</option>
                     {availableEmployees.map((emp) => (
@@ -289,19 +287,19 @@ export default function UserPanel({
 
               {isEditing && (
                 <label className="block">
-                  <span className="mb-2 block text-xs font-bold text-slate-700">Employee No</span>
+                  <span className="workspace-label">Employee No</span>
                   <input
                     type="text"
                     readOnly
                     value={user?.empno ?? "—"}
-                    className="h-11 w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 font-mono text-sm font-medium text-slate-500 outline-none"
+                    className="workspace-control"
                   />
                 </label>
               )}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <label className="block">
-                  <span className="mb-2 flex items-center justify-between gap-2 text-xs font-bold text-slate-700">
+                  <span className="workspace-label workspace-label--row">
                     First Name
                     <span className="font-medium text-slate-400">Required</span>
                   </span>
@@ -315,19 +313,19 @@ export default function UserPanel({
                     }}
                     placeholder="First name"
                     aria-invalid={Boolean(firstNameError)}
-                    className={`h-11 w-full rounded-md border bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 ${
+                    className={`workspace-control ${
                       firstNameError
                         ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
                         : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
                     }`}
                   />
                   {firstNameError && (
-                    <p className="pt-1 text-xs font-semibold text-red-600">{firstNameError}</p>
+                    <p className="mt-2 text-xs font-medium leading-4 text-red-600">{firstNameError}</p>
                   )}
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 flex items-center justify-between gap-2 text-xs font-bold text-slate-700">
+                  <span className="workspace-label workspace-label--row">
                     Last Name
                     <span className="font-medium text-slate-400">Required</span>
                   </span>
@@ -341,20 +339,20 @@ export default function UserPanel({
                     }}
                     placeholder="Last name"
                     aria-invalid={Boolean(lastNameError)}
-                    className={`h-11 w-full rounded-md border bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 ${
+                    className={`workspace-control ${
                       lastNameError
                         ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
                         : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
                     }`}
                   />
                   {lastNameError && (
-                    <p className="pt-1 text-xs font-semibold text-red-600">{lastNameError}</p>
+                    <p className="mt-2 text-xs font-medium leading-4 text-red-600">{lastNameError}</p>
                   )}
                 </label>
               </div>
 
               <label className="block">
-                <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+                <span className="workspace-label workspace-label--row">
                   Work Email
                   <span className="font-medium text-slate-400">Required</span>
                 </span>
@@ -367,19 +365,19 @@ export default function UserPanel({
                   }}
                   placeholder="name@hope.inc"
                   aria-invalid={Boolean(emailError)}
-                  className={`h-11 w-full rounded-md border bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 ${
+                  className={`workspace-control ${
                     emailError
                       ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
                       : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
                   }`}
                 />
                 {emailError && (
-                  <p className="pt-1 text-xs font-semibold text-red-600">{emailError}</p>
+                  <p className="mt-2 text-xs font-medium leading-4 text-red-600">{emailError}</p>
                 )}
               </label>
 
               <label className="block">
-                <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+                <span className="workspace-label workspace-label--row">
                   Account Role
                   <span className="font-medium text-slate-400">
                     {isEditingSelf
@@ -393,7 +391,7 @@ export default function UserPanel({
                   value={role}
                   disabled={!isSuperAdmin || isEditingSelf}
                   onChange={(event) => setRole(event.target.value as UserRole)}
-                  className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                  className="workspace-control disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                 >
                   {isSuperAdmin && <option value="superadmin">Superadmin (System Owner)</option>}
                   {isSuperAdmin && <option value="admin">Admin (Manager)</option>}
@@ -403,7 +401,7 @@ export default function UserPanel({
 
               {!isEditing && role === "employee" && (
                 <label className="block">
-                  <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+                  <span className="workspace-label workspace-label--row">
                     Department &amp; Role Permission Preset
                     <span className="font-medium text-slate-400">Pre-selected rights</span>
                   </span>
@@ -411,7 +409,7 @@ export default function UserPanel({
                     aria-label="Department permission preset"
                     value={presetId}
                     onChange={(event) => setPresetId(event.target.value)}
-                    className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                    className="workspace-control"
                   >
                     <option value="">Default Employee (Read-Only Modules)</option>
                     {departmentPermissionPresets.map((preset) => (
@@ -424,7 +422,7 @@ export default function UserPanel({
               )}
 
               <label className="block">
-                <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+                <span className="workspace-label workspace-label--row">
                   {isEditing ? "Reset Password" : "Temporary Password"}
                   <span className="font-medium text-slate-400">
                     {isEditing ? "Leave blank to keep current" : "Min. 8 characters"}
@@ -439,14 +437,14 @@ export default function UserPanel({
                   }}
                   placeholder={isEditing ? "••••••••" : "Enter temporary password"}
                   aria-invalid={Boolean(passwordError)}
-                  className={`h-11 w-full rounded-md border bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 ${
+                  className={`workspace-control ${
                     passwordError
                       ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
                       : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
                   }`}
                 />
                 {passwordError && (
-                  <p className="pt-1 text-xs font-semibold text-red-600">{passwordError}</p>
+                  <p className="mt-2 text-xs font-medium leading-4 text-red-600">{passwordError}</p>
                 )}
               </label>
 
@@ -464,7 +462,7 @@ export default function UserPanel({
             </div>
           </div>
 
-          <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-300 bg-white px-6 py-4 sm:px-8">
+          <footer className="workspace-drawer-footer">
             {saveError && (
               <p role="alert" className="mr-auto text-xs font-semibold text-red-700">
                 {saveError}
@@ -474,14 +472,14 @@ export default function UserPanel({
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="h-11 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+              className="workspace-secondary-action"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 disabled:cursor-wait disabled:opacity-70"
+              className="workspace-primary-action"
             >
               {saving ? "Saving…" : isEditing ? "Save changes" : "Create user"}
             </button>

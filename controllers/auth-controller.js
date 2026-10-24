@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { supabase, authSupabase } = require('../db');
+const { supabase, authSupabase, requirePool } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
@@ -48,6 +48,58 @@ async function fetchUserRights(userId) {
     .eq('user_id', userId);
   if (error || !Array.isArray(data)) return [];
   return data.map((row) => row.right_code).filter(Boolean);
+}
+
+async function fetchEmployeeProfile(userId) {
+  try {
+    const result = await requirePool().query(
+      `SELECT COALESCE(e.firstname, '') AS "firstName",
+              COALESCE(e.lastname, '') AS "lastName",
+              TRIM(concat_ws(' ', e.firstname, e.lastname)) AS name,
+              j.jobdesc AS "jobTitle",
+              d.deptname AS "departmentName"
+       FROM public.app_user u
+       LEFT JOIN public.employee e ON e.empno = u.empno
+       LEFT JOIN LATERAL (
+         SELECT jobcode, deptcode
+         FROM public.jobhistory jh
+         WHERE jh.empno = u.empno AND jh.is_deleted = false
+         ORDER BY effdate DESC, jobcode DESC
+         LIMIT 1
+       ) lj ON true
+       LEFT JOIN public.job j ON j.jobcode = lj.jobcode
+       LEFT JOIN public.department d ON d.deptcode = lj.deptcode
+       WHERE u.user_id = $1::uuid
+       LIMIT 1`,
+      [userId],
+    );
+    return result.rows[0] || {};
+  } catch {
+    return {};
+  }
+}
+
+async function buildAuthUser(user) {
+  const [rights, profile] = await Promise.all([
+    fetchUserRights(user.user_id),
+    fetchEmployeeProfile(user.user_id),
+  ]);
+
+  return {
+    userId: user.user_id,
+    empno: user.empno,
+    firstName: profile.firstName || '',
+    lastName: profile.lastName || '',
+    name: profile.name || '',
+    email: user.email,
+    role: user.role,
+    status: user.status,
+    isBlocked: Boolean(user.is_blocked),
+    mustChangePassword: user.must_change_password,
+    jobTitle: profile.jobTitle || null,
+    departmentName: profile.departmentName || null,
+    rights,
+  };
 }
 
 const register = asyncHandler(async (req, res) => {
@@ -262,8 +314,6 @@ const login = asyncHandler(async (req, res) => {
     throw requestError('Your account has been blocked. Contact an administrator.', 403);
   }
 
-  const rights = await fetchUserRights(user.user_id);
-
   const token = jwt.sign(
     { sub: String(user.user_id), empno: user.empno, email: user.email, role: user.role },
     getJwtSecret(),
@@ -281,16 +331,7 @@ const login = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: {
-      user: {
-        userId: user.user_id,
-        empno: user.empno,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        isBlocked: Boolean(user.is_blocked),
-        mustChangePassword: user.must_change_password,
-        rights
-      }
+      user: await buildAuthUser(user)
     }
   });
 });
@@ -314,21 +355,10 @@ const session = asyncHandler(async (req, res) => {
     throw requestError('Authentication required', 401);
   }
 
-  const rights = await fetchUserRights(user.user_id);
-
   res.json({
     success: true,
     data: {
-      user: {
-        userId: user.user_id,
-        empno: user.empno,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        isBlocked: Boolean(user.is_blocked),
-        mustChangePassword: user.must_change_password,
-        rights
-      }
+      user: await buildAuthUser(user)
     }
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
 import SuccessToast from "../components/common/SuccessToast"
@@ -7,6 +8,7 @@ import RightsModal from "../components/users/RightsModal"
 import UserPanel from "../components/users/UserPanel"
 import UserTable from "../components/users/UserTable"
 import useDebouncedValue from "../hooks/useDebouncedValue"
+import usePageQuery from "../hooks/usePageQuery"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { isSuperAdminRole } from "../lib/auth"
 import {
@@ -38,15 +40,16 @@ function AddIcon() {
 
 export default function UserManagementPage() {
   const { user: currentUser } = useAuth()
+  const [searchParams] = useSearchParams()
   const isSuperAdmin = isSuperAdminRole(currentUser?.role)
   const currentUserId = String(currentUser?.userId ?? "")
 
-  const [query, setQuery] = useState("")
+  const [query, setQuery] = useState(() => searchParams.get("search") || "")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
   const [roleFilter, setRoleFilter] = useState<"all" | UserRole>("all")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "blocked" | "pending">("all")
-  const [page, setPage] = useState(1)
+  const [page, setPage] = usePageQuery()
   const [users, setUsers] = useState<SystemUser[]>([])
   const [pagination, setPagination] = useState<UserPagination>(emptyPagination)
   const [availableEmployees, setAvailableEmployees] = useState<AvailableEmployee[]>([])
@@ -105,8 +108,8 @@ export default function UserManagementPage() {
       )
       .then((result) => {
         if (controller.signal.aborted) return
-        if (result.pagination.totalPages > 0 && page > result.pagination.totalPages) {
-          setPage(result.pagination.totalPages)
+        if (page > Math.max(1, result.pagination.totalPages)) {
+          setPage(Math.max(1, result.pagination.totalPages))
           return
         }
         setUsers(result.users)
@@ -190,43 +193,27 @@ export default function UserManagementPage() {
   }
 
   return (
-    <DashboardLayout activeNavigation="User Management" searchPlaceholder="Search workspace">
+    <DashboardLayout activeNavigation="Users" searchPlaceholder="Search workspace">
       <>
-        <main className="flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8 xl:px-12">
+        <main className="workspace-page">
           <div className="mx-auto max-w-7xl">
-            <header className="mb-7 flex flex-col gap-5 border-b border-slate-300 pb-7 sm:flex-row sm:items-end sm:justify-between">
+            <header className="workspace-page-header">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-800">
-                  Administration / Access control
-                </p>
-                <h1 className="mt-3 text-3xl font-bold tracking-[-0.04em] text-slate-950 sm:text-4xl">
-                  User Management
-                </h1>
-                <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                  Manage user accounts, role assignments, account blocking, and granular module
-                  permissions.
-                </p>
-              </div>
-              <div className="flex items-center gap-3 self-start border-l-2 border-blue-800 pl-4 sm:self-auto">
-                <span className="text-3xl font-bold tabular-nums tracking-tight text-slate-950">
-                  {loading || loadError ? "—" : pagination.total}
-                </span>
-                <span className="max-w-20 text-[10px] font-bold uppercase leading-4 tracking-[0.12em] text-slate-500">
-                  Matching accounts
-                </span>
+                <h1 className="workspace-page-title">Users</h1>
+                <p className="workspace-page-description">Manage who can sign in and what they can access.</p>
               </div>
             </header>
 
             <section
               aria-label="User account filters"
-              className="mb-5 grid gap-3 rounded-lg border border-slate-300 bg-white p-4 shadow-[0_8px_28px_rgba(15,39,67,0.04)] md:grid-cols-2 md:items-end lg:grid-cols-[minmax(220px,1fr)_180px_180px_auto]"
+              className="workspace-panel workspace-filters"
             >
-              <label>
-                <span className="mb-2 block text-xs font-bold text-slate-700">Search users</span>
+              <label className="workspace-filter-search">
+                <span className="workspace-label">Search users</span>
                 <span className="relative block">
                   <DashboardIcon
                     name="search"
-                    className="pointer-events-none absolute left-3.5 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-slate-400"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
                   />
                   <input
                     type="search"
@@ -236,13 +223,13 @@ export default function UserManagementPage() {
                       setPage(1)
                     }}
                     placeholder="Name, email, employee no, or role"
-                    className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                    className="workspace-control workspace-control--search"
                   />
                 </span>
               </label>
 
               <label>
-                <span className="mb-2 block text-xs font-bold text-slate-700">Role</span>
+                <span className="workspace-label">Role</span>
                 <span className="relative block">
                   <select
                     value={roleFilter}
@@ -250,28 +237,18 @@ export default function UserManagementPage() {
                       setRoleFilter(event.target.value as "all" | UserRole)
                       setPage(1)
                     }}
-                    className="h-11 w-full appearance-none rounded-md border border-slate-300 bg-slate-50 px-3 pr-9 text-sm text-slate-700 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                    className="workspace-control"
                   >
                     <option value="all">All roles</option>
                     {isSuperAdmin && <option value="superadmin">Superadmin</option>}
                     <option value="admin">Admin</option>
                     <option value="employee">Employee</option>
                   </select>
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 20 20"
-                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  >
-                    <path d="m6 8 4 4 4-4" />
-                  </svg>
                 </span>
               </label>
 
               <label>
-                <span className="mb-2 block text-xs font-bold text-slate-700">Status</span>
+                <span className="workspace-label">Status</span>
                 <span className="relative block">
                   <select
                     value={statusFilter}
@@ -281,30 +258,20 @@ export default function UserManagementPage() {
                       )
                       setPage(1)
                     }}
-                    className="h-11 w-full appearance-none rounded-md border border-slate-300 bg-slate-50 px-3 pr-9 text-sm text-slate-700 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                    className="workspace-control"
                   >
                     <option value="all">All statuses</option>
                     <option value="active">Active</option>
                     <option value="blocked">Blocked</option>
                     <option value="pending">Pending</option>
                   </select>
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 20 20"
-                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  >
-                    <path d="m6 8 4 4 4-4" />
-                  </svg>
                 </span>
               </label>
 
               <button
                 type="button"
                 onClick={openAddPanel}
-                className="flex h-11 items-center justify-center gap-2 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+                className="workspace-primary-action"
               >
                 <AddIcon />
                 Add user

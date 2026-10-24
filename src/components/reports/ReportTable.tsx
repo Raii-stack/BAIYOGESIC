@@ -266,17 +266,18 @@ export default function ReportTable({
   return (
     <section
       aria-label={`${report} report results`}
-      className="overflow-hidden border border-slate-300 bg-white"
+      className="workspace-panel"
     >
+      <div className="workspace-table-header"><h2>{report}</h2><span className="workspace-badge workspace-badge--neutral">{rows.length} results</span></div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[760px] border-collapse text-left">
+        <table className="workspace-table min-w-[760px]">
           <thead>
             <tr className="border-b border-slate-300 bg-slate-100">
               {table.columns.map((column) => (
                 <th
                   key={column.key}
                   scope="col"
-                  className={`px-5 py-4 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-600 first:pl-6 last:pr-6 ${
+                  className={` ${
                     column.align === "right" ? "text-right" : ""
                   }`}
                 >
@@ -289,16 +290,13 @@ export default function ReportTable({
             {rows.map((row, index) => (
               <tr
                 key={`${report}-${index}`}
-                className={`border-b border-slate-200 last:border-b-0 ${
-                  index % 2 === 0 ? "bg-white" : "bg-slate-50"
-                }`}
               >
                 {table.columns.map((column) => (
                   <td
                     key={column.key}
-                    className={`px-5 py-4 text-sm text-slate-700 first:pl-6 last:pr-6 ${
+                    className={`text-sm text-slate-700 ${
                       column.align === "right"
-                        ? "text-right font-bold tabular-nums text-slate-950"
+                        ? "text-right font-bold tabular-nums text-neutral-900"
                         : ""
                     } ${
                       [
@@ -311,16 +309,15 @@ export default function ReportTable({
                         : ""
                     }`}
                   >
-                    {row[column.key]}
+                    {column.key === "unit"
+                      ? <span className="workspace-badge workspace-badge--neutral" data-unit={row[column.key]}>{row[column.key]}</span>
+                      : row[column.key]}
                   </td>
                 ))}
               </tr>
             ))}
           </tbody>
         </table>
-      </div>
-      <div className="border-t border-slate-300 px-6 py-4 text-xs font-medium text-slate-600">
-        Showing {rows.length} report rows
       </div>
     </section>
   )

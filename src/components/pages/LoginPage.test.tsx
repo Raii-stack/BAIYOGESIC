@@ -84,7 +84,7 @@ test("default-password login requires a successful password change before openin
   await user.type(screen.getByLabelText("Current password"), "default-pass")
   await user.click(screen.getByRole("button", { name: "Update password" }))
 
-  await waitFor(() => expect(screen.getByText("Main Dashboard")).toBeInTheDocument())
+  await waitFor(() => expect(screen.getByText("Welcome back, user@example.com")).toBeInTheDocument())
   expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
     "/api/auth/session",
     "/api/auth/login",
@@ -109,6 +109,7 @@ test("shows a failed login as inline error text", async () => {
   const error = await screen.findByRole("alert")
   expect(error).toHaveTextContent("Email or password is incorrect")
   expect(error.tagName).toBe("P")
-  expect(error).toHaveClass("text-red-700")
+  expect(error).toHaveClass("mt-2", "text-xs", "leading-4", "text-red-600")
   expect(error).not.toHaveClass("bg-red-50")
+  expect(screen.getByLabelText("Password").parentElement?.parentElement).toHaveClass("mb-0")
 })

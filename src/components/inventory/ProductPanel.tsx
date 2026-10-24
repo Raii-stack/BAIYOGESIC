@@ -114,15 +114,13 @@ export default function ProductPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby="product-panel-title"
-        className={`absolute inset-y-0 right-0 flex w-full max-w-xl flex-col border-l border-slate-300 bg-white shadow-[-20px_0_60px_rgba(15,23,42,0.14)] transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-0 right-0 flex w-full max-w-xl flex-col border-l border-neutral-200 bg-white shadow-xl workspace-drawer transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <header className="flex shrink-0 items-start justify-between gap-6 border-b border-slate-300 px-6 py-6 sm:px-8">
+        <header className="workspace-drawer-header">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">
-              Inventory / Product record
-            </p>
+
             <h2
               id="product-panel-title"
               className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
@@ -135,7 +133,7 @@ export default function ProductPanel({
             type="button"
             onClick={() => { if (!saving) onClose() }}
             aria-label="Close product form"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            className="workspace-icon-action"
           >
             <CloseIcon />
           </button>
@@ -146,8 +144,8 @@ export default function ProductPanel({
           noValidate
           className="flex min-h-0 flex-1 flex-col"
         >
-          <div className="flex-1 overflow-y-auto px-6 py-7 sm:px-8">
-            <div className="border-l-2 border-blue-800 bg-blue-50 px-4 py-3">
+          <div className="workspace-drawer-body">
+            <div className="workspace-notice">
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-900">
                 Controlled catalog record
               </p>
@@ -157,16 +155,16 @@ export default function ProductPanel({
               </p>
             </div>
 
-            <div className="mt-7 space-y-5">
+            <div className="mt-6 space-y-4">
               <label className="block">
-                <span className="mb-2 block text-xs font-bold text-slate-700">
+                <span className="workspace-label">
                   Product Code
                 </span>
                 <input
                   type="text"
                   readOnly
                   value={product?.code ?? "Auto-generated on save"}
-                  className="h-11 w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 text-sm font-medium text-slate-500 outline-none"
+                  className="workspace-control"
                 />
               </label>
 
@@ -214,7 +212,7 @@ export default function ProductPanel({
                     }}
                     aria-invalid={Boolean(errors.unitType)}
                     aria-describedby="product-unit-error"
-                    className={`${inputClass(Boolean(errors.unitType))} appearance-none bg-slate-50 pr-9 ${
+                    className={`${inputClass(Boolean(errors.unitType))} bg-slate-50 pr-9 ${
                       unitType ? "text-slate-800" : "text-slate-400"
                     }`}
                   >
@@ -225,16 +223,6 @@ export default function ProductPanel({
                     <option value="pkg">pkg</option>
                     <option value="ltr">ltr</option>
                   </select>
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 20 20"
-                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  >
-                    <path d="m6 8 4 4 4-4" />
-                  </svg>
                 </span>
               </ValidatedField>
 
@@ -264,7 +252,7 @@ export default function ProductPanel({
                     placeholder="0.00"
                     aria-invalid={Boolean(errors.unitPrice)}
                     aria-describedby="product-price-error"
-                    className={`${inputClass(Boolean(errors.unitPrice))} pl-7`}
+                    className={`${inputClass(Boolean(errors.unitPrice))} workspace-control--currency`}
                   />
                 </span>
               </ValidatedField>
@@ -272,20 +260,20 @@ export default function ProductPanel({
             </div>
           </div>
 
-          <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-300 bg-white px-6 py-4 sm:px-8">
+          <footer className="workspace-drawer-footer">
             {saveError && <p role="alert" className="mr-auto text-xs font-semibold text-red-700">{saveError}</p>}
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="h-11 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+              className="workspace-secondary-action"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 disabled:cursor-wait disabled:opacity-70"
+              className="workspace-primary-action"
             >
               {saving ? "Saving…" : product ? "Save changes" : "Create product"}
             </button>
@@ -309,7 +297,7 @@ function ValidatedField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+      <span className="workspace-label workspace-label--row">
         {label}
         <span className="font-medium text-slate-400">Required</span>
       </span>
@@ -317,9 +305,7 @@ function ValidatedField({
       <p
         id={errorId}
         aria-live="polite"
-        className={`min-h-6 pt-1.5 text-xs font-semibold ${
-          error ? "text-red-600" : "opacity-0"
-        }`}
+        className={error ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
       >
         {error || "\u00a0"}
       </p>
@@ -328,7 +314,7 @@ function ValidatedField({
 }
 
 function inputClass(error: boolean) {
-  return `h-11 w-full rounded-md border bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 ${
+  return `workspace-control ${
     error
       ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
       : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"

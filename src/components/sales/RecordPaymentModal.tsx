@@ -83,7 +83,7 @@ export default function RecordPaymentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center px-4 py-8">
+    <div className="fixed inset-0 z-[70] grid place-items-center px-4 py-6">
       <button
         type="button"
         aria-label="Close payment form"
@@ -95,57 +95,54 @@ export default function RecordPaymentModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="record-payment-title"
-        className="relative w-full max-w-lg overflow-hidden rounded-lg border border-slate-300 border-t-[3px] border-t-blue-800 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.30)]"
+        className="relative flex max-h-[calc(100dvh-48px)] w-full max-w-lg flex-col workspace-panel shadow-xl"
       >
-        <header className="flex items-start justify-between gap-5 border-b border-slate-300 px-6 py-5">
+        <header className="workspace-drawer-header">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">
-              PAYMENT record
-            </p>
-            <h3
+            <h2
               id="record-payment-title"
               className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
             >
               {payment ? "Edit Payment" : "Record Payment"}
-            </h3>
+            </h2>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close payment form"
-            className="grid h-10 w-10 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            className="workspace-icon-action"
           >
             <CloseIcon />
           </button>
         </header>
 
-        <form onSubmit={submit} noValidate>
-          <div className="space-y-5 px-6 py-6">
+        <form onSubmit={submit} noValidate className="flex min-h-0 flex-col">
+          <div className="workspace-drawer-body space-y-4">
             <label className="block">
-              <span className="mb-2 block text-xs font-bold text-slate-700">
-                OR No.
+              <span className="workspace-label">
+                Receipt number
               </span>
               <input
                 type="text"
                 readOnly
                 value={payment?.orNo ?? "Auto-generated on save"}
-                className="h-11 w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 text-sm font-medium text-slate-500 outline-none"
+                className="workspace-control"
               />
             </label>
             <label className="block">
-              <span className="mb-2 block text-xs font-bold text-slate-700">
-                Payment Date
+              <span className="workspace-label">
+                Payment date
               </span>
               <input
                 type="date"
                 required
                 value={date}
                 onChange={(event) => setDate(event.target.value)}
-                className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                className="workspace-control"
               />
             </label>
             <label className="block">
-              <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+              <span className="workspace-label workspace-label--row">
                 Amount
                 <span className="font-medium text-slate-400">
                   Remaining balance: ${balance.toFixed(2)}
@@ -166,7 +163,7 @@ export default function RecordPaymentModal({
                   }}
                   aria-invalid={Boolean(amountError)}
                   aria-describedby="record-payment-error"
-                  className={`h-11 w-full rounded-md border bg-white pl-7 pr-3 text-sm font-semibold tabular-nums text-slate-900 outline-none transition ${
+                  className={`workspace-control workspace-control--currency ${
                     amountError
                       ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
                       : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
@@ -176,26 +173,24 @@ export default function RecordPaymentModal({
               <p
                 id="record-payment-error"
                 aria-live="polite"
-                className={`min-h-6 pt-1.5 text-xs font-semibold ${
-                  amountError ? "text-red-600" : "opacity-0"
-                }`}
+                className={amountError ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
               >
                 {amountError || "\u00a0"}
               </p>
             </label>
           </div>
 
-          <footer className="flex justify-end gap-3 border-t border-slate-300 bg-slate-50 px-6 py-4">
+          <footer className="workspace-drawer-footer">
             <button
               type="button"
               onClick={onClose}
-              className="h-11 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+              className="workspace-secondary-action"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+              className="workspace-primary-action"
             >
               Save Payment
             </button>

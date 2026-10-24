@@ -32,14 +32,22 @@ export default function EmployeeCombobox({
 
   return (
     <label className="block">
-      <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+      <span className="workspace-label workspace-label--row">
         Employee (Salesperson)
         <span className="font-medium text-slate-400">Required</span>
       </span>
-      <span className="relative block">
+      <span className="relative block"
+        onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false) }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            event.stopPropagation()
+            event.currentTarget.querySelector("input")?.focus()
+            setOpen(false)
+          }
+        }}>
         <DashboardIcon
           name="search"
-          className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-[18px] w-[18px] -translate-y-1/2 text-slate-400"
+          className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400"
         />
         <input
           type="search"
@@ -49,21 +57,27 @@ export default function EmployeeCombobox({
           aria-autocomplete="list"
           value={query}
           onFocus={() => setOpen(true)}
-          onBlur={() => window.setTimeout(() => setOpen(false), 100)}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown") {
+              event.preventDefault()
+              setOpen(true)
+              event.currentTarget.parentElement?.querySelector<HTMLButtonElement>('[role="option"]')?.focus()
+            }
+          }}
           onChange={(event) => {
             setQuery(event.target.value)
             onSelect("")
             setOpen(true)
           }}
           placeholder="Search salesperson name or ID"
-          className="h-11 w-full rounded-md border border-slate-300 bg-slate-50 pl-11 pr-4 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+          className="workspace-control workspace-control--search"
         />
 
         {open && (
           <span
             id="employee-options"
             role="listbox"
-            className="absolute inset-x-0 top-[calc(100%+6px)] z-20 max-h-64 overflow-y-auto border border-slate-300 bg-white p-1 shadow-[0_16px_40px_rgba(15,23,42,0.14)]"
+            className="absolute inset-x-0 top-[calc(100%+6px)] z-20 max-h-64 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-lg"
           >
             {matches.map((employee) => (
               <button
@@ -79,8 +93,8 @@ export default function EmployeeCombobox({
                 }}
                 className={`flex w-full items-center justify-between gap-4 px-3 py-2.5 text-left transition ${
                   employee.id === selectedEmployeeId
-                    ? "bg-blue-50 text-blue-900"
-                    : "text-slate-700 hover:bg-slate-50"
+                    ? "bg-neutral-100 text-neutral-900"
+                    : "text-neutral-700 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"
                 }`}
               >
                 <span>
@@ -96,6 +110,7 @@ export default function EmployeeCombobox({
                 </span>
               </button>
             ))}
+            {matches.length === 0 && <span className="block px-3 py-4 text-sm text-neutral-500">No employees found.</span>}
           </span>
         )}
       </span>

@@ -1,4 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, within } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { MemoryRouter, Route, Routes } from "react-router"
 import { afterEach, expect, test, vi } from "vitest"
 import { ProtectedPage } from "./App"
@@ -36,10 +37,13 @@ test("reserves user management for administrators", async () => {
   expect(await screen.findByText("Private accounts")).toBeInTheDocument()
 })
 
-test("filters dashboard tiles, sidebar links, sales actions, and report tabs based on user rights", async () => {
+test("filters dashboard tiles, sidebar links, sales actions, and report choices based on user rights", async () => {
   const scopedEmployee = {
     userId: "emp-1",
     empno: "00010",
+    firstName: "Agent",
+    lastName: "One",
+    name: "Agent One",
     email: "agent@hope.inc",
     role: "employee",
     status: "active",
@@ -54,24 +58,45 @@ test("filters dashboard tiles, sidebar links, sales actions, and report tabs bas
         <Routes>
           <Route path="/dashboard" element={<ProtectedPage><DashboardPage /></ProtectedPage>} />
           <Route path="/customers" element={<ProtectedPage module="customers"><div>CRM Page</div></ProtectedPage>} />
+          <Route path="/sales" element={<div>Sales search opened</div>} />
         </Routes>
       </AuthProvider>
     </MemoryRouter>,
   )
 
-  expect(await screen.findByRole("heading", { name: "Main Dashboard" })).toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Welcome back, Agent One" })).toBeInTheDocument()
   // Permitted modules are shown
   expect(screen.getAllByText("Sales").length).toBeGreaterThan(0)
   expect(screen.getAllByText("Reports").length).toBeGreaterThan(0)
   // Unpermitted modules are hidden from sidebar and tiles
-  expect(screen.queryByText("CRM")).not.toBeInTheDocument()
-  expect(screen.queryByText("Inventory")).not.toBeInTheDocument()
-  expect(screen.queryByText("Human Resources")).not.toBeInTheDocument()
-  expect(screen.queryByText("User Management")).not.toBeInTheDocument()
+  expect(screen.queryByText("Customers")).not.toBeInTheDocument()
+  expect(screen.queryByText("Products")).not.toBeInTheDocument()
+  expect(screen.queryByText("Employees")).not.toBeInTheDocument()
+  expect(screen.queryByText("Users")).not.toBeInTheDocument()
+  expect(screen.getAllByRole("link", { name: /Agent One/ }).length).toBeGreaterThan(0)
+  expect(screen.getAllByRole("link", { name: /Agent One/ })[0]).toHaveAttribute("href", "/profile?view=account")
+  expect(screen.getByRole("link", { name: "Sales" })).toHaveAttribute("href", "/sales?view=transactions&page=1")
+  expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("aria-current", "page")
+  expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByText("Home")).toHaveAttribute("aria-current", "page")
+  expect(screen.queryByText("View my profile")).not.toBeInTheDocument()
+
+  const user = userEvent.setup()
+  const search = screen.getByRole("searchbox", { name: "Search workspace" })
+  await user.type(search, "customers")
+  expect(screen.queryByRole("option")).not.toBeInTheDocument()
+  expect(screen.getByRole("status")).toHaveTextContent("No matching modules")
+  await user.keyboard("{Escape}")
+  expect(search).toHaveValue("")
+  expect(screen.queryByRole("status")).not.toBeInTheDocument()
+  await user.type(search, "sales")
+  const salesResult = screen.getByRole("option", { name: /Sales/ })
+  expect(salesResult).toHaveAttribute("href", "/sales?view=transactions&page=1")
+  await user.keyboard("{Enter}")
+  expect(await screen.findByText("Sales search opened")).toBeInTheDocument()
 
   cleanup()
 
-  // Verify Sales page hides "+ New Sale", "Edit", "Delete", and audit columns when not granted
+  // Verify Sales page hides restricted actions and audit columns.
   render(
     <MemoryRouter initialEntries={["/sales"]}>
       <AuthProvider>
@@ -80,15 +105,15 @@ test("filters dashboard tiles, sidebar links, sales actions, and report tabs bas
     </MemoryRouter>,
   )
 
-  expect(await screen.findByRole("heading", { name: "Sales Management" })).toBeInTheDocument()
-  expect(screen.queryByRole("link", { name: "+ New Sale" })).not.toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Sales" })).toBeInTheDocument()
+  expect(screen.queryByRole("link", { name: "Create sale" })).not.toBeInTheDocument()
   expect(screen.queryByRole("columnheader", { name: "Stamp" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
   expect(screen.getAllByRole("button", { name: "Details" }).length).toBeGreaterThan(0)
 
   cleanup()
 
-  // Verify Reports page only shows permitted report tabs ("Top Sales")
+  // Verify Reports page only shows permitted report choices ("Top Sales")
   render(
     <MemoryRouter initialEntries={["/reports"]}>
       <AuthProvider>

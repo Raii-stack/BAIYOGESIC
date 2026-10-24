@@ -167,13 +167,10 @@ export default function RightsModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="rights-modal-title"
-        className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-slate-300 border-t-[3px] border-t-blue-800 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.30)]"
+        className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden workspace-panel shadow-xl"
       >
-        <header className="flex shrink-0 items-start justify-between gap-6 border-b border-slate-300 px-6 py-5 sm:px-8">
+        <header className="workspace-drawer-header">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">
-              Role-based access control
-            </p>
             <h2
               id="rights-modal-title"
               className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
@@ -193,23 +190,23 @@ export default function RightsModal({
             onClick={onClose}
             disabled={saving}
             aria-label="Close rights assignment"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 disabled:opacity-50"
+            className="workspace-icon-action"
           >
             <CloseIcon />
           </button>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-8">
-          <div className="grid gap-4 rounded-lg border border-slate-300 bg-slate-50 p-4 sm:grid-cols-[minmax(260px,1fr)_auto] sm:items-end">
+        <div className="workspace-drawer-body">
+          <div className="grid gap-4 rounded-lg border border-neutral-200 bg-slate-50 p-4 sm:grid-cols-[minmax(260px,1fr)_auto] sm:items-end">
             <label className="block">
-              <span className="mb-1.5 block text-xs font-bold text-slate-800">
+              <span className="workspace-label">
                 Pre-selected Department &amp; Role Configuration
               </span>
               <select
                 aria-label="Permission preset configuration"
                 value={selectedPresetId}
                 onChange={(event) => applyDepartmentPreset(event.target.value)}
-                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:ring-2 focus:ring-blue-100"
+                className="workspace-control"
               >
                 <option value="">Select a department / role preset…</option>
                 <optgroup label="Sales & CRM Department">
@@ -238,7 +235,7 @@ export default function RightsModal({
               <button
                 type="button"
                 onClick={() => applyDepartmentPreset("all-manager")}
-                className="h-10 rounded-md border border-slate-300 bg-white px-3.5 text-xs font-bold text-blue-800 transition hover:bg-blue-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+                className="workspace-secondary-action"
               >
                 Grant All
               </button>
@@ -248,7 +245,7 @@ export default function RightsModal({
                   setSelectedPresetId("")
                   setSelectedRights([])
                 }}
-                className="h-10 rounded-md border border-slate-300 bg-white px-3.5 text-xs font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+                className="workspace-secondary-action"
               >
                 Clear All
               </button>
@@ -261,7 +258,7 @@ export default function RightsModal({
             )}
           </div>
 
-          <div className="mt-4 border-l-2 border-blue-800 bg-blue-50 px-4 py-3">
+          <div className="workspace-notice mt-4">
             <p className="text-xs font-semibold leading-5 text-blue-900">
               Ticking a module switch enables module access; the switches inside each
               group grant specific Add, Edit, Delete, or Report actions. You can also
@@ -293,16 +290,16 @@ export default function RightsModal({
                 <section
                   key={group.module}
                   aria-labelledby={`rights-${group.module.replaceAll(" ", "-")}`}
-                  className="overflow-hidden rounded-md border border-slate-300"
+                  className="overflow-hidden rounded-md border border-neutral-200"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-300 bg-slate-100 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-neutral-200 bg-neutral-50 px-4 py-3">
                     <div className="flex items-center gap-3">
                       <input
                         type="checkbox"
                         checked={moduleEnabled}
                         onChange={() => toggleModuleAccess(group)}
                         aria-label={`Enable ${group.module} module`}
-                        className="h-4 w-4 rounded border-slate-300 text-blue-800 focus:ring-blue-700"
+                        className="h-4 w-4 rounded border-neutral-300 accent-neutral-800 focus:ring-blue-700"
                       />
                       <h3
                         id={`rights-${group.module.replaceAll(" ", "-")}`}
@@ -314,12 +311,12 @@ export default function RightsModal({
                         {selectedCount}/{permissionIds.length}
                       </span>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       <select
                         aria-label={`${group.module} role preset`}
                         value={modulePreset}
                         onChange={(event) => applyModulePreset(group, event.target.value)}
-                        className="h-8 rounded border border-slate-300 bg-white px-2.5 text-xs font-semibold text-slate-700 outline-none transition hover:border-slate-400 focus:border-blue-700"
+                        className="workspace-control"
                       >
                         <option value="manager">Manager (Full)</option>
                         <option value="employee">Employee (Standard)</option>
@@ -332,7 +329,7 @@ export default function RightsModal({
                       <button
                         type="button"
                         onClick={() => setModuleRights(group, true)}
-                        className="text-xs font-bold text-blue-800 underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+                        className="workspace-text-action"
                       >
                         All
                       </button>
@@ -340,7 +337,7 @@ export default function RightsModal({
                       <button
                         type="button"
                         onClick={() => setModuleRights(group, false)}
-                        className="text-xs font-bold text-slate-600 underline-offset-4 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+                        className="workspace-text-action"
                       >
                         None
                       </button>
@@ -366,8 +363,8 @@ export default function RightsModal({
                             aria-hidden="true"
                             className={`relative h-5 w-9 shrink-0 rounded-full border transition ${
                               selected
-                                ? "border-blue-800 bg-blue-800"
-                                : "border-slate-300 bg-slate-200"
+                                ? "border-neutral-800 bg-neutral-800"
+                                : "border-neutral-200 bg-slate-200"
                             }`}
                           >
                             <span
@@ -391,7 +388,7 @@ export default function RightsModal({
           </div>
         </div>
 
-        <footer className="flex shrink-0 items-center justify-between gap-4 border-t border-slate-300 bg-slate-50 px-6 py-4 sm:px-8">
+        <footer className="workspace-drawer-footer">
           <p className="hidden text-xs text-slate-500 sm:block">
             {actionRightsCount} action permissions selected
           </p>
@@ -400,7 +397,7 @@ export default function RightsModal({
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="h-11 px-3 text-sm font-bold text-slate-600 underline-offset-4 transition hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 disabled:opacity-50"
+              className="workspace-secondary-action"
             >
               Cancel
             </button>
@@ -408,7 +405,7 @@ export default function RightsModal({
               type="button"
               disabled={saving}
               onClick={handleSave}
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 disabled:cursor-wait disabled:opacity-60"
+              className="workspace-primary-action"
             >
               {saving ? "Saving…" : "Save Rights"}
             </button>

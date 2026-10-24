@@ -118,15 +118,13 @@ export default function CustomerPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby="customer-panel-title"
-        className={`absolute inset-y-0 right-0 flex w-full max-w-xl flex-col border-l border-slate-300 bg-white shadow-[-20px_0_60px_rgba(15,23,42,0.14)] transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-0 right-0 flex w-full max-w-xl flex-col border-l border-neutral-200 bg-white shadow-xl workspace-drawer transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <header className="flex shrink-0 items-start justify-between gap-6 border-b border-slate-300 px-6 py-6 sm:px-8">
+        <header className="workspace-drawer-header">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">
-              CRM / Customer record
-            </p>
+
             <h2
               id="customer-panel-title"
               className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
@@ -143,7 +141,7 @@ export default function CustomerPanel({
             type="button"
             onClick={() => { if (!saving) onClose() }}
             aria-label="Close customer details"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            className="workspace-icon-action"
           >
             <CloseIcon />
           </button>
@@ -155,8 +153,8 @@ export default function CustomerPanel({
           noValidate
           className="flex min-h-0 flex-1 flex-col"
         >
-          <div className="flex-1 overflow-y-auto px-6 py-7 sm:px-8">
-            <div className="border-l-2 border-blue-800 bg-blue-50 px-4 py-3">
+          <div className="workspace-drawer-body">
+            <div className="workspace-notice">
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-900">
                 Record information
               </p>
@@ -165,21 +163,21 @@ export default function CustomerPanel({
               </p>
             </div>
 
-            <div className="mt-7 space-y-5">
+            <div className="mt-6 space-y-4">
               <label className="block">
-                <span className="mb-2 block text-xs font-bold text-slate-700">
+                <span className="workspace-label">
                   Customer ID
                 </span>
                 <input
                   type="text"
                   readOnly
                   value={customer?.id ?? "Auto-generated on save"}
-                  className="h-11 w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 text-sm font-medium text-slate-500 outline-none"
+                  className="workspace-control"
                 />
               </label>
 
               <label className="block">
-                <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+                <span className="workspace-label workspace-label--row">
                   Customer Name
                   <span className="font-medium text-slate-400">Required</span>
                 </span>
@@ -194,7 +192,7 @@ export default function CustomerPanel({
                   placeholder="Enter customer or company name"
                   aria-invalid={Boolean(nameError)}
                   aria-describedby="customer-name-error"
-                  className={`h-11 w-full rounded-md border bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 ${
+                  className={`workspace-control ${
                     nameError
                       ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
                       : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
@@ -203,16 +201,14 @@ export default function CustomerPanel({
                 <p
                   id="customer-name-error"
                   aria-live="polite"
-                  className={`min-h-6 pt-1.5 text-xs font-semibold ${
-                    nameError ? "text-red-600" : "opacity-0"
-                  }`}
+                  className={nameError ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
                 >
                   {nameError || "\u00a0"}
                 </p>
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-xs font-bold text-slate-700">
+                <span className="workspace-label">
                   Address
                 </span>
                 <textarea
@@ -226,7 +222,7 @@ export default function CustomerPanel({
                   rows={5}
                   aria-invalid={Boolean(addressError)}
                   aria-describedby="customer-address-error"
-                  className={`w-full resize-none rounded-md border bg-white px-3 py-3 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 ${
+                  className={`workspace-control ${
                     addressError
                       ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
                       : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
@@ -235,16 +231,14 @@ export default function CustomerPanel({
                 <p
                   id="customer-address-error"
                   aria-live="polite"
-                  className={`min-h-6 pt-1.5 text-xs font-semibold ${
-                    addressError ? "text-red-600" : "opacity-0"
-                  }`}
+                  className={addressError ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
                 >
                   {addressError || "\u00a0"}
                 </p>
               </label>
 
               <label className="block">
-                <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+                <span className="workspace-label workspace-label--row">
                   Payment Terms
                   <span className="font-medium text-slate-400">
                     Select only
@@ -259,7 +253,7 @@ export default function CustomerPanel({
                     }}
                     aria-invalid={Boolean(paymentTermError)}
                     aria-describedby="customer-payment-term-error"
-                    className={`h-11 w-full appearance-none rounded-md border bg-slate-50 px-3 pr-9 text-sm outline-none transition ${
+                    className={`workspace-control ${
                       paymentTerm ? "text-slate-800" : "text-slate-400"
                     } ${
                       paymentTermError
@@ -272,23 +266,11 @@ export default function CustomerPanel({
                     <option value="COD">COD</option>
                     <option value="45D">Net 45</option>
                   </select>
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 20 20"
-                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  >
-                    <path d="m6 8 4 4 4-4" />
-                  </svg>
                 </span>
                 <p
                   id="customer-payment-term-error"
                   aria-live="polite"
-                  className={`min-h-6 pt-1.5 text-xs font-semibold ${
-                    paymentTermError ? "text-red-600" : "opacity-0"
-                  }`}
+                  className={paymentTermError ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
                 >
                   {paymentTermError || "\u00a0"}
                 </p>
@@ -296,20 +278,20 @@ export default function CustomerPanel({
             </div>
           </div>
 
-          <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-300 bg-white px-6 py-4 sm:px-8">
+          <footer className="workspace-drawer-footer">
             {saveError && <p role="alert" className="mr-auto text-xs font-semibold text-red-700">{saveError}</p>}
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="h-11 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+              className="workspace-secondary-action"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200 disabled:cursor-wait disabled:opacity-70"
+              className="workspace-primary-action"
             >
               {saving ? "Saving…" : customer ? "Save changes" : "Create customer"}
             </button>

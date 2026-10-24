@@ -1,112 +1,220 @@
-# BAIYOGESIC
+# HOPE, Inc. ERP System (BAIYOGESIC)
 
-## Software Engineering 1
+Enterprise Resource Planning (ERP) platform developed for HOPE, Inc. The system integrates customer management, product catalog and price history tracking, human resources and job history, sales transactions with price-as-of-date calculation, payment processing, granular role-based access control (RBAC), audit logging, and reporting.
 
-**Scrum Master:** Ryan James M. Gopio
+Developed for **Software Engineering 1**.
 
-**Test Engineer:** Prince Nelson J. Aguinaldo Jr.
+---
 
-**UI/UX Developer:** Alain Deiniel S. Montes
+## Project Team and Roles
 
-**BackEnd Engineer:** Kathryn Chloe V. Silvestre
+| Role | Team Member | Primary Responsibilities |
+| --- | --- | --- |
+| Scrum Master | Ryan James M. Gopio | Agile sprint orchestration, velocity tracking, impediment management, project board automation |
+| Test Engineer | Prince Nelson J. Aguinaldo Jr. | Automated integration and regression test suites, defect verification, QA sign-off |
+| UI/UX Developer | Alain Deiniel S. Montes | Frontend component architecture, design system standards, layout accessibility (WCAG AA) |
+| Backend Engineer and DB Admin | Kathryn Chloe V. Silvestre | Database migrations, relational integrity constraints, API route controllers, query tuning |
+| DevSecOps Engineer | Marron Beroy | CI/CD pipelines, security scanning, audit trail verification, environment configuration |
 
-**DevSecOps Engineer:** Marron Beroy
+---
 
-## Frontend development
+## Architecture and Technology Stack
 
-The React frontend uses Vite and Tailwind CSS. Copy `.env.example` to `.env.local`
-to configure the Express API. During local development, `/api` is proxied to
-`http://localhost:3000` by default; set `VITE_API_PROXY_TARGET` if the backend
-runs elsewhere. Set `VITE_API_BASE_URL` to the API origin when the frontend and
-backend are hosted on different origins and the backend is configured for
-credentialed CORS; otherwise, route `/api` through a same-origin reverse proxy.
+The project follows a decoupled client-server architecture with an Express application backend and a React single-page application (SPA) frontend.
 
-Sign-in uses `POST /api/auth/login`. The frontend restores a session with
-`GET /api/auth/session`, changes a default password with
-`POST /api/auth/change-password`, and signs out with `POST /api/auth/logout`.
-The backend sets and clears an HttpOnly `access_token` cookie, so the frontend
-sends requests with credentials and keeps the signed-in user in React Context;
-it does not expose or persist the token in JavaScript. If the backend returns
-`mustChangePassword`, the user must complete the password-change dialog before
-entering the workspace.
-Public account creation is disabled until an administrator/HR-managed flow is available.
-All workspace pages require an active session; User Management is limited to
-administrator/admin roles. Customer, product, and employee APIs re-check the
-account's current role, active status, and password-change requirement on each
-request. Legacy email-only first-time password endpoints are disabled; recovery
-uses a reset token. API failures are presented as safe, shared toast messages
-instead of raw database/server errors.
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, React Router 8
+- **Backend:** Node.js (v20+), Express 5, Helmet, Cookie Parser, CORS
+- **Database:** PostgreSQL via Supabase, pg (node-postgres), connection pooling
+- **Authentication & Security:** JWT session management via HttpOnly cookies, bcrypt password hashing, audit context logging
+- **Testing:** Vitest, React Testing Library, jsdom
+- **CI/CD & Automation:** GitHub Actions, GitHub Projects v2 automation
 
-Customer Management loads active and archived records from `GET /api/customers` with
-debounced server-side search, status and payment-term filtering, and pagination. Administrators can
-create, edit, and archive customers; admins can create and edit; employees and
-users can view the directory. Payment terms use the database codes `30D`,
-`45D`, and `COD`. If the database's direct hostname is IPv6-only in your
-environment, set `DATABASE_POOLER_HOST` to the session pooler hostname shown
-by Supabase; the server keeps the database password in `DATABASE_URL`.
+---
 
-Inventory & Product Management loads active and archived products from `GET /api/products`
-with debounced server-side search, status and unit filtering, and pagination. Listed prices are the
-latest matching price-history entries effective today or earlier; expanding
-a product loads its full history from `GET /api/products/:prodcode/prices`.
-Administrators can create, edit, and archive products; admins can create and
-edit; employees and users can view. New products receive six-character `PX`
-codes and a price entry effective on the Asia/Manila business date. Editing a price adds or updates that day's
-entry. Archiving also archives price history and is blocked if active sales use
-the product.
+## Core ERP Modules
 
-The Employee Directory reads real personnel and latest job-history records from
-`GET /api/employees`, with server-side search, department, job, status, and
-pagination filters. Employee profiles load live job history. Administrators and
-admins can add and edit employee details and assignments; other roles can view
-the directory without salary values. Employee creation does not create a login
-account—the account-management flow remains separate.
+### 1. Authentication and Access Control (RBAC)
+- Multi-tier role permissions: Superadmin, Admin, and Employee.
+- Session tokens stored in secure, HttpOnly cookies (`access_token`).
+- Default password detection on first login forcing mandatory password update.
+- Password reset workflow with time-limited tokens (15-minute validity).
+- Granular per-module rights assignment across Customer, Product, HR, Sales, and Reports.
+- Superadmin account protection (last remaining Superadmin cannot be demoted or disabled).
 
-Sales and User Management still use sample data. Their actions show a preview
-notice and do not claim to persist changes until those modules are connected to
-backend endpoints.
+### 2. Customer Management (CRM)
+- Customer directory with server-side pagination, status filtering, and payment terms (`COD`, `30D`, `45D`, `60D`).
+- Wildcard customer search with frontend input debouncing (300ms).
+- Soft deletion with referential integrity: archiving is blocked if active sales orders exist.
 
-Run `npm install`, then use `npm run dev` to start the API and frontend together.
-Run `npm test` for the frontend and helper tests
-and `npm run build` to create the production bundle.
+### 3. Inventory and Product Management
+- Product catalog supporting item status filtering and categorization.
+- Multi-tier price history tracking effective price points by date.
+- Historical price lookup retrieves active unit price effective on or before the transaction date.
+- Soft-archive protection prevents deletion of products with open sales transactions.
 
-### Possible project structure
+### 4. Human Resources and Personnel
+- Employee directory with department and job title lookups.
+- Chronological job history timeline capturing promotions, transfers, and compensation revisions.
+- Confidential salary masking: compensation data is restricted to authorized personnel and redacted for standard employees.
+- Employee separation tracking with soft-archive workflow.
+
+### 5. Sales Transactions and Payment Processing
+- Sequential transaction number generation (`SO-YYYYMM-XXXX`).
+- Multi-line sales entry with automatic unit price lookup based on transaction date.
+- Customer payment recording against sales transactions with real-time balance calculations.
+- Transaction status indicators: Unpaid, Partial, and Paid.
+- Overpayment prevention and soft-delete protections against orders with recorded payments.
+
+### 6. Reports and Analytics
+- Pre-built system reports: Product Master List, Active Employees, All Employees, Employee Job History, Top Customers, Top Products, and Top Sales.
+- Configurable date ranges and Top N ranking limits.
+- Optimized print stylesheets (`@media print`) for clean PDF generation and export.
+
+### 7. Superadmin Audit Trail
+- System-wide audit log tracking `INSERT`, `UPDATE`, and `DELETE` actions across core tables.
+- Captured metadata: actor username, affected table, operation type, timestamp, and row state diffs.
+- Read-only audit log viewer with multi-field search for compliance auditing.
+
+---
+
+## Project Structure
+
 ```
-hope-erp/
-├── .github/                # CI/CD & Project Management (DevSecOps & Scrum Master)
-│   ├── workflows/          # GitHub Actions for linting, testing, and deployment security
-│   ├── ISSUE_TEMPLATE/     # Standardized templates for bug reports and feature requests
+BAIYOGESIC/
+├── .github/
+│   ├── ISSUE_TEMPLATE/       # Standardized issue templates
+│   ├── workflows/            # CI/CD and board automation workflows
 │   └── PULL_REQUEST_TEMPLATE.md
-├── docs/                   # Non-code Project Documentation
-│   ├── agile/              # Sprint planning notes, retrospectives, burndown charts
-│   ├── design/             # UI/UX handoff notes, design system documentation
-│   └── qa/                 # Manual test plans, test cases, and sign-off reports
-├── src/                    # Frontend & Serverless Code (Developer & UI/UX)
-│   ├── app/                # Next.js App Router (Frontend pages and API routes)
-│   │   ├── api/            # Vercel Serverless backend routes for Supabase interactions
-│   │   ├── (auth)/         # Login, register, reset-password pages
-│   │   ├── hr/             # Employee, department, and job routing
-│   │   └── sales/          # Sales transaction and payment pages
-│   ├── components/         # Reusable React UI Components
-│   │   ├── common/         # Atomic elements (Buttons, Inputs, Modals)
-│   │   └── features/       # Complex module-specific components (e.g., JobTimeline)
-│   ├── hooks/              # Custom React hooks (e.g., usePermissions, useAuth)
-│   ├── lib/                # Utilities and external service configurations
-│   │   └── supabase/       # Supabase client initialization and helper functions
-│   ├── styles/             # Global styles, Tailwind/Chakra configuration
-│   └── types/              # TypeScript definitions (strongly typed DB schemas)
-├── supabase/               # Database Infrastructure (DB Admin)
-│   ├── migrations/         # Version-controlled SQL migration scripts (Tables, Views, RLS)
-│   ├── seed.sql            # Demo data and initial superadmin seed (No real passwords)
-│   └── config.toml         # Local Supabase development configuration
-├── tests/                  # Automated Testing (Tester)
-│   ├── e2e/                # End-to-end user flows (e.g., Playwright/Cypress)
-│   ├── integration/        # Tests for API routes and database connections
-│   └── unit/               # Isolated tests for UI components and helper functions
-├── public/                 # Static assets (favicon, logos, empty-state illustrations)
-├── .env.example            # Template for required environment variables (Safe for git)
-├── .gitignore              # Files to ignore (e.g., .env.local, node_modules)
-├── next.config.js          # Next.js framework and Vercel strict configurations
-├── package.json            # Project dependencies and NPM script definitions
-└── README.md               # Core setup instructions, sprint status, and local run guide
+├── controllers/              # Express route business logic and query handlers
+│   ├── auth-controller.js
+│   ├── customer-controller.js
+│   ├── employee-controller.js
+│   ├── product-controller.js
+│   └── user-controller.js
+├── docs/                     # Engineering documentation
+│   ├── agile/                # Sprint tracking, retrospectives, and impediment logs
+│   ├── database/             # Schema definitions and disaster recovery scripts
+│   ├── design/               # Design specifications and usability reviews
+│   └── qa/                   # Test plans, bug logs, and QA sign-off reports
+├── lib/                      # Core backend utilities and database pool configuration
+├── middleware/               # Express authentication, permission, and audit middleware
+│   ├── audit-context.js
+│   ├── auth.js
+│   ├── error-handler.js
+│   └── permissions.js
+├── routes/                   # Modular API route definitions
+│   ├── auth-routes.js
+│   ├── customer-routes.js
+│   ├── employee-routes.js
+│   ├── product-routes.js
+│   └── user-routes.js
+├── scripts/                  # Project automation and field synchronization scripts
+├── src/                      # React frontend source code
+│   ├── components/           # Reusable UI components by feature domain
+│   ├── hooks/                # Custom React application hooks
+│   ├── layouts/              # Dashboard and authentication view layouts
+│   ├── pages/                # Top-level page views and integration tests
+│   ├── types/                # TypeScript interfaces and schema types
+│   └── utils/                # Frontend validation and transformation helpers
+├── supabase/
+│   ├── migrations/           # Versioned PostgreSQL schema migrations
+│   └── seed.sql              # Database initialization and demo records
+├── server.js                 # Express application root entry point
+├── package.json              # Project dependencies and script definitions
+├── vite.config.ts            # Vite bundler and development proxy configuration
+└── README.md
 ```
+
+---
+
+## Getting Started
+
+### Prerequisites
+- Node.js 20.x or higher
+- npm 10.x or higher
+- A Supabase PostgreSQL database instance
+
+### Environment Configuration
+Create a `.env` file in the project root:
+
+```env
+# Application Port and Environment
+PORT=3000
+NODE_ENV=development
+
+# Client Origin (CORS)
+CLIENT_ORIGIN=http://localhost:5173
+
+# Supabase Credentials
+SUPABASE_URL=https://<your-project-ref>.supabase.co
+SUPABASE_KEY=<your-supabase-service-role-or-anon-key>
+
+# Database Connection Pool
+DATABASE_URL=postgresql://postgres:<password>@<db-host>:5432/postgres
+
+# JWT Secret
+JWT_SECRET=<your-jwt-secret-key>
+```
+
+For frontend local development, create `.env.local` if custom proxying is required:
+```env
+VITE_API_PROXY_TARGET=http://localhost:3000
+```
+
+### Installation and Execution
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Run backend and frontend concurrently (development):**
+   ```bash
+   npm run dev
+   ```
+   - Frontend: `http://localhost:5173`
+   - Backend API: `http://localhost:3000`
+
+3. **Run services independently:**
+   ```bash
+   # Backend API server with watch mode
+   npm run api:dev
+
+   # Frontend development server
+   npm run dev:frontend
+   ```
+
+4. **Build frontend for production:**
+   ```bash
+   npm run build
+   ```
+
+---
+
+## Testing and Quality Assurance
+
+The codebase uses Vitest alongside React Testing Library for unit and integration testing.
+
+```bash
+# Run all test suites
+npm test
+
+# Run tests in watch mode
+npx vitest
+
+# Run a specific test suite
+npx vitest run src/pages/CustomerManagementPage.test.tsx
+```
+
+All pull requests must pass automated linting and the test suite before merging.
+
+---
+
+## Agile Workflow and Project Tracking
+
+Sprint delivery is tracked via GitHub Projects v2:
+- **Sprint Board:** [Sprint Plan for HOPE Inc.](https://github.com/users/Raii-stack/projects/5)
+- Automated status progression:
+  - Pull request opened with linked issue -> `In review`
+  - Pull request merged -> `Done`
+  - All prerequisite tasks completed -> `Ready` (assignee notified automatically)

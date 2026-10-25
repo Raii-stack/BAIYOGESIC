@@ -4,6 +4,7 @@ import { MemoryRouter } from "react-router"
 import { afterEach, expect, test, vi } from "vitest"
 
 import { AuthProvider } from "../components/auth/AuthProvider"
+import { departmentPermissionPresets } from "../lib/users"
 import UserManagementPage from "./UserManagementPage"
 
 const success = (data: object) =>
@@ -169,6 +170,9 @@ test("enforces Admin visibility and action rules (Admin rows show — while Empl
 
   await user.click(screen.getByRole("button", { name: "Rights for User3 Account" }))
   const dialog = screen.getByRole("dialog", { name: /Rights — User3 Account/ })
+  expect(
+    within(dialog).getByRole("option", { name: "Sales & CRM — Manager" }),
+  ).toBeDisabled()
   await user.click(within(dialog).getByRole("switch", { name: "Add Customer" }))
   await user.click(within(dialog).getByRole("button", { name: "Save Rights" }))
 
@@ -355,6 +359,7 @@ test("allows superadmin to edit rights of admin and other superadmin accounts an
 
 test("applies department and module permission presets in the Rights modal", async () => {
   let savedRights: string[] = []
+  let savedRole = ""
   const users = [makeUser(3, "employee", false)]
 
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -370,6 +375,7 @@ test("applies department and module permission presets in the Rights modal", asy
     if (url.pathname === `/api/users/${users[0].userId}/rights` && init?.method === "PUT") {
       const body = JSON.parse(String(init.body))
       savedRights = body.rights
+      savedRole = body.role
       return success({ user: { ...users[0], rights: savedRights } })
     }
     throw new Error(`Unexpected request: ${url.pathname}`)
@@ -409,4 +415,109 @@ test("applies department and module permission presets in the Rights modal", asy
   expect(savedRights).toContain("hr.access")
   expect(savedRights).toContain("hr.history.view")
   expect(savedRights).not.toContain("hr.employee.delete")
+  expect(savedRole).toBe("employee")
+})
+
+test("keeps the saved preset visible and the Rights modal stable while saving", async () => {
+  const preset = departmentPermissionPresets.find((item) => item.id === "sales-manager")!
+  let users = [{ ...makeUser(3), rights: [...preset.rights] }]
+  let savedRole = ""
+  let finishSave: (() => void) | undefined
+  const saveGate = new Promise<void>((resolve) => {
+    finishSave = resolve
+  })
+
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: superAdminSession })
+    if (url.pathname === "/api/users/options") return success({ availableEmployees: [] })
+    if (url.pathname === "/api/users" && (!init?.method || init.method === "GET")) {
+      return success({
+        users,
+        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      })
+    }
+    if (url.pathname === `/api/users/${users[0].userId}/rights` && init?.method === "PUT") {
+      const body = JSON.parse(String(init.body))
+      await saveGate
+      savedRole = body.role
+      users = [{ ...users[0], rights: body.rights, role: body.role }]
+      return success({ user: users[0] })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <UserManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  expect(await screen.findByText("User3 Account")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Rights for User3 Account" }))
+  const dialog = screen.getByRole("dialog", { name: /Rights — User3 Account/ })
+  const presetSelect = within(dialog).getByLabelText("Permission preset configuration")
+  expect(presetSelect).toHaveValue("sales-manager")
+
+  await user.click(within(dialog).getByRole("switch", { name: "Add Employee" }))
+  expect(presetSelect).toHaveValue("")
+  await user.selectOptions(presetSelect, "sales-manager")
+  await user.click(within(dialog).getByRole("button", { name: "Save Rights" }))
+
+  expect(within(dialog).getByRole("button", { name: "Saving…" })).toBeDisabled()
+  expect(presetSelect).toHaveValue("sales-manager")
+  expect(presetSelect).toBeDisabled()
+  expect(dialog).toBeInTheDocument()
+
+  finishSave?.()
+  await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
+  expect(savedRole).toBe("admin")
+  expect(within(screen.getByRole("row", { name: /User3 Account/ })).getByText("Admin")).toBeInTheDocument()
+})
+
+test("keeps the edited rights open when saving fails", async () => {
+  const users = [makeUser(3)]
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: superAdminSession })
+    if (url.pathname === "/api/users/options") return success({ availableEmployees: [] })
+    if (url.pathname === "/api/users" && (!init?.method || init.method === "GET")) {
+      return success({
+        users,
+        pagination: { page: 1, limit: 10, total: 1, totalPages: 1 },
+      })
+    }
+    if (url.pathname === `/api/users/${users[0].userId}/rights` && init?.method === "PUT") {
+      return new Response(
+        JSON.stringify({ success: false, error: { message: "Unable to save rights" } }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      )
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <UserManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  expect(await screen.findByText("User3 Account")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Rights for User3 Account" }))
+  const dialog = screen.getByRole("dialog", { name: /Rights — User3 Account/ })
+  const presetSelect = within(dialog).getByLabelText("Permission preset configuration")
+  await user.selectOptions(presetSelect, "inventory-employee")
+  await user.click(within(dialog).getByRole("button", { name: "Save Rights" }))
+
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent("Unable to save rights")
+  expect(presetSelect).toHaveValue("inventory-employee")
+  expect(within(dialog).getByRole("button", { name: "Save Rights" })).toBeEnabled()
 })

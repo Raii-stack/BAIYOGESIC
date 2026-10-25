@@ -1,1 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="23.986" height="23.986" fill="none" overflow="visible" preserveAspectRatio="none" style="display:block" viewBox="0 0 23.986 23.986"><g id="Icon"><path id="Vector" stroke="#0D2743" stroke-linecap="round" stroke-width="2.199" d="M5.99657 3.99772V11.9931M5.99657 11.9931V19.9886M5.99657 11.9931H17.9897M17.9897 3.99772V11.9931M17.9897 11.9931V19.9886"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">
+  <rect width="64" height="64" rx="14" fill="#F4F4F5"/>
+  <path d="M16 16H24V31L40 24V16H48V48H40V33L24 40V48H16V16Z" fill="#242424"/>
+</svg>

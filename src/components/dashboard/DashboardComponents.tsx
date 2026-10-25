@@ -45,7 +45,12 @@ export function DashboardIcon({
       </>
     ),
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
-    collapse: <path d="m14 6-6 6 6 6M20 4v16" />,
+    collapse: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M9 4v16" />
+      </>
+    ),
     crm: (
       <>
         <circle cx="9" cy="8" r="3.5" />
@@ -170,20 +175,14 @@ export const modules: ModuleDefinition[] = [
 
 export function DashboardLogo({ collapsed }: { collapsed: boolean }) {
   return (
-    <div
-      className={`flex h-18 shrink-0 items-center px-5 ${
-        collapsed ? "lg:justify-center lg:px-0" : ""
-      }`}
-    >
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white p-1">
-        <img src="/assets/hope-icon.png" alt="HOPE logo" width="32" height="32" className="h-8 w-8 object-contain" />
-      </div>
+    <div className="flex h-18 shrink-0 items-center overflow-hidden px-5">
+      <img src="/assets/hope-mark.svg" alt="HOPE logo" width="40" height="40" className="h-10 w-10 shrink-0" />
       <div
-        className={`ml-3 min-w-0 transition-opacity ${
-          collapsed ? "lg:pointer-events-none lg:ml-0 lg:w-0 lg:opacity-0" : ""
+        className={`ml-3 min-w-0 max-w-40 overflow-hidden transition-[max-width,opacity] duration-200 ease-out ${
+          collapsed ? "lg:max-w-0 lg:opacity-0" : "lg:opacity-100"
         }`}
       >
-        <p className="whitespace-nowrap text-sm font-bold text-white">
+        <p className="whitespace-nowrap text-sm font-semibold tracking-tight text-white">
           HOPE, Inc.
         </p>
         <p className="mt-0.5 whitespace-nowrap text-[11px] font-normal text-neutral-400">

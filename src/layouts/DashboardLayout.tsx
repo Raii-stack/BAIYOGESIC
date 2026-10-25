@@ -138,14 +138,14 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
           if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
           else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
         }}
-        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col bg-[#1c1c1c] text-neutral-200 transition-[width,transform] duration-200 motion-reduce:transition-none lg:visible lg:translate-x-0 ${mobileSidebarOpen ? "visible translate-x-0" : "invisible -translate-x-full"} ${sidebarCollapsed ? "lg:w-20" : "lg:w-60"}`}
+        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col overflow-x-clip bg-[#1c1c1c] text-neutral-200 transition-[width,transform] duration-300 ease-in-out motion-reduce:transition-none lg:visible lg:translate-x-0 ${mobileSidebarOpen ? "visible translate-x-0" : "invisible -translate-x-full"} ${sidebarCollapsed ? "lg:w-20" : "lg:w-60"}`}
       >
         <DashboardLogo collapsed={sidebarCollapsed} />
 
-        <form onSubmit={submitSearch} className="relative mx-3 mb-5" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setSearch("") }}>
-          {sidebarCollapsed && <button type="button" onClick={focusSearch} aria-label="Open search" title="Search (Ctrl+K)" className="hidden h-10 w-full place-items-center rounded-lg text-neutral-300 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:grid"><DashboardIcon name="search" /></button>}
-          <div className={`relative ${sidebarCollapsed ? "lg:hidden" : ""}`}>
-            <DashboardIcon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+        <form onSubmit={submitSearch} className="relative mx-3 mb-5 h-10" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setSearch("") }}>
+          <button type="button" onClick={focusSearch} aria-label="Open search" title="Search (Ctrl+K)" className={`absolute inset-0 z-10 hidden h-10 w-full items-center rounded-lg px-5 text-neutral-300 transition-opacity duration-150 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:flex ${sidebarCollapsed ? "lg:pointer-events-auto lg:opacity-100" : "lg:pointer-events-none lg:opacity-0"}`}><DashboardIcon name="search" className="h-4 w-4" /></button>
+          <div className={`relative transition-opacity duration-150 ${sidebarCollapsed ? "lg:pointer-events-none lg:opacity-0" : "lg:opacity-100"}`}>
+            <DashboardIcon name="search" className="pointer-events-none absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
             <input
               ref={searchRef}
               type="search"
@@ -159,7 +159,7 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
               aria-label={searchPlaceholder}
               aria-controls="workspace-search-results"
               aria-expanded={Boolean(search.trim())}
-              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 pl-9 pr-12 text-[13px] text-white outline-none transition placeholder:text-neutral-400 hover:bg-white/10 focus:border-neutral-400 focus:bg-white/10 focus:ring-2 focus:ring-blue-400"
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 pl-12 pr-12 text-[13px] text-white outline-none transition placeholder:text-neutral-400 hover:bg-white/10 focus:border-neutral-400 focus:bg-white/10 focus:ring-2 focus:ring-blue-400"
             />
             {!search && <kbd aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-sans text-[10px] text-neutral-500">Ctrl K</kbd>}
           </div>
@@ -179,16 +179,16 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
           )}
         </form>
 
-        <nav aria-label="Primary navigation" className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 pb-5">
+        <nav aria-label="Primary navigation" className="min-h-0 flex-1 space-y-6 overflow-x-hidden overflow-y-auto px-3 pb-5">
           {navigationGroups.map((group, index) => (
             <div key={group.label}>
-              {index > 0 && <p className={`mb-2 px-3 text-xs font-medium text-neutral-500 ${sidebarCollapsed ? "lg:sr-only" : ""}`}>{group.label}</p>}
+              {index > 0 && <p className={`mb-2 whitespace-nowrap px-3 text-xs font-medium text-neutral-500 transition-opacity duration-150 ${sidebarCollapsed ? "lg:opacity-0" : "lg:opacity-100"}`}>{group.label}</p>}
               <ul className="space-y-1">
                 {group.items.map((item) => (
                   <li key={item.label}>
-                    <Link to={item.href || "/dashboard?view=overview"} title={sidebarCollapsed ? item.label : undefined} aria-current={currentItem?.label === item.label ? "page" : undefined} onClick={() => setMobileSidebarOpen(false)} className={`flex h-10 items-center gap-3 rounded-lg px-3 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${sidebarCollapsed ? "lg:justify-center lg:gap-0 lg:px-0" : ""} ${currentItem?.label === item.label ? "bg-white/12 font-semibold text-white" : "text-neutral-400 hover:bg-white/5 hover:text-white"}`}>
-                      <DashboardIcon name={item.icon} className="h-[18px] w-[18px] shrink-0" />
-                      <span className={sidebarCollapsed ? "lg:sr-only" : ""}>{item.label}</span>
+                    <Link to={item.href || "/dashboard?view=overview"} title={sidebarCollapsed ? item.label : undefined} aria-current={currentItem?.label === item.label ? "page" : undefined} onClick={() => setMobileSidebarOpen(false)} className={`grid h-10 grid-cols-[56px_minmax(0,1fr)] items-center rounded-lg text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${currentItem?.label === item.label ? "bg-white/12 font-semibold text-white" : "text-neutral-400 hover:bg-white/5 hover:text-white"}`}>
+                      <DashboardIcon name={item.icon} className="h-[18px] w-[18px] shrink-0 justify-self-center" />
+                      <span className={`-ml-2 max-w-40 overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ease-out ${sidebarCollapsed ? "lg:max-w-0 lg:opacity-0" : "lg:opacity-100"}`}>{item.label}</span>
                     </Link>
                   </li>
                 ))}
@@ -198,21 +198,22 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
         </nav>
 
         <div className="shrink-0 space-y-1 border-t border-white/10 p-3">
-          <Link to="/profile?view=account" aria-label={`${displayName}, ${user?.role || "Workspace user"}. View profile`} title={sidebarCollapsed ? "My account" : undefined} aria-current={pathname === "/profile" ? "page" : undefined} onClick={() => setMobileSidebarOpen(false)} className={`flex items-center gap-3 rounded-lg p-2.5 transition hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${pathname === "/profile" ? "bg-white/10" : ""} ${sidebarCollapsed ? "lg:justify-center lg:px-0" : ""}`}>
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#c5eed2] text-[11px] font-semibold text-[#163c25]">{getUserInitials(user)}</span>
-            <span className={`min-w-0 ${sidebarCollapsed ? "lg:hidden" : ""}`}><span className="block truncate text-[13px] font-medium text-neutral-100">{displayName}</span><span className="mt-0.5 block text-[11px] text-neutral-500">My account</span></span>
+          <Link to="/profile?view=account" aria-label={`${displayName}, ${user?.role || "Workspace user"}. View profile`} title={sidebarCollapsed ? "My account" : undefined} aria-current={pathname === "/profile" ? "page" : undefined} onClick={() => setMobileSidebarOpen(false)} className={`grid h-[52px] grid-cols-[56px_minmax(0,1fr)] items-center rounded-lg transition hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${pathname === "/profile" ? "bg-white/10" : ""}`}>
+            <span className="grid h-8 w-8 shrink-0 place-items-center justify-self-center rounded-lg bg-[#c5eed2] text-[11px] font-semibold text-[#163c25]">{getUserInitials(user)}</span>
+            <span className={`min-w-0 max-w-36 overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ease-out ${sidebarCollapsed ? "lg:max-w-0 lg:opacity-0" : "lg:opacity-100"}`}><span className="block truncate text-[13px] font-medium text-neutral-100">{displayName}</span><span className="mt-0.5 block text-[11px] text-neutral-500">My account</span></span>
           </Link>
-          <button type="button" onClick={handleLogout} aria-label="Log out" title="Log out" className={`flex h-9 w-full items-center gap-3 rounded-lg px-3 text-xs text-neutral-400 transition hover:bg-white/5 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 ${sidebarCollapsed ? "lg:justify-center lg:px-0" : ""}`}>
-            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10" /></svg>
-            <span className={sidebarCollapsed ? "lg:hidden" : ""}>Log out</span>
+          <button type="button" onClick={handleLogout} aria-label="Log out" title="Log out" className="grid h-9 w-full grid-cols-[56px_minmax(0,1fr)] items-center rounded-lg text-xs text-red-300 transition-colors hover:bg-red-500/10 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400">
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 justify-self-center" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M10 5H5v14h5M14 8l4 4-4 4M8 12h10" /></svg>
+            <span className={`-ml-2 max-w-20 overflow-hidden whitespace-nowrap text-left transition-[max-width,opacity] duration-200 ease-out ${sidebarCollapsed ? "lg:max-w-0 lg:opacity-0" : "lg:opacity-100"}`}>Log out</span>
           </button>
-          <button type="button" onClick={() => setSidebarCollapsed((current) => !current)} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} title={sidebarCollapsed ? "Expand sidebar" : undefined} className={`hidden h-9 w-full items-center gap-3 rounded-lg px-3 text-xs text-neutral-500 transition hover:bg-white/5 hover:text-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:flex ${sidebarCollapsed ? "justify-center px-0" : ""}`}>
-            <DashboardIcon name="collapse" className={`h-[18px] w-[18px] ${sidebarCollapsed ? "rotate-180" : ""}`} />{!sidebarCollapsed && <span>Collapse menu</span>}
+          <button type="button" onClick={() => setSidebarCollapsed((current) => !current)} aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} title={sidebarCollapsed ? "Expand sidebar" : undefined} className="hidden h-9 w-full grid-cols-[56px_minmax(0,1fr)] items-center overflow-hidden rounded-lg text-xs text-neutral-500 transition-colors hover:bg-white/5 hover:text-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 lg:grid">
+            <DashboardIcon name="collapse" className="h-[18px] w-[18px] justify-self-center" />
+            <span className={`-ml-2 max-w-32 overflow-hidden whitespace-nowrap text-left transition-[max-width,opacity] duration-200 ease-out ${sidebarCollapsed ? "max-w-0 opacity-0" : "opacity-100"}`}>Collapse menu</span>
           </button>
         </div>
       </aside>
 
-      <div className={`flex min-h-screen min-w-0 flex-1 flex-col bg-[#f6f6f7] transition-[margin] duration-200 motion-reduce:transition-none lg:mt-2 lg:min-h-[calc(100vh-0.5rem)] lg:rounded-tl-2xl ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-60"}`}>
+      <div className={`flex min-h-screen min-w-0 flex-1 flex-col bg-[#f6f6f7] transition-[margin] duration-300 ease-in-out motion-reduce:transition-none lg:mt-2 lg:min-h-[calc(100vh-0.5rem)] lg:rounded-tl-2xl ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-60"}`}>
         <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b border-neutral-200/70 bg-[#f6f6f7] px-4 sm:px-8 lg:rounded-tl-2xl xl:px-12">
           <button ref={menuButtonRef} type="button" onClick={() => setMobileSidebarOpen(true)} aria-label="Open navigation" aria-expanded={mobileSidebarOpen} aria-controls="workspace-navigation" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-neutral-600 hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 lg:hidden"><DashboardIcon name="menu" /></button>
           <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-2 text-[13px] text-neutral-500">

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 
 import { departmentPermissionPresets, permissionGroups } from "../../lib/users"
-import type { PermissionGroup, SystemUser } from "../../types/user"
+import type { PermissionGroup, SystemUser, UserRole } from "../../types/user"
 
 function CloseIcon() {
   return (
@@ -36,14 +36,25 @@ function getModulePresetValue(group: PermissionGroup, selectedRights: string[]):
   return "custom"
 }
 
+function getDepartmentPresetId(rights: string[]): string {
+  const selected = new Set(rights)
+  return departmentPermissionPresets.find(
+    (preset) =>
+      preset.rights.length === selected.size &&
+      preset.rights.every((right) => selected.has(right)),
+  )?.id ?? ""
+}
+
 export default function RightsModal({
   user,
+  canAssignAdmin,
   onClose,
   onSave,
 }: {
   user: SystemUser | null
+  canAssignAdmin: boolean
   onClose: () => void
-  onSave: (userId: string, rights: string[]) => Promise<void>
+  onSave: (userId: string, rights: string[], role: UserRole) => Promise<void>
 }) {
   const [selectedRights, setSelectedRights] = useState<string[]>([])
   const [selectedPresetId, setSelectedPresetId] = useState("")
@@ -51,11 +62,14 @@ export default function RightsModal({
   const [error, setError] = useState("")
 
   useEffect(() => {
-    setSelectedRights(user?.rights ?? [])
-    setSelectedPresetId("")
+    const rights = user?.rights ?? []
+    setSelectedRights(rights)
+    setSelectedPresetId(getDepartmentPresetId(rights))
     setSaving(false)
     setError("")
+  }, [user])
 
+  useEffect(() => {
     if (!user) return
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape" && !saving) onClose()
@@ -138,12 +152,22 @@ export default function RightsModal({
   const activePreset = departmentPermissionPresets.find(
     (item) => item.id === selectedPresetId,
   )
+  const matchedPreset = departmentPermissionPresets.find(
+    (item) => item.id === getDepartmentPresetId(selectedRights),
+  )
+  const nextRole: UserRole =
+    user.role === "superadmin"
+      ? "superadmin"
+      : canAssignAdmin && matchedPreset?.level === "Manager"
+        ? "admin"
+        : "employee"
 
   const handleSave = async () => {
+    if (saving) return
     setSaving(true)
     setError("")
     try {
-      await onSave(user.userId, selectedRights)
+      await onSave(user.userId, selectedRights, nextRole)
       onClose()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to save user rights.")
@@ -206,27 +230,28 @@ export default function RightsModal({
                 aria-label="Permission preset configuration"
                 value={selectedPresetId}
                 onChange={(event) => applyDepartmentPreset(event.target.value)}
+                disabled={saving}
                 className="workspace-control"
               >
                 <option value="">Select a department / role preset…</option>
                 <optgroup label="Sales & CRM Department">
-                  <option value="sales-manager">Sales &amp; CRM — Manager</option>
+                  <option value="sales-manager" disabled={!canAssignAdmin}>Sales &amp; CRM — Manager</option>
                   <option value="sales-employee">Sales &amp; CRM — Employee</option>
                 </optgroup>
                 <optgroup label="Inventory & Products Department">
-                  <option value="inventory-manager">Inventory &amp; Products — Manager</option>
+                  <option value="inventory-manager" disabled={!canAssignAdmin}>Inventory &amp; Products — Manager</option>
                   <option value="inventory-employee">Inventory &amp; Products — Employee</option>
                 </optgroup>
                 <optgroup label="Human Resources Department">
-                  <option value="hr-manager">Human Resources — Manager</option>
+                  <option value="hr-manager" disabled={!canAssignAdmin}>Human Resources — Manager</option>
                   <option value="hr-employee">Human Resources — Employee</option>
                 </optgroup>
                 <optgroup label="Accounting & Finance Department">
-                  <option value="accounting-manager">Accounting &amp; Finance — Manager</option>
+                  <option value="accounting-manager" disabled={!canAssignAdmin}>Accounting &amp; Finance — Manager</option>
                   <option value="accounting-employee">Accounting &amp; Finance — Employee</option>
                 </optgroup>
                 <optgroup label="All Departments">
-                  <option value="all-manager">All Departments — Manager (Full Access)</option>
+                  <option value="all-manager" disabled={!canAssignAdmin}>All Departments — Manager (Full Access)</option>
                   <option value="all-employee">All Departments — Employee (Read-Only)</option>
                 </optgroup>
               </select>
@@ -235,6 +260,7 @@ export default function RightsModal({
               <button
                 type="button"
                 onClick={() => applyDepartmentPreset("all-manager")}
+                disabled={saving || !canAssignAdmin}
                 className="workspace-secondary-action"
               >
                 Grant All
@@ -245,6 +271,7 @@ export default function RightsModal({
                   setSelectedPresetId("")
                   setSelectedRights([])
                 }}
+                disabled={saving}
                 className="workspace-secondary-action"
               >
                 Clear All
@@ -298,6 +325,7 @@ export default function RightsModal({
                         type="checkbox"
                         checked={moduleEnabled}
                         onChange={() => toggleModuleAccess(group)}
+                        disabled={saving}
                         aria-label={`Enable ${group.module} module`}
                         className="h-4 w-4 rounded border-neutral-300 accent-neutral-800 focus:ring-blue-700"
                       />
@@ -316,6 +344,7 @@ export default function RightsModal({
                         aria-label={`${group.module} role preset`}
                         value={modulePreset}
                         onChange={(event) => applyModulePreset(group, event.target.value)}
+                        disabled={saving}
                         className="workspace-control"
                       >
                         <option value="manager">Manager (Full)</option>
@@ -329,6 +358,7 @@ export default function RightsModal({
                       <button
                         type="button"
                         onClick={() => setModuleRights(group, true)}
+                        disabled={saving}
                         className="workspace-text-action"
                       >
                         All
@@ -337,6 +367,7 @@ export default function RightsModal({
                       <button
                         type="button"
                         onClick={() => setModuleRights(group, false)}
+                        disabled={saving}
                         className="workspace-text-action"
                       >
                         None
@@ -354,6 +385,7 @@ export default function RightsModal({
                           role="switch"
                           aria-checked={selected}
                           onClick={() => toggleRight(group, permission.id)}
+                          disabled={saving}
                           key={permission.id}
                           className={`flex items-center gap-3 bg-white px-4 py-3.5 text-left transition hover:bg-slate-50 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-700 ${
                             selected ? "text-slate-950" : "text-slate-600"
@@ -390,7 +422,9 @@ export default function RightsModal({
 
         <footer className="workspace-drawer-footer">
           <p className="hidden text-xs text-slate-500 sm:block">
-            {actionRightsCount} action permissions selected
+            {actionRightsCount} action permissions selected · Role after save: {
+              nextRole === "superadmin" ? "Superadmin" : nextRole === "admin" ? "Admin" : "Employee"
+            }
           </p>
           <div className="ml-auto flex gap-3">
             <button

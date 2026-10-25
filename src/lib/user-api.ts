@@ -142,11 +142,11 @@ export const userApi = {
     )
     return normalizeUserRow(data.user)
   },
-  async updateRights(userId: string, rights: string[]) {
+  async updateRights(userId: string, rights: string[], role: UserRole) {
     const data = await request<{ user: SystemUser }>(
       `/${encodeURIComponent(userId)}/rights`,
       "PUT",
-      { rights },
+      { rights, role },
     )
     return normalizeUserRow(data.user)
   },

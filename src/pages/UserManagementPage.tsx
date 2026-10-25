@@ -186,8 +186,11 @@ export default function UserManagementPage() {
     }
   }
 
-  const handleSaveRights = async (userId: string, rights: string[]) => {
-    await userApi.updateRights(userId, rights)
+  const handleSaveRights = async (userId: string, rights: string[], role: UserRole) => {
+    const updated = await userApi.updateRights(userId, rights, role)
+    setUsers((current) =>
+      current.map((user) => (user.userId === updated.userId ? updated : user)),
+    )
     showNotice("User permissions updated successfully.")
     setRefresh((current) => current + 1)
   }
@@ -325,6 +328,7 @@ export default function UserManagementPage() {
 
         <RightsModal
           user={rightsUser}
+          canAssignAdmin={isSuperAdmin}
           onClose={() => setRightsUser(null)}
           onSave={handleSaveRights}
         />

@@ -27,7 +27,7 @@ async function withAudit(username, callback) {
   const client = await requirePool().connect();
   try {
     await client.query('BEGIN');
-    await client.query(`SELECT set_config('app.current_user', $1, true)`, [username]);
+    await client.query(`SELECT set_config('app.username', $1, true)`, [username]);
     const result = await callback(client);
     await client.query('COMMIT');
     return result;
@@ -598,6 +598,22 @@ const updateUserRights = asyncHandler(async (req, res) => {
       throw requestError('You cannot modify your own permissions', 400);
     }
 
+    const requestedRole = req.body.role === undefined
+      ? existing.role
+      : String(req.body.role).trim().toLowerCase();
+    if (!VALID_ROLES.has(requestedRole)) {
+      throw requestError('Role must be superadmin, admin, or employee', 400);
+    }
+    if (!requesterIsSuperAdmin && requestedRole !== 'employee') {
+      throw requestError('Admins can only assign the Employee role', 403);
+    }
+
+    const existingRightsResult = await client.query(
+      `SELECT right_code FROM public.app_user_right WHERE user_id = $1::uuid ORDER BY right_code`,
+      [userId]
+    );
+    const existingRights = existingRightsResult.rows.map((row) => row.right_code);
+
     if (requestedRights.length > 0) {
       const validResult = await client.query(
         `SELECT right_code FROM public.app_right WHERE right_code = ANY($1::text[])`,
@@ -620,10 +636,22 @@ const updateUserRights = asyncHandler(async (req, res) => {
 
     await client.query(
       `UPDATE public.app_user
-       SET stamp = public.audit_stamp('EDIT'),
+       SET role = $2,
+           stamp = public.audit_stamp('EDIT'),
            updated_at = now()
        WHERE user_id = $1::uuid`,
-      [userId]
+      [userId, requestedRole]
+    );
+
+    await client.query(
+      `INSERT INTO public.audit_log
+         (table_name, action, record_key, old_values, new_values, action_by)
+       VALUES
+         ('app_user_right', 'EDIT', $1,
+          jsonb_build_object('role', $2::text, 'rights', to_jsonb($3::text[])),
+          jsonb_build_object('role', $4::text, 'rights', to_jsonb($5::text[])),
+          $6)`,
+      [userId, existing.role, existingRights, requestedRole, requestedRights, actor]
     );
 
     return fetchUserById(client, userId);

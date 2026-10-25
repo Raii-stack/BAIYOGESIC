@@ -45,7 +45,12 @@ export function DashboardIcon({
       </>
     ),
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
-    collapse: <path d="m14 6-6 6 6 6M20 4v16" />,
+    collapse: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M9 4v16" />
+      </>
+    ),
     crm: (
       <>
         <circle cx="9" cy="8" r="3.5" />
@@ -170,15 +175,11 @@ export const modules: ModuleDefinition[] = [
 
 export function DashboardLogo({ collapsed }: { collapsed: boolean }) {
   return (
-    <div
-      className={`flex h-18 shrink-0 items-center px-5 ${
-        collapsed ? "lg:justify-center lg:px-0" : ""
-      }`}
-    >
+    <div className="flex h-18 shrink-0 items-center overflow-hidden px-5">
       <img src="/assets/hope-mark.svg" alt="HOPE logo" width="40" height="40" className="h-10 w-10 shrink-0" />
       <div
-        className={`ml-3 min-w-0 transition-opacity ${
-          collapsed ? "lg:pointer-events-none lg:ml-0 lg:w-0 lg:opacity-0" : ""
+        className={`ml-3 min-w-0 max-w-40 overflow-hidden transition-[max-width,opacity] duration-200 ease-out ${
+          collapsed ? "lg:max-w-0 lg:opacity-0" : "lg:opacity-100"
         }`}
       >
         <p className="whitespace-nowrap text-sm font-semibold tracking-tight text-white">

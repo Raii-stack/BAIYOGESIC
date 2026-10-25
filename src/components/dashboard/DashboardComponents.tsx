@@ -175,15 +175,13 @@ export function DashboardLogo({ collapsed }: { collapsed: boolean }) {
         collapsed ? "lg:justify-center lg:px-0" : ""
       }`}
     >
-      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white p-1">
-        <img src="/assets/hope-icon.png" alt="HOPE logo" width="32" height="32" className="h-8 w-8 object-contain" />
-      </div>
+      <img src="/assets/hope-mark.svg" alt="HOPE logo" width="40" height="40" className="h-10 w-10 shrink-0" />
       <div
         className={`ml-3 min-w-0 transition-opacity ${
           collapsed ? "lg:pointer-events-none lg:ml-0 lg:w-0 lg:opacity-0" : ""
         }`}
       >
-        <p className="whitespace-nowrap text-sm font-bold text-white">
+        <p className="whitespace-nowrap text-sm font-semibold tracking-tight text-white">
           HOPE, Inc.
         </p>
         <p className="mt-0.5 whitespace-nowrap text-[11px] font-normal text-neutral-400">

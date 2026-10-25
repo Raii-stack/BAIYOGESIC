@@ -74,9 +74,7 @@ function EyeIcon({ hidden }: { hidden: boolean }) {
 export function Logo({ inverse = false }: { inverse?: boolean }) {
   return (
     <div className="flex items-center gap-3.5">
-      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-neutral-200 bg-white p-1">
-        <img src="/assets/hope-icon.png" alt="HOPE logo" width="36" height="36" className="h-9 w-9 object-contain" />
-      </div>
+      <img src="/assets/hope-mark.svg" alt="HOPE logo" width="44" height="44" className="h-11 w-11 shrink-0" />
       <div>
         <div
           className={`text-base font-semibold tracking-tight ${

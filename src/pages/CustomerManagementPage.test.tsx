@@ -144,7 +144,7 @@ test("sends customer edits to the API and reloads the directory after saving", a
   expect(await screen.findByText("Updated account")).toBeInTheDocument()
   expect(screen.getByRole("status")).toHaveTextContent("Customer updated successfully")
   await user.click(screen.getByRole("button", { name: "Dismiss notification" }))
-  expect(screen.queryByRole("status")).not.toBeInTheDocument()
+  await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument())
 })
 
 test("creates and archives customers through the API", async () => {

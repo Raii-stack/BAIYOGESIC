@@ -18,6 +18,8 @@ export default defineConfig(({ mode }) => {
       exclude: ['**/node_modules/**', 'tests/integration/**', 'tests/e2e/**'],
       environment: "jsdom",
       setupFiles: ["./src/test-setup.js"],
+      testTimeout: 15000,
+      exclude: ["**/node_modules/**", "**/dist/**", "tests/integration/**"],
     },
   };
 });

@@ -1,11 +1,13 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { Customer, PaymentTerm } from "../../types/customer"
+import type { CustomerInput } from "../../lib/customer-api"
 
 type CustomerPanelProps = {
   customer: Customer | null
   open: boolean
   onClose: () => void
+  onSave: (input: CustomerInput) => Promise<void>
 }
 
 function CloseIcon() {
@@ -28,42 +30,70 @@ export default function CustomerPanel({
   customer,
   open,
   onClose,
+  onSave,
 }: CustomerPanelProps) {
   const [customerName, setCustomerName] = useState("")
   const [address, setAddress] = useState("")
-  const [paymentTerm, setPaymentTerm] = useState<PaymentTerm>("COD")
+  const [paymentTerm, setPaymentTerm] = useState<PaymentTerm | "">("")
   const [nameError, setNameError] = useState("")
+  const [addressError, setAddressError] = useState("")
+  const [paymentTermError, setPaymentTermError] = useState("")
+  const [saveError, setSaveError] = useState("")
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!open) return
 
     setCustomerName(customer?.company ?? "")
     setAddress(customer?.address ?? "")
-    setPaymentTerm(customer?.paymentTerm ?? "COD")
+    setPaymentTerm(customer?.paymentTerm ?? "")
     setNameError("")
+    setAddressError("")
+    setPaymentTermError("")
+    setSaveError("")
   }, [customer, open])
 
   useEffect(() => {
     if (!open) return
 
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
+      if (event.key === "Escape" && !saving) onClose()
     }
 
     window.addEventListener("keydown", closeOnEscape)
     return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [onClose, open])
+  }, [onClose, open, saving])
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
 
-    if (!customerName.trim()) {
-      setNameError("Customer name is required.")
-      return
-    }
+    const nextNameError = !customerName.trim()
+      ? "Customer Name is required."
+      : customerName.trim().length > 20
+        ? "Customer Name must be 20 characters or fewer."
+        : ""
+    const nextAddressError = !address.trim()
+      ? "Address is required."
+      : address.trim().length > 50
+        ? "Address must be 50 characters or fewer."
+        : ""
+    const nextPaymentTermError = paymentTerm ? "" : "Payment Term is required."
 
-    setNameError("")
-    onClose()
+    setNameError(nextNameError)
+    setAddressError(nextAddressError)
+    setPaymentTermError(nextPaymentTermError)
+    if (nextNameError || nextAddressError || nextPaymentTermError) return
+
+    setSaving(true)
+    setSaveError("")
+    try {
+      await onSave({ custname: customerName.trim(), address: address.trim(), payterm: paymentTerm as PaymentTerm })
+      onClose()
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : "Unable to save customer.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -72,11 +102,12 @@ export default function CustomerPanel({
         open ? "pointer-events-auto" : "pointer-events-none"
       }`}
       aria-hidden={!open}
+      inert={!open}
     >
       <button
         type="button"
         aria-label="Close customer details"
-        onClick={onClose}
+        onClick={() => { if (!saving) onClose() }}
         tabIndex={open ? 0 : -1}
         className={`absolute inset-0 bg-slate-950/45 transition-opacity duration-200 ${
           open ? "opacity-100" : "opacity-0"
@@ -87,15 +118,13 @@ export default function CustomerPanel({
         role="dialog"
         aria-modal="true"
         aria-labelledby="customer-panel-title"
-        className={`absolute inset-y-0 right-0 flex w-full max-w-xl flex-col border-l border-slate-300 bg-white shadow-[-20px_0_60px_rgba(15,23,42,0.14)] transition-transform duration-300 ease-out ${
+        className={`absolute inset-y-0 right-0 flex w-full max-w-xl flex-col border-l border-neutral-200 bg-white shadow-xl workspace-drawer transition-transform duration-300 ease-out ${
           open ? "translate-x-0" : "translate-x-full"
         }`}
       >
-        <header className="flex shrink-0 items-start justify-between gap-6 border-b border-slate-300 px-6 py-6 sm:px-8">
+        <header className="workspace-drawer-header">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">
-              CRM / Customer record
-            </p>
+
             <h2
               id="customer-panel-title"
               className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
@@ -110,9 +139,9 @@ export default function CustomerPanel({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={() => { if (!saving) onClose() }}
             aria-label="Close customer details"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            className="workspace-icon-action"
           >
             <CloseIcon />
           </button>
@@ -124,8 +153,8 @@ export default function CustomerPanel({
           noValidate
           className="flex min-h-0 flex-1 flex-col"
         >
-          <div className="flex-1 overflow-y-auto px-6 py-7 sm:px-8">
-            <div className="border-l-2 border-blue-800 bg-blue-50 px-4 py-3">
+          <div className="workspace-drawer-body">
+            <div className="workspace-notice">
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-900">
                 Record information
               </p>
@@ -134,27 +163,28 @@ export default function CustomerPanel({
               </p>
             </div>
 
-            <div className="mt-7 space-y-5">
+            <div className="mt-6 space-y-4">
               <label className="block">
-                <span className="mb-2 block text-xs font-bold text-slate-700">
+                <span className="workspace-label">
                   Customer ID
                 </span>
                 <input
                   type="text"
                   readOnly
                   value={customer?.id ?? "Auto-generated on save"}
-                  className="h-11 w-full cursor-not-allowed rounded-md border border-slate-200 bg-slate-100 px-3 text-sm font-medium text-slate-500 outline-none"
+                  className="workspace-control"
                 />
               </label>
 
               <label className="block">
-                <span className="mb-2 flex items-center justify-between gap-3 text-xs font-bold text-slate-700">
+                <span className="workspace-label workspace-label--row">
                   Customer Name
                   <span className="font-medium text-slate-400">Required</span>
                 </span>
                 <input
                   type="text"
                   value={customerName}
+                  maxLength={20}
                   onChange={(event) => {
                     setCustomerName(event.target.value)
                     if (nameError) setNameError("")
@@ -162,7 +192,7 @@ export default function CustomerPanel({
                   placeholder="Enter customer or company name"
                   aria-invalid={Boolean(nameError)}
                   aria-describedby="customer-name-error"
-                  className={`h-11 w-full rounded-md border bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 ${
+                  className={`workspace-control ${
                     nameError
                       ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
                       : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
@@ -171,71 +201,99 @@ export default function CustomerPanel({
                 <p
                   id="customer-name-error"
                   aria-live="polite"
-                  className={`min-h-6 pt-1.5 text-xs font-semibold ${
-                    nameError ? "text-red-600" : "opacity-0"
-                  }`}
+                  className={nameError ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
                 >
                   {nameError || "\u00a0"}
                 </p>
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-xs font-bold text-slate-700">
+                <span className="workspace-label">
                   Address
                 </span>
                 <textarea
                   value={address}
-                  onChange={(event) => setAddress(event.target.value)}
+                  maxLength={50}
+                  onChange={(event) => {
+                    setAddress(event.target.value)
+                    if (addressError) setAddressError("")
+                  }}
                   placeholder="Enter the complete business address"
                   rows={5}
-                  className="w-full resize-none rounded-md border border-slate-300 bg-white px-3 py-3 text-sm leading-6 text-slate-950 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  aria-invalid={Boolean(addressError)}
+                  aria-describedby="customer-address-error"
+                  className={`workspace-control ${
+                    addressError
+                      ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
+                      : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  }`}
                 />
+                <p
+                  id="customer-address-error"
+                  aria-live="polite"
+                  className={addressError ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
+                >
+                  {addressError || "\u00a0"}
+                </p>
               </label>
 
               <label className="block">
-                <span className="mb-2 block text-xs font-bold text-slate-700">
-                  Payment Term
+                <span className="workspace-label workspace-label--row">
+                  Payment Terms
+                  <span className="font-medium text-slate-400">
+                    Select only
+                  </span>
                 </span>
                 <span className="relative block">
                   <select
                     value={paymentTerm}
-                    onChange={(event) =>
-                      setPaymentTerm(event.target.value as PaymentTerm)
-                    }
-                    className="h-11 w-full appearance-none rounded-md border border-slate-300 bg-white px-3 pr-9 text-sm text-slate-800 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                    onChange={(event) => {
+                      setPaymentTerm(event.target.value as PaymentTerm | "")
+                      if (paymentTermError) setPaymentTermError("")
+                    }}
+                    aria-invalid={Boolean(paymentTermError)}
+                    aria-describedby="customer-payment-term-error"
+                    className={`workspace-control ${
+                      paymentTerm ? "text-slate-800" : "text-slate-400"
+                    } ${
+                      paymentTermError
+                        ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
+                        : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                    }`}
                   >
+                    <option value="">Select payment terms</option>
+                    <option value="30D">Net 30</option>
                     <option value="COD">COD</option>
-                    <option value="30D">30D</option>
-                    <option value="45D">45D</option>
+                    <option value="45D">Net 45</option>
                   </select>
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 20 20"
-                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                  >
-                    <path d="m6 8 4 4 4-4" />
-                  </svg>
                 </span>
+                <p
+                  id="customer-payment-term-error"
+                  aria-live="polite"
+                  className={paymentTermError ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
+                >
+                  {paymentTermError || "\u00a0"}
+                </p>
               </label>
             </div>
           </div>
 
-          <footer className="flex shrink-0 items-center justify-end gap-3 border-t border-slate-300 bg-white px-6 py-4 sm:px-8">
+          <footer className="workspace-drawer-footer">
+            {saveError && <p role="alert" className="mr-auto text-xs font-semibold text-red-700">{saveError}</p>}
             <button
               type="button"
               onClick={onClose}
-              className="h-11 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+              disabled={saving}
+              className="workspace-secondary-action"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+              disabled={saving}
+              className="workspace-primary-action"
             >
-              Save Customer
+              {saving ? "Saving…" : customer ? "Save changes" : "Create customer"}
             </button>
           </footer>
         </form>

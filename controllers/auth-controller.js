@@ -1,7 +1,7 @@
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { supabase, authSupabase } = require('../db');
+const { supabase, authSupabase, requirePool } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
@@ -38,6 +38,68 @@ function hashResetToken(token) {
 
 function shouldReturnResetToken() {
   return process.env.NODE_ENV !== 'production' && process.env.RETURN_RESET_TOKEN === 'true';
+}
+
+async function fetchUserRights(userId) {
+  if (!authSupabase || !userId) return [];
+  const { data, error } = await authSupabase
+    .from('app_user_right')
+    .select('right_code')
+    .eq('user_id', userId);
+  if (error || !Array.isArray(data)) return [];
+  return data.map((row) => row.right_code).filter(Boolean);
+}
+
+async function fetchEmployeeProfile(userId) {
+  try {
+    const result = await requirePool().query(
+      `SELECT COALESCE(e.firstname, '') AS "firstName",
+              COALESCE(e.lastname, '') AS "lastName",
+              TRIM(concat_ws(' ', e.firstname, e.lastname)) AS name,
+              j.jobdesc AS "jobTitle",
+              d.deptname AS "departmentName"
+       FROM public.app_user u
+       LEFT JOIN public.employee e ON e.empno = u.empno
+       LEFT JOIN LATERAL (
+         SELECT jobcode, deptcode
+         FROM public.jobhistory jh
+         WHERE jh.empno = u.empno AND jh.is_deleted = false
+         ORDER BY effdate DESC, jobcode DESC
+         LIMIT 1
+       ) lj ON true
+       LEFT JOIN public.job j ON j.jobcode = lj.jobcode
+       LEFT JOIN public.department d ON d.deptcode = lj.deptcode
+       WHERE u.user_id = $1::uuid
+       LIMIT 1`,
+      [userId],
+    );
+    return result.rows[0] || {};
+  } catch {
+    return {};
+  }
+}
+
+async function buildAuthUser(user) {
+  const [rights, profile] = await Promise.all([
+    fetchUserRights(user.user_id),
+    fetchEmployeeProfile(user.user_id),
+  ]);
+
+  return {
+    userId: user.user_id,
+    empno: user.empno,
+    firstName: profile.firstName || '',
+    lastName: profile.lastName || '',
+    name: profile.name || '',
+    email: user.email,
+    role: user.role,
+    status: user.status,
+    isBlocked: Boolean(user.is_blocked),
+    mustChangePassword: user.must_change_password,
+    jobTitle: profile.jobTitle || null,
+    departmentName: profile.departmentName || null,
+    rights,
+  };
 }
 
 const register = asyncHandler(async (req, res) => {
@@ -227,7 +289,7 @@ const login = asyncHandler(async (req, res) => {
 
   const { data: candidates, error } = await authSupabase
     .from('app_user')
-    .select('user_id, empno, email, password_hash, role, status, must_change_password')
+    .select('user_id, empno, email, password_hash, role, status, is_blocked, must_change_password')
     .eq('email', normalizedEmail)
     .eq('status', 'active')
     .limit(1);
@@ -248,6 +310,10 @@ const login = asyncHandler(async (req, res) => {
     throw requestError('Invalid email or password', 401);
   }
 
+  if (user.is_blocked) {
+    throw requestError('Your account has been blocked. Contact an administrator.', 403);
+  }
+
   const token = jwt.sign(
     { sub: String(user.user_id), empno: user.empno, email: user.email, role: user.role },
     getJwtSecret(),
@@ -265,14 +331,34 @@ const login = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: {
-      user: {
-        userId: user.user_id,
-        empno: user.empno,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        mustChangePassword: user.must_change_password
-      }
+      user: await buildAuthUser(user)
+    }
+  });
+});
+
+const session = asyncHandler(async (req, res) => {
+  if (!authSupabase) {
+    throw requestError('Authentication service unavailable', 503);
+  }
+
+  const { data: user, error } = await authSupabase
+    .from('app_user')
+    .select('user_id, empno, email, role, status, is_blocked, must_change_password')
+    .eq('user_id', req.user.sub)
+    .eq('status', 'active')
+    .maybeSingle();
+
+  if (error) {
+    throw requestError('Authentication service unavailable', 503);
+  }
+  if (!user || user.is_blocked) {
+    throw requestError('Authentication required', 401);
+  }
+
+  res.json({
+    success: true,
+    data: {
+      user: await buildAuthUser(user)
     }
   });
 });
@@ -309,13 +395,17 @@ const changePassword = asyncHandler(async (req, res) => {
 
   const { data: user, error: readError } = await authSupabase
     .from('app_user')
-    .select('password_hash')
+    .select('password_hash, is_blocked')
     .eq('user_id', req.user.sub)
     .eq('status', 'active')
     .maybeSingle();
 
   if (readError || !user) {
     throw requestError('Authentication service unavailable', 503);
+  }
+
+  if (user.is_blocked) {
+    throw requestError('Your account has been blocked. Contact an administrator.', 403);
   }
 
   if (!await bcrypt.compare(currentPassword, user.password_hash)) {
@@ -345,6 +435,7 @@ module.exports = {
   forgotPassword,
   resetPassword,
   login,
+  session,
   logout,
   changePassword
 };

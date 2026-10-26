@@ -4,7 +4,9 @@ type DeleteConfirmationModalProps = {
   customerName: string
   open: boolean
   onCancel: () => void
-  onConfirm: () => void
+  onConfirm: () => Promise<void>
+  loading: boolean
+  error: string
 }
 
 function WarningIcon() {
@@ -30,17 +32,19 @@ export default function DeleteConfirmationModal({
   open,
   onCancel,
   onConfirm,
+  loading,
+  error,
 }: DeleteConfirmationModalProps) {
   useEffect(() => {
     if (!open) return
 
     const cancelOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCancel()
+      if (event.key === "Escape" && !loading) onCancel()
     }
 
     window.addEventListener("keydown", cancelOnEscape)
     return () => window.removeEventListener("keydown", cancelOnEscape)
-  }, [onCancel, open])
+  }, [onCancel, open, loading])
 
   if (!open) return null
 
@@ -49,7 +53,7 @@ export default function DeleteConfirmationModal({
       <button
         type="button"
         aria-label="Cancel archive"
-        onClick={onCancel}
+        onClick={() => { if (!loading) onCancel() }}
         className="absolute inset-0 bg-slate-950/70"
       />
 
@@ -58,9 +62,9 @@ export default function DeleteConfirmationModal({
         aria-modal="true"
         aria-labelledby="archive-dialog-title"
         aria-describedby="archive-dialog-description"
-        className="relative w-full max-w-lg overflow-hidden rounded-lg border border-slate-300 border-t-[3px] border-t-red-600 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.30)]"
+        className="relative w-full max-w-lg workspace-panel shadow-xl"
       >
-        <div className="px-6 pb-7 pt-8 text-center sm:px-9">
+        <div className="p-6 text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-red-200 bg-red-50 text-red-700">
             <WarningIcon />
           </div>
@@ -69,7 +73,7 @@ export default function DeleteConfirmationModal({
           </p>
           <h2
             id="archive-dialog-title"
-            className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
+            className="mt-2 text-xl font-semibold tracking-tight text-neutral-900"
           >
             Archive this record?
           </h2>
@@ -80,27 +84,29 @@ export default function DeleteConfirmationModal({
             id="archive-dialog-description"
             className="mx-auto mt-4 max-w-md text-sm leading-6 text-slate-600"
           >
-            Are you sure you want to delete this customer? This action will hide
-            the record from active views. If this customer has active sales
-            records, the deletion will be blocked by the system.
+            Archive this customer? The record will stay in the directory with
+            Archived status. Customers with active sales cannot be archived.
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 border-t border-slate-300 bg-slate-50 px-5 py-4 sm:px-8">
+        {error && <p role="alert" className="px-6 pb-4 text-sm font-semibold text-red-700">{error}</p>}
+        <div className="workspace-drawer-footer">
           <button
             type="button"
             onClick={onCancel}
+              disabled={loading}
             autoFocus
-            className="h-11 rounded-md border border-slate-300 bg-white px-3 text-xs font-bold text-slate-700 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 sm:text-sm"
+            className="workspace-secondary-action"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="h-11 rounded-md bg-red-700 px-3 text-xs font-bold text-white transition hover:bg-red-800 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-red-200 sm:text-sm"
+              disabled={loading}
+              className="workspace-danger-action"
           >
-            Yes, Archive Record
+              {loading ? "Archiving…" : "Yes, Archive Record"}
           </button>
         </div>
       </section>

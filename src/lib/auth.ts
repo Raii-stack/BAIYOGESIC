@@ -1,124 +1,97 @@
-export type AuthenticatedUser = {
-  userId: string
-  empno: string
+import { safeApiMessage } from "./api-errors"
+
+export type AuthUser = {
+  userId: string | number
+  empno: string | null
+  firstName?: string
+  lastName?: string
+  name?: string
   email: string
   role: string
   status: string
+  isBlocked?: boolean
   mustChangePassword: boolean
+  jobTitle?: string | null
+  departmentName?: string | null
+  rights?: string[]
 }
 
-const currentUserStorageKey = "hope-erp-current-user"
+export function getUserDisplayName(user: AuthUser | null | undefined): string {
+  return user?.name?.trim()
+    || [user?.firstName, user?.lastName].filter(Boolean).join(" ")
+    || user?.email
+    || "Workspace user"
+}
 
-type LoginResponse = {
+export function getUserInitials(user: AuthUser | null | undefined): string {
+  const name = getUserDisplayName(user)
+  const parts = name.split(/\s+/).filter(Boolean)
+  return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)?.[0]}` : name.slice(0, 2)).toUpperCase()
+}
+
+export function isSuperAdminRole(role?: string | null): boolean {
+  return role === "superadmin" || role === "administrator"
+}
+
+export function isAdminRole(role?: string | null): boolean {
+  return isSuperAdminRole(role) || role === "admin"
+}
+
+export function hasUserRight(user: AuthUser | null | undefined, ...rightCodes: string[]): boolean {
+  if (!user) return false
+  if (isAdminRole(user.role)) return true
+  if (!Array.isArray(user.rights)) return false
+  return rightCodes.some((code) => user.rights!.includes(code))
+}
+
+type ApiResponse<T> = {
   success: boolean
-  data?: { user: AuthenticatedUser }
+  data?: T
   error?: { message?: string }
 }
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || ""
+export class AuthApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message)
+  }
+}
 
-export async function login(email: string, password: string) {
-  const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  })
+const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
 
-  let payload: LoginResponse | null = null
+async function request<T>(path: string, body?: object): Promise<T> {
+  let response: Response
   try {
-    payload = (await response.json()) as LoginResponse
+    response = await fetch(`${apiBase}/api/auth${path}`, {
+      method: body ? "POST" : "GET",
+      credentials: "include",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    })
   } catch {
-    throw new Error("Unable to reach the authentication service.")
+    throw new AuthApiError("The service is temporarily unavailable. Please try again.", 0)
   }
 
-  if (!response.ok || !payload.success || !payload.data?.user) {
-    throw new Error(
-      response.status === 401
-        ? "Invalid credentials"
-        : payload.error?.message || "Unable to sign in. Please try again.",
+  const result = await response.json().catch(() => null) as ApiResponse<T> | null
+  if (!response.ok || !result?.success || !result.data) {
+    const authDetail = result?.error?.message
+    const knownAuthError =
+      (response.status === 401 && authDetail &&
+        /^(Email or password is incorrect|Invalid email or password|Current password is incorrect)\.?$/i.test(authDetail)) ||
+      (response.status === 403 && authDetail && /blocked/i.test(authDetail))
+    throw new AuthApiError(
+      knownAuthError ? authDetail : safeApiMessage(response.status, result),
+      response.status,
     )
   }
-
-  return payload.data.user
+  return result.data
 }
 
-export async function changePassword(currentPassword: string, newPassword: string) {
-  const response = await fetch(`${apiBaseUrl}/api/auth/change-password`, {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ currentPassword, newPassword }),
-  })
-
-  let payload: { success: boolean; error?: { message?: string } } | null = null
-  try {
-    payload = (await response.json()) as { success: boolean; error?: { message?: string } }
-  } catch {
-    throw new Error("Unable to reach the authentication service.")
-  }
-
-  if (!response.ok || !payload.success) {
-    throw new Error(payload.error?.message || "Unable to update your password.")
-  }
-
-  return true
-}
-
-export async function logout() {
-  const response = await fetch(`${apiBaseUrl}/api/auth/logout`, {
-    method: "POST",
-    credentials: "include",
-  })
-
-  if (!response.ok) {
-    throw new Error("Unable to sign out. Please try again.")
-  }
-
-  clearCurrentUser()
-}
-
-export function saveCurrentUser(user: AuthenticatedUser) {
-  window.localStorage.setItem(currentUserStorageKey, JSON.stringify(user))
-}
-
-export function clearCurrentUser() {
-  window.localStorage.removeItem(currentUserStorageKey)
-}
-
-export function getCurrentUser(): AuthenticatedUser | null {
-  const storedUser = window.localStorage.getItem(currentUserStorageKey)
-  if (!storedUser) return null
-
-  try {
-    return JSON.parse(storedUser) as AuthenticatedUser
-  } catch {
-    window.localStorage.removeItem(currentUserStorageKey)
-    return null
-  }
-}
-
-export function getUserInitials(user: AuthenticatedUser | null) {
-  if (!user) return "SA"
-
-  const [lastName = "", firstName = ""] = user.email.split("@")[0].split(".")
-  return `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase() || "SA"
-}
-
-export function getUserDisplayName(user: AuthenticatedUser | null) {
-  if (!user) return "Account"
-
-  const [lastName, firstName] = user.email.split("@")[0].split(".")
-  if (!lastName || !firstName) return user.email
-
-  return `${firstName} ${lastName}`.replace(/\b\w/g, (letter) =>
-    letter.toUpperCase(),
-  )
-}
-
-export function getUserRoleLabel(user: AuthenticatedUser | null) {
-  if (!user) return "Superadmin"
-  if (user.role === "administrator") return "Superadmin"
-
-  return user.role.charAt(0).toUpperCase() + user.role.slice(1)
+export const authApi = {
+  login: (email: string, password: string) =>
+    request<{ user: AuthUser }>("/login", { email, password }),
+  session: () => request<{ user: AuthUser }>("/session"),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ message: string }>("/change-password", { currentPassword, newPassword }),
+  logout: () => request<{ message: string }>("/logout", {}),
+  resetPassword: (token: string, password: string) => request<{ user: AuthUser }>("/reset-password", { token, password }),
 }

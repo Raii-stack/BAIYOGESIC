@@ -17,10 +17,7 @@ export function DashboardIcon({
   const paths: Record<DashboardIconName, ReactNode> = {
     dashboard: (
       <>
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="7" height="7" rx="1" />
+        <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10Z" />
       </>
     ),
     profile: (
@@ -48,7 +45,12 @@ export function DashboardIcon({
       </>
     ),
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
-    collapse: <path d="m14 6-6 6 6 6M20 4v16" />,
+    collapse: (
+      <>
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M9 4v16" />
+      </>
+    ),
     crm: (
       <>
         <circle cx="9" cy="8" r="3.5" />
@@ -74,6 +76,18 @@ export function DashboardIcon({
         <path d="m4 7 5-4 6 6 6-5" />
       </>
     ),
+    reports: (
+      <>
+        <path d="M5 3h10l4 4v14H5V3Z" />
+        <path d="M15 3v5h5M8 17v-4M12 17V9M16 17v-6" />
+      </>
+    ),
+    userManagement: (
+      <>
+        <circle cx="9" cy="8" r="3" />
+        <path d="M3.5 20a5.5 5.5 0 0 1 11 0M17 8v6M14 11h6" />
+      </>
+    ),
   }
 
   return (
@@ -93,92 +107,86 @@ export function DashboardIcon({
 }
 
 export const navigationItems: NavigationItem[] = [
-  { label: "Dashboard", icon: "dashboard", active: true },
-  { label: "Profile", icon: "profile" },
-  { label: "Settings", icon: "settings" },
+  { label: "Home", icon: "dashboard", href: "/dashboard?view=overview" },
+  { label: "Sales", icon: "sales", href: "/sales?view=transactions&page=1" },
+  { label: "Products", icon: "inventory", href: "/inventory?view=products&page=1" },
+  { label: "Customers", icon: "crm", href: "/customers?view=directory&page=1" },
+  { label: "Employees", icon: "hr", href: "/employees?view=employees&page=1" },
+  { label: "Reports", icon: "reports", href: "/reports?view=reports" },
+  { label: "Users", icon: "userManagement", href: "/users?view=accounts&page=1" },
 ]
 
 export const modules: ModuleDefinition[] = [
   {
     id: "crm",
-    index: "01",
-    title: "CRM",
+    title: "Customers",
     description:
-      "Manage customer relationships, account activity, and communication records.",
-    href: "/customers",
+      "Customer accounts, payment terms, and contact details.",
+    href: "/customers?view=directory&page=1",
     icon: "crm",
-    accent: "border-t-blue-700",
-    iconStyle: "bg-blue-50 text-blue-800",
     visible: true,
   },
   {
     id: "inventory",
-    index: "02",
-    title: "Inventory",
+    title: "Products",
     description:
-      "Track stock levels, item movement, warehousing, and product availability.",
-    href: "/inventory",
+      "Product inventory, current pricing, and price history.",
+    href: "/inventory?view=products&page=1",
     icon: "inventory",
-    accent: "border-t-amber-600",
-    iconStyle: "bg-amber-50 text-amber-800",
     visible: true,
   },
   {
     id: "hr",
-    index: "03",
-    title: "Human Resources",
+    title: "Employees",
     description:
-      "Maintain employee records, organizational details, and workforce processes.",
-    href: "/employees",
+      "Employee records, departments, and job history.",
+    href: "/employees?view=employees&page=1",
     icon: "hr",
-    accent: "border-t-emerald-700",
-    iconStyle: "bg-emerald-50 text-emerald-800",
     visible: true,
   },
   {
     id: "sales",
-    index: "04",
     title: "Sales",
     description:
-      "Coordinate sales activity, order workflows, and commercial performance.",
-    href: "/sales/new",
+      "Sales transactions, order details, and payments.",
+    href: "/sales?view=transactions&page=1",
     icon: "sales",
-    accent: "border-t-violet-700",
-    iconStyle: "bg-violet-50 text-violet-800",
+    visible: true,
+  },
+  {
+    id: "reports",
+    title: "Reports",
+    description:
+      "Operational reports to review, print, and export.",
+    href: "/reports?view=reports",
+    icon: "reports",
+    visible: true,
+  },
+  {
+    id: "users",
+    title: "Users",
+    description:
+      "User accounts, roles, status, and module permissions.",
+    href: "/users?view=accounts&page=1",
+    icon: "userManagement",
     visible: true,
   },
 ]
 
 export function DashboardLogo({ collapsed }: { collapsed: boolean }) {
   return (
-    <div
-      className={`flex h-20 items-center border-b border-white/10 px-5 ${
-        collapsed ? "lg:justify-center lg:px-0" : ""
-      }`}
-    >
-      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-white text-[#0d2743]">
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-          className="h-5 w-5"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.2"
-          strokeLinecap="round"
-        >
-          <path d="M6 4v16M18 4v16M6 12h12" />
-        </svg>
-      </div>
+    <div className="flex h-18 shrink-0 items-center overflow-hidden px-5">
+      <img src="/assets/hope-mark.svg" alt="HOPE logo" width="40" height="40" className="h-10 w-10 shrink-0" />
       <div
-        className={`ml-3 min-w-0 transition-opacity ${
-          collapsed ? "lg:pointer-events-none lg:w-0 lg:opacity-0" : ""
+        className={`ml-3 min-w-0 max-w-40 overflow-hidden transition-[max-width,opacity] duration-200 ease-out ${
+          collapsed ? "lg:max-w-0 lg:opacity-0" : "lg:opacity-100"
         }`}
       >
-        <p className="whitespace-nowrap text-sm font-bold text-white">
+        <p className="whitespace-nowrap text-sm font-semibold tracking-tight text-white">
           HOPE, Inc.
         </p>
-        <p className="mt-0.5 whitespace-nowrap text-[9px] font-semibold uppercase tracking-[0.14em] text-blue-200">
-          Enterprise Resource Planning
+        <p className="mt-0.5 whitespace-nowrap text-[11px] font-normal text-neutral-400">
+          Business workspace
         </p>
       </div>
     </div>
@@ -187,68 +195,22 @@ export function DashboardLogo({ collapsed }: { collapsed: boolean }) {
 
 export function ModuleTile({ module }: { module: ModuleDefinition }) {
   return (
-    <article
-      className={`group flex min-h-[280px] flex-col border border-slate-200 border-t-[3px] bg-white p-6 transition hover:border-x-slate-300 hover:border-b-slate-300 sm:p-7 ${module.accent}`}
-    >
-      <div className="flex items-start justify-between gap-5">
-        <div
-          className={`grid h-12 w-12 place-items-center rounded-lg ${module.iconStyle}`}
-        >
-          <DashboardIcon name={module.icon} className="h-6 w-6" />
-        </div>
-        <span className="font-mono text-xs tracking-[0.12em] text-slate-400">
-          {module.index}
+    <li>
+      <Link
+        to={module.href}
+        className="group flex h-full items-center gap-3.5 px-5 py-4 transition-colors hover:bg-neutral-50 focus-visible:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"
+      >
+        <span className="workspace-module-icon grid h-10 w-10 shrink-0 place-items-center rounded-lg border">
+          <DashboardIcon name={module.icon} className="h-5 w-5" />
         </span>
-      </div>
-      <div className="mt-8">
-        <h2 className="text-xl font-bold tracking-[-0.025em] text-slate-950">
-          {module.title}
-        </h2>
-        <p className="mt-2 max-w-sm text-sm leading-6 text-slate-600">
-          {module.description}
-        </p>
-      </div>
-      <div className="mt-auto border-t border-slate-100 pt-5">
-        {module.href ? (
-          <Link
-            to={module.href}
-            className="flex w-fit items-center gap-2 text-sm font-bold text-blue-800 transition hover:text-blue-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-4"
-          >
-            Go to module
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 20 20"
-              className="h-4 w-4 transition-transform group-hover:translate-x-1"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M4 10h12m-4-4 4 4-4 4" />
-            </svg>
-          </Link>
-        ) : (
-          <button
-            type="button"
-            className="flex items-center gap-2 text-sm font-bold text-blue-800 transition hover:text-blue-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700 focus-visible:ring-offset-4"
-          >
-            Go to module
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 20 20"
-              className="h-4 w-4 transition-transform group-hover:translate-x-1"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M4 10h12m-4-4 4 4-4 4" />
-            </svg>
-          </button>
-        )}
-      </div>
-    </article>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-semibold text-neutral-900">{module.title}</span>
+          <span className="mt-0.5 block text-[13px] leading-5 text-neutral-500">{module.description}</span>
+        </span>
+        <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-neutral-400 transition group-hover:translate-x-0.5 group-hover:text-neutral-800" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 10h12m-4-4 4 4-4 4" />
+        </svg>
+      </Link>
+    </li>
   )
 }

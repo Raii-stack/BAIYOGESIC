@@ -10,6 +10,7 @@ export const employees: Employee[] = [
     separationDate: null,
     salary: 76000,
     canViewSalary: true,
+    stamp: "EDITED user1 2026-10-13 1:01 PM",
   },
   {
     id: "EMP-1002",
@@ -20,6 +21,7 @@ export const employees: Employee[] = [
     separationDate: null,
     salary: 60000,
     canViewSalary: true,
+    stamp: "CREATED system 2026-10-01 9:00 AM",
   },
   {
     id: "EMP-1003",
@@ -30,6 +32,7 @@ export const employees: Employee[] = [
     separationDate: null,
     salary: 58000,
     canViewSalary: false,
+    stamp: "EDITED user1 2026-10-12 3:14 PM",
   },
   {
     id: "EMP-1004",
@@ -40,6 +43,7 @@ export const employees: Employee[] = [
     separationDate: null,
     salary: 64000,
     canViewSalary: false,
+    stamp: "CREATED system 2026-10-02 10:12 AM",
   },
   {
     id: "EMP-1005",
@@ -50,6 +54,7 @@ export const employees: Employee[] = [
     separationDate: "2025-02-28",
     salary: 52000,
     canViewSalary: true,
+    stamp: "DELETED user2 2026-10-13 1:01 PM",
   },
   {
     id: "EMP-1006",
@@ -60,6 +65,7 @@ export const employees: Employee[] = [
     separationDate: null,
     salary: 81000,
     canViewSalary: false,
+    stamp: "EDITED user1 2026-10-11 4:30 PM",
   },
   {
     id: "EMP-1007",
@@ -70,6 +76,7 @@ export const employees: Employee[] = [
     separationDate: null,
     salary: 55000,
     canViewSalary: true,
+    stamp: "CREATED system 2026-10-03 8:45 AM",
   },
   {
     id: "EMP-1008",
@@ -80,6 +87,7 @@ export const employees: Employee[] = [
     separationDate: "2024-12-20",
     salary: 62000,
     canViewSalary: false,
+    stamp: "DELETED user2 2026-10-10 2:20 PM",
   },
   {
     id: "EMP-1009",
@@ -90,6 +98,7 @@ export const employees: Employee[] = [
     separationDate: null,
     salary: 73000,
     canViewSalary: true,
+    stamp: "EDITED user1 2026-10-13 11:08 AM",
   },
   {
     id: "EMP-1010",
@@ -100,6 +109,7 @@ export const employees: Employee[] = [
     separationDate: null,
     salary: 51000,
     canViewSalary: false,
+    stamp: "CREATED system 2026-10-04 9:32 AM",
   },
 ]
 
@@ -111,6 +121,7 @@ export const employeeJobHistory: Record<string, JobHistoryEntry[]> = {
       jobTitle: "Operations Manager",
       department: "Operations",
       salary: 76000,
+      stamp: "EDITED user1 2026-10-13 1:01 PM",
     },
     {
       id: "JOB-1001-02",
@@ -118,6 +129,7 @@ export const employeeJobHistory: Record<string, JobHistoryEntry[]> = {
       jobTitle: "Senior Operations Coordinator",
       department: "Operations",
       salary: 65000,
+      stamp: "CREATED system 2026-10-01 9:00 AM",
     },
     {
       id: "JOB-1001-01",
@@ -125,6 +137,7 @@ export const employeeJobHistory: Record<string, JobHistoryEntry[]> = {
       jobTitle: "Operations Coordinator",
       department: "Operations",
       salary: 54000,
+      stamp: "CREATED system 2026-10-01 9:00 AM",
     },
   ],
 }

@@ -9,7 +9,7 @@ export default function PasswordStrengthMeter({
   const level = strengthLevels[strength]
 
   return (
-    <div className="-mt-1 mb-5" aria-live="polite">
+    <div className="-mt-2 mb-5" aria-live="polite">
       <div className="mb-2 flex items-center justify-between gap-4">
         <p className="text-xs font-semibold text-slate-600">
           Password strength

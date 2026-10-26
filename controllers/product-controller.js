@@ -330,9 +330,10 @@ const updateProduct = asyncHandler(async (req, res) => {
 
 const archiveProduct = asyncHandler(async (req, res) => {
   const prodcode = String(req.params.prodcode || '').trim();
+  if (!prodcode) throw requestError('Product code is required', 400);
   let product;
   try {
-    product = await withAuditContext(req.user.email, async (client) => {
+    product = await withAuditContext(req.user?.email || 'system', async (client) => {
       const existing = await client.query(
         'SELECT prodcode FROM public.product WHERE prodcode = $1 AND is_deleted = false FOR UPDATE',
         [prodcode]
@@ -369,7 +370,8 @@ const archiveProduct = asyncHandler(async (req, res) => {
 
 const restoreProduct = asyncHandler(async (req, res) => {
   const prodcode = String(req.params.prodcode || '').trim();
-  const product = await withAuditContext(req.user.email, async (client) => {
+  if (!prodcode) throw requestError('Product code is required', 400);
+  const product = await withAuditContext(req.user?.email || 'system', async (client) => {
     const existing = await client.query(
       'SELECT prodcode FROM public.product WHERE prodcode = $1 AND is_deleted = true FOR UPDATE',
       [prodcode]

@@ -100,10 +100,21 @@ describe('Session token (JWT) validation', () => {
   });
 });
 
-describe('Password reset tokens (no endpoint exists yet)', () => {
-  test.todo('TC-AUTH-05r: expired reset token is rejected (400/401) and password is unchanged');
-  test.todo('TC-AUTH-06r: reused reset token is rejected (400/401)');
-  test.todo('TC-AUTH-07r: tampered or unknown reset token is rejected (400/401)');
+describe('Removed features stay removed', () => {
+  test('post /api/auth/register is not exposed (404)', async () => {
+    const res = await api.post('/api/auth/register').send({ email: 'x@test.com' });
+    expect(res.status).toBe(404);
+  });
+
+  test('post /api/auth/forgot-password is not exposed (404)', async () => {
+    const res = await api.post('/api/auth/forgot-password').send({ email: 'x@test.com' });
+    expect(res.status).toBe(404);
+  });
+
+  test('post /api/auth/reset-password is not exposed (404)', async () => {
+    const res = await api.post('/api/auth/reset-password').send({ email: 'x@test.com' });
+    expect(res.status).toBe(404);
+  });
 });
 
 describe('Change password and first-time setup', () => {

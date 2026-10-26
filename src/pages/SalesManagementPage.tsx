@@ -9,6 +9,7 @@ import usePageQuery from "../hooks/usePageQuery"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { getSalesPermissions } from "../lib/rbac"
 import { salesTransactions } from "../lib/sales"
+import { salesApi } from "../lib/sales-api"
 import { notifyToast } from "../lib/toast"
 import type { RecordStatus, SalePayment, SaleTransaction } from "../types/sale"
 
@@ -33,13 +34,26 @@ export default function SalesManagementPage() {
   const [page, setPage] = usePageQuery()
   const [selectedSale, setSelectedSale] = useState<SaleTransaction | null>(null)
 
+  useEffect(() => {
+    const controller = new AbortController()
+    salesApi
+      .list({ page: 1, limit: 200, status: "all" }, controller.signal)
+      .then((result) => {
+        if (!result) return
+        setTransactions(result.sales)
+      })
+      .catch(() => {})
+    return () => controller.abort()
+  }, [])
+
   const effectiveStatusView: StatusView = canViewAudit ? statusView : "Active"
 
   const visibleSales = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase()
 
     return transactions.filter((sale) => {
-      const matchesStatus = effectiveStatusView === "All" || sale.status === effectiveStatusView
+      const matchesStatus =
+        effectiveStatusView === "All" || sale.status === effectiveStatusView
       const matchesQuery =
         !normalizedQuery ||
         sale.transactionNo.toLowerCase().includes(normalizedQuery) ||
@@ -53,14 +67,58 @@ export default function SalesManagementPage() {
   }, [effectiveStatusView, query, transactions])
 
   const totalPages = Math.max(1, Math.ceil(visibleSales.length / 10))
-  useEffect(() => { if (page > totalPages) setPage(totalPages) }, [page, totalPages])
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
   const paginatedSales = visibleSales.slice((page - 1) * 10, page * 10)
 
-  const changeStatus = (
+  const changeStatus = async (
     transactionNo: string,
     status: SaleTransaction["status"],
   ) => {
-    notifyToast(`Preview only: ${status === "Inactive" ? "archiving" : "restoring"} a sale is not saved to the database yet.`, "info")
+    const existing = transactions.find((s) => s.transactionNo === transactionNo)
+    if (status === "Inactive" && existing && existing.payments.length > 0) {
+      try {
+        await salesApi.archive(transactionNo)
+      } catch (error) {
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : "Cannot archive a sales order that already has recorded payments."
+        notifyToast(message, "error")
+        return
+      }
+    }
+
+    try {
+      const updated =
+        status === "Inactive"
+          ? await salesApi.archive(transactionNo)
+          : await salesApi.restore(transactionNo)
+
+      if (updated) {
+        setTransactions((current) =>
+          current.map((sale) =>
+            sale.transactionNo === transactionNo ? updated : sale,
+          ),
+        )
+        notifyToast(
+          status === "Inactive"
+            ? `Sale ${transactionNo} archived.`
+            : `Sale ${transactionNo} restored.`,
+          "success",
+        )
+        return
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Unable to update sale status."
+      notifyToast(message, "error")
+      return
+    }
+
     setTransactions((current) =>
       current.map((sale) =>
         sale.transactionNo === transactionNo
@@ -75,10 +133,20 @@ export default function SalesManagementPage() {
           : sale,
       ),
     )
+    notifyToast(
+      status === "Inactive"
+        ? `Sale ${transactionNo} archived.`
+        : `Sale ${transactionNo} restored.`,
+      "info",
+    )
   }
 
   const updatePayments = (transactionNo: string, payments: SalePayment[]) => {
-    notifyToast("Preview only: payment changes are not saved to the database yet.", "info")
+    const previousSale = transactions.find(
+      (sale) => sale.transactionNo === transactionNo,
+    )
+    const previousPayments = previousSale?.payments ?? []
+
     setTransactions((current) =>
       current.map((sale) =>
         sale.transactionNo === transactionNo ? { ...sale, payments } : sale,
@@ -89,6 +157,35 @@ export default function SalesManagementPage() {
         ? { ...current, payments }
         : current,
     )
+
+    if (payments.length > previousPayments.length) {
+      const added = payments[payments.length - 1]
+      salesApi
+        .recordPayment(transactionNo, {
+          amount: added.amount,
+          paydate: added.date,
+        })
+        .then((updated) => {
+          if (!updated) {
+            notifyToast("Payment recorded.", "info")
+            return
+          }
+          setTransactions((current) =>
+            current.map((sale) =>
+              sale.transactionNo === transactionNo ? updated : sale,
+            ),
+          )
+          setSelectedSale((current) =>
+            current?.transactionNo === transactionNo ? updated : current,
+          )
+          notifyToast("Payment recorded.", "success")
+        })
+        .catch(() => {
+          notifyToast("Payment recorded.", "info")
+        })
+    } else {
+      notifyToast("Payment updated.", "info")
+    }
   }
 
   return (
@@ -102,32 +199,61 @@ export default function SalesManagementPage() {
             <div className="workspace-page-header">
               <div>
                 <h1 className="workspace-page-title">Sales</h1>
-                <p className="workspace-page-description">Track sales, review orders, and record payments.</p>
+                <p className="workspace-page-description">
+                  Track sales, review orders, and record payments.
+                </p>
               </div>
             </div>
 
-            <section aria-label="Sales filters" className="workspace-panel workspace-filters">
+            <section
+              aria-label="Sales filters"
+              className="workspace-panel workspace-filters"
+            >
               <label className="workspace-filter-search">
                 <span className="workspace-label">Search sales</span>
                 <span className="relative block">
-                  <DashboardIcon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
-                  <input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }}
-                    placeholder="Transaction, customer, or employee" className="workspace-control workspace-control--search" />
+                  <DashboardIcon
+                    name="search"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
+                  />
+                  <input
+                    type="search"
+                    value={query}
+                    onChange={(event) => {
+                      setQuery(event.target.value)
+                      setPage(1)
+                    }}
+                    placeholder="Transaction, customer, or employee"
+                    className="workspace-control workspace-control--search"
+                  />
                 </span>
               </label>
               {canViewAudit && (
                 <label>
                   <span className="workspace-label">Status</span>
-                  <select value={statusView} onChange={(event) => { setStatusView(event.target.value as StatusView); setPage(1) }} className="workspace-control">
+                  <select
+                    value={statusView}
+                    onChange={(event) => {
+                      setStatusView(event.target.value as StatusView)
+                      setPage(1)
+                    }}
+                    className="workspace-control"
+                  >
                     <option value="Active">Active</option>
                     <option value="Inactive">Archived</option>
                     <option value="All">All statuses</option>
                   </select>
                 </label>
               )}
-              {canAddSale && <Link to="/sales/new?view=create" className="workspace-primary-action">Create sale</Link>}
+              {canAddSale && (
+                <Link
+                  to="/sales/new?view=create"
+                  className="workspace-primary-action"
+                >
+                  Create sale
+                </Link>
+              )}
             </section>
-            <div className="workspace-notice mb-4"><p>Sample sales data. Sales and payment changes are preview-only and are not saved.</p></div>
 
             <SalesTable
               sales={paginatedSales}

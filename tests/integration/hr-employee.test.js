@@ -436,3 +436,138 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
     });
   });
 });
+
+
+const {
+  ORDERED_TABLES,
+  REQUIRED_HR_INDEXES,
+  createBackupSnapshot,
+  verifyBackupManifest,
+  verifyDatabaseState,
+  restoreAndValidateDrill
+} = require('../../scripts/db-backup-restore');
+
+describe('[S3-DBA-06] HR Database Indexes and Backup/Restore Disaster Recovery Script', () => {
+  const sampleTables = {
+    department: [{ deptcode: 'IT', deptname: 'Information Tech', is_deleted: false }],
+    job: [{ jobcode: 'PR1', jobdesc: 'Programmer 1', is_deleted: false }],
+    employee: [{ empno: '00001', firstname: 'John', lastname: 'Smith', email: 'smith.john@hope.inc', is_deleted: false }],
+    jobhistory: [{ empno: '00001', jobcode: 'PR1', effdate: '2025-01-15', salary: '75000.00', deptcode: 'IT', is_deleted: false }],
+    customer: [{ custno: 'C1001', custname: 'Apex Office Co', address: '12 Market St', payterm: '30D', is_deleted: false }],
+    product: [{ prodcode: 'P1001', description: 'Copy Paper A4', unit: 'pkg', is_deleted: false }],
+    pricehist: [{ effdate: '2026-01-15', prodcode: 'P1001', unitprice: '20.00', is_deleted: false }],
+    sales: [{ transno: 'SO-202610-0001', salesdate: '2026-10-15', custno: 'C1001', empno: '00001', is_deleted: false }],
+    salesdetail: [{ transno: 'SO-202610-0001', prodcode: 'P1001', quantity: 5, is_deleted: false }],
+    payment: [{ orno: 'OR-0001', paydate: '2026-10-16', amount: '100.00', transno: 'SO-202610-0001', is_deleted: false }]
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockClient.query.mockReset();
+    mockPool.query.mockReset();
+    mockPool.connect.mockResolvedValue(mockClient);
+
+    mockPool.query.mockImplementation(async (sql) => {
+      for (const table of ORDERED_TABLES) {
+        if (typeof sql === 'string' && sql === `SELECT * FROM public.${table}`) {
+          return { rows: sampleTables[table].map((row) => ({ ...row })) };
+        }
+      }
+      if (typeof sql === 'string' && sql.includes('FROM pg_indexes')) {
+        return {
+          rows: [
+            {
+              tablename: 'jobhistory',
+              indexname: 'jobhistory_empno_effdate_is_deleted_idx',
+              indexdef: 'CREATE INDEX jobhistory_empno_effdate_is_deleted_idx ON public.jobhistory USING btree (empno, effdate DESC, is_deleted)'
+            },
+            {
+              tablename: 'jobhistory',
+              indexname: 'jobhistory_empno_is_deleted_effdate_covering_idx',
+              indexdef: 'CREATE INDEX jobhistory_empno_is_deleted_effdate_covering_idx ON public.jobhistory USING btree (empno, is_deleted, effdate DESC, jobcode DESC) INCLUDE (deptcode, salary)'
+            },
+            {
+              tablename: 'jobhistory',
+              indexname: 'jobhistory_deptcode_is_deleted_idx',
+              indexdef: 'CREATE INDEX jobhistory_deptcode_is_deleted_idx ON public.jobhistory USING btree (deptcode, is_deleted)'
+            },
+            {
+              tablename: 'jobhistory',
+              indexname: 'jobhistory_jobcode_is_deleted_idx',
+              indexdef: 'CREATE INDEX jobhistory_jobcode_is_deleted_idx ON public.jobhistory USING btree (jobcode, is_deleted)'
+            },
+            {
+              tablename: 'employee',
+              indexname: 'employee_status_directory_idx',
+              indexdef: 'CREATE INDEX employee_status_directory_idx ON public.employee USING btree (is_deleted, sepdate, lastname, firstname, empno)'
+            }
+          ]
+        };
+      }
+      return { rows: [] };
+    });
+
+    mockClient.query.mockImplementation(async (sql) => {
+      for (const table of ORDERED_TABLES) {
+        if (typeof sql === 'string' && sql.includes(`SELECT count(*)::integer AS total FROM dr_${table}`)) {
+          return { rows: [{ total: sampleTables[table].length }] };
+        }
+      }
+      return { rows: [] };
+    });
+  });
+
+  test('migration defines composite index on jobhistory (empno, effdate DESC, is_deleted) and covering HR indexes', () => {
+    const migrationPath = path.resolve(__dirname, '../../supabase/migrations/20261027000001_issue_67_hr_indexes_and_dr_support.sql');
+    const docPath = path.resolve(__dirname, '../../docs/database/sprint3-hr-indexes-and-disaster-recovery.md');
+    const shScriptPath = path.resolve(__dirname, '../../scripts/backup-restore.sh');
+
+    expect(fs.existsSync(migrationPath)).toBe(true);
+    expect(fs.existsSync(docPath)).toBe(true);
+    expect(fs.existsSync(shScriptPath)).toBe(true);
+
+    const migrationSql = fs.readFileSync(migrationPath, 'utf8');
+    expect(migrationSql).toContain('CREATE INDEX IF NOT EXISTS jobhistory_empno_effdate_is_deleted_idx');
+    expect(migrationSql).toContain('ON public.jobhistory (empno, effdate DESC, is_deleted)');
+    expect(migrationSql).toContain('CREATE INDEX IF NOT EXISTS jobhistory_empno_is_deleted_effdate_covering_idx');
+    expect(migrationSql).toContain('INCLUDE (deptcode, salary)');
+  });
+
+  test('creates a portable backup snapshot with SHA-256 checksum and validates manifest & referential integrity', async () => {
+    const snapshot = await createBackupSnapshot(mockPool);
+    expect(snapshot.metadata.totalRows).toBe(10);
+    expect(snapshot.metadata.checksum).toMatch(/^[a-f0-9]{64}$/);
+
+    const verification = verifyBackupManifest(snapshot);
+    expect(verification.valid).toBe(true);
+    expect(verification.totalRows).toBe(10);
+  });
+
+  test('detects backup tampering or orphan jobhistory foreign keys during manifest verification', async () => {
+    const snapshot = await createBackupSnapshot(mockPool);
+    const tampered = JSON.parse(JSON.stringify(snapshot));
+    tampered.tables.jobhistory[0].salary = '999999.00';
+
+    expect(() => verifyBackupManifest(tampered)).toThrow(/checksum mismatch/i);
+
+    const orphanSnapshot = await createBackupSnapshot(mockPool);
+    orphanSnapshot.tables.jobhistory[0].deptcode = 'MISSING';
+    // Recompute checksum to test FK check specifically
+    const { computeChecksum } = require('../../scripts/db-backup-restore');
+    orphanSnapshot.metadata.checksum = computeChecksum(orphanSnapshot.tables);
+
+    expect(() => verifyBackupManifest(orphanSnapshot)).toThrow(/Foreign key integrity failure/i);
+  });
+
+  test('verifies live HR indexes and validates full test database restore drill from production-equivalent dump', async () => {
+    const dbCheck = await verifyDatabaseState(mockPool);
+    expect(dbCheck.valid).toBe(true);
+    expect(dbCheck.verifiedIndexes).toEqual(REQUIRED_HR_INDEXES);
+
+    const drill = await restoreAndValidateDrill(mockPool);
+    expect(drill.status).toBe('DR_RESTORE_VERIFIED');
+    expect(drill.totalRows).toBe(10);
+    expect(drill.restoredCounts.jobhistory).toBe(1);
+    expect(drill.restoredCounts.employee).toBe(1);
+  });
+});

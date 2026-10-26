@@ -150,7 +150,7 @@ const createCustomer = asyncHandler(async (req, res) => {
 
   let customer;
   try {
-    customer = await withAuditContext(req.user.email, async (client) => {
+    customer = await withAuditContext(req.user?.email || 'system', async (client) => {
       const custno = requestedCustno || await nextCustomerId(client);
       const duplicate = await client.query(
         `SELECT 1
@@ -191,7 +191,7 @@ const updateCustomer = asyncHandler(async (req, res) => {
     throw requestError('Validation failed', 400, { custno: 'Customer ID is required' });
   }
 
-  const customer = await withAuditContext(req.user.email, async (client) => {
+  const customer = await withAuditContext(req.user?.email || 'system', async (client) => {
     const duplicate = await client.query(
       `SELECT 1
        FROM public.customer
@@ -230,9 +230,22 @@ const deleteCustomer = asyncHandler(async (req, res) => {
   if (!custno) {
     throw requestError('custno is required', 400);
   }
-
   try {
-    const customer = await withAuditContext(req.user.email, async (client) => {
+    const customer = await withAuditContext(req.user?.email || 'system', async (client) => {
+      const existing = await client.query(
+        'SELECT custno FROM public.customer WHERE custno = $1 AND is_deleted = false FOR UPDATE',
+        [custno]
+      );
+      if (!existing.rows.length) return null;
+
+      const activeSale = await client.query(
+        'SELECT 1 FROM public.sales WHERE custno = $1 AND is_deleted = false LIMIT 1',
+        [custno]
+      );
+      if (activeSale.rows.length) {
+        throw requestError('Cannot archive customer while active sales records exist.', 409);
+      }
+
       const result = await client.query(
         `UPDATE public.customer
          SET is_deleted = true
@@ -263,8 +276,7 @@ const restoreCustomer = asyncHandler(async (req, res) => {
   if (!custno) {
     throw requestError('custno is required', 400);
   }
-
-  const customer = await withAuditContext(req.user.email, async (client) => {
+  const customer = await withAuditContext(req.user?.email || 'system', async (client) => {
     const result = await client.query(
       `UPDATE public.customer
        SET is_deleted = false

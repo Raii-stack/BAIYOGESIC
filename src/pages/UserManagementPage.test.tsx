@@ -337,7 +337,7 @@ test("allows superadmin to edit rights of admin and other superadmin accounts an
   )
 
   expect(await screen.findByText("User2 Account")).toBeInTheDocument()
-  const otherSuperRow = screen.getByRole("row", { name: /User2 Account/ })
+  const otherSuperRow = await screen.findByRole("row", { name: /User2 Account/ })
   expect(within(otherSuperRow).getByText("Pending")).toBeInTheDocument()
   expect(within(otherSuperRow).getByRole("button", { name: "Rights for User2 Account" })).toBeInTheDocument()
 
@@ -347,7 +347,7 @@ test("allows superadmin to edit rights of admin and other superadmin accounts an
   )
   expect(screen.getByRole("status")).toHaveTextContent("User2 Account has been accepted and activated.")
 
-  const adminRow = screen.getByRole("row", { name: /User3 Account/ })
+  const adminRow = await screen.findByRole("row", { name: /User3 Account/ })
   await user.click(within(adminRow).getByRole("button", { name: "Rights for User3 Account" }))
   const dialog = screen.getByRole("dialog", { name: /Rights — User3 Account/ })
   await user.click(within(dialog).getByRole("switch", { name: "Add Customer" }))

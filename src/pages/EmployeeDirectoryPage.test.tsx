@@ -151,6 +151,36 @@ test("shows a clear archive error when an employee has active sales", async () =
   expect(screen.getByRole("alertdialog")).toBeInTheDocument()
 })
 
+test("archives an employee with separation date and updates directory status", async () => {
+  let archived = false
+  let capturedBody: any = null
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return response({ user: auth("administrator") })
+    if (url.pathname === "/api/employees/options") return response({ departments: [{ code: "IT", name: "Information Tech" }], jobs: [{ code: "DEV", name: "Developer" }] })
+    if (url.pathname === "/api/employees" && init?.method === "GET") return response({ employees: [{ ...row(1), is_deleted: archived, sepdate: archived ? "2026-10-31" : null }], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees/00001" && init?.method === "DELETE") {
+      expect(init.credentials).toBe("include")
+      capturedBody = init.body ? JSON.parse(String(init.body)) : null
+      archived = true
+      return response({ empno: "00001", sepdate: "2026-10-31" })
+    }
+    throw new Error(`Unexpected request ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+  render(<MemoryRouter><AuthProvider><EmployeeDirectoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Person1 Example")
+  await user.click(screen.getByRole("button", { name: "Archive Person1 Example" }))
+  const dateInput = screen.getByLabelText("Separation date")
+  await user.clear(dateInput)
+  await user.type(dateInput, "2026-10-31")
+  await user.click(screen.getByRole("button", { name: "Archive employee" }))
+  await waitFor(() => expect(within(screen.getByRole("row", { name: /Person1 Example/ })).getByText("Archived")).toBeInTheDocument())
+  expect(capturedBody).toEqual({ separation_date: "2026-10-31" })
+  expect(screen.getByRole("status")).toHaveTextContent("Employee archived successfully")
+})
+
 test("switches between Employees, Jobs, and Departments tabs and manages lookup records", async () => {
   let jobs = [{ jobcode: "DEV", jobdesc: "Developer", is_deleted: false, stamp: "ADD admin" }]
   let departments = [{ deptcode: "IT", deptname: "Information Tech", is_deleted: false, stamp: "ADD admin" }]

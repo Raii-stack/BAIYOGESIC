@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:integration": "jest tests/integration",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:unit": "jest --config jest.unit.config.js"
   },
   "engines": {
     "node": ">=20"

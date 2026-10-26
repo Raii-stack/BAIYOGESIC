@@ -14,7 +14,6 @@ const db = createClient(
 );
 
 const ROUTES = {
-  register: '/api/auth/register',
   login: '/api/auth/login',
   logout: '/api/auth/logout',
   changePassword: '/api/auth/change-password',

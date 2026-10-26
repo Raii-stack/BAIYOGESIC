@@ -1,43 +1,7 @@
 const jwt = require('jsonwebtoken');
-const { api, db, ROUTES, USERS, hasUser, loginAs } = require('./helpers');
+const { api, ROUTES, USERS, hasUser, loginAs } = require('./helpers');
 
-const unique = () => `qa+${Date.now()}@test.com`;
 const itIf = (condition) => (condition ? test : test.skip); // skips a test if its setup is missing
-
-describe('Registration', () => {
-  test('TC-AUTH-01: valid data returns 201', async () => {
-    const res = await api.post(ROUTES.register)
-      .send({ firstName: 'QA', lastName: 'Tester', email: unique() });
-    expect(res.status).toBe(201);
-    expect(res.body.success).toBe(true);
-  });
-
-  // EXPECTED TO FAIL: the controller never inserts the user. Confirm with the backend dev, then log a bug.
-  test('TC-AUTH-01b: registered user is saved in app_user', async () => {
-    const email = unique();
-    await api.post(ROUTES.register).send({ firstName: 'QA', lastName: 'Tester', email });
-    const { data } = await db.from('app_user').select('user_id').eq('email', email).maybeSingle();
-    expect(data).not.toBeNull();
-  });
-
-  itIf(hasUser(USERS.active))('TC-AUTH-02: duplicate email returns 409', async () => {
-    const res = await api.post(ROUTES.register)
-      .send({ firstName: 'QA', lastName: 'Tester', email: USERS.active.email });
-    expect(res.status).toBe(409);
-  });
-
-  test('TC-AUTH-02: missing field returns 400', async () => {
-    const res = await api.post(ROUTES.register).send({ email: unique() });
-    expect(res.status).toBe(400);
-    expect(JSON.stringify(res.body)).toMatch(/required/i);
-  });
-
-  test('TC-AUTH-02: invalid email format returns 400', async () => {
-    const res = await api.post(ROUTES.register)
-      .send({ firstName: 'QA', lastName: 'Tester', email: 'not-an-email' });
-    expect(res.status).toBe(400);
-  });
-});
 
 describe('Login', () => {
   itIf(hasUser(USERS.active))('TC-AUTH-03: valid login returns 200 and an HttpOnly cookie', async () => {
@@ -65,7 +29,7 @@ describe('Login', () => {
     expect(res.status).toBe(400);
   });
 
-  itIf(hasUser(USERS.deleted))('TC-AUTH-09: deleted/inactive user cannot log in', async () => {
+  itIf(hasUser(USERS.deleted))('TC-AUTH-09: pending/inactive user cannot log in', async () => {
     const res = await api.post(ROUTES.login).send(USERS.deleted);
     expect(res.status).toBe(401);
   });
@@ -100,12 +64,6 @@ describe('Session token (JWT) validation', () => {
   });
 });
 
-describe('Password reset tokens (no endpoint exists yet)', () => {
-  test.todo('TC-AUTH-05r: expired reset token is rejected (400/401) and password is unchanged');
-  test.todo('TC-AUTH-06r: reused reset token is rejected (400/401)');
-  test.todo('TC-AUTH-07r: tampered or unknown reset token is rejected (400/401)');
-});
-
 describe('Change password and first-time setup', () => {
   test('change-password without a session returns 401', async () => {
     const res = await api.post(ROUTES.changePassword)
@@ -134,20 +92,20 @@ describe('Change password and first-time setup', () => {
     expect(res.status).toBe(400);
   });
 
-  itIf(hasUser(USERS.active))('valid change works, old password stops working, then restores', async () => {
+  itIf(hasUser(USERS.pwChange))('valid change works, old password stops working, then restores', async () => {
     const NEW = 'Temp#Passw0rd-QA';
-    const { cookies } = await loginAs(USERS.active);
+    const { cookies } = await loginAs(USERS.pwChange);
     try {
       const change = await api.post(ROUTES.changePassword).set('Cookie', cookies)
-        .send({ currentPassword: USERS.active.password, newPassword: NEW });
+        .send({ currentPassword: USERS.pwChange.password, newPassword: NEW });
       expect(change.status).toBe(200);
 
-      const oldLogin = await api.post(ROUTES.login).send(USERS.active);
+      const oldLogin = await api.post(ROUTES.login).send(USERS.pwChange);
       expect(oldLogin.status).toBe(401);
     } finally {
       // Always put the original password back so other tests keep working
       await api.post(ROUTES.changePassword).set('Cookie', cookies)
-        .send({ currentPassword: NEW, newPassword: USERS.active.password });
+        .send({ currentPassword: NEW, newPassword: USERS.pwChange.password });
     }
   });
 
@@ -165,4 +123,23 @@ describe('Change password and first-time setup', () => {
       expect([401, 403]).toContain(res.status);
     }
   );
+});
+
+describe('Removed features stay removed', () => {
+  test('post /api/auth/register is not exposed (404)', async () => {
+    const res = await api.post('/api/auth/register').send({ email: 'x@test.com' });
+    expect(res.status).toBe(404);
+  });
+
+  // BLOCKED: BUG-002. These endpoints still respond (200 / 400) after the feature was dropped.
+  // Remove .skip when the routes are deleted, and the tests should pass.
+  test.skip('post /api/auth/forgot-password is not exposed (404)', async () => {
+    const res = await api.post('/api/auth/forgot-password').send({ email: 'x@test.com' });
+    expect(res.status).toBe(404);
+  });
+
+  test.skip('post /api/auth/reset-password is not exposed (404)', async () => {
+    const res = await api.post('/api/auth/reset-password').send({ email: 'x@test.com' });
+    expect(res.status).toBe(404);
+  });
 });

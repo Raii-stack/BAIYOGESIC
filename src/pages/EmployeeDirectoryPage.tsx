@@ -106,12 +106,12 @@ export default function EmployeeDirectoryPage() {
     setRefresh((current) => current + 1)
   }
 
-  const archiveEmployee = async () => {
+  const archiveEmployee = async (separationDate?: string) => {
     if (!employeeToArchive) return
     setArchiving(true)
     setArchiveError("")
     try {
-      await employeeApi.archive(employeeToArchive.id)
+      await employeeApi.archive(employeeToArchive.id, separationDate)
       setEmployeeToArchive(null)
       showNotice("Employee archived successfully.")
       if ((status === "active" || status === "separated") && employees.length === 1 && page > 1) setPage(page - 1)

@@ -91,3 +91,5 @@ web_modules/
 .webpack/
 .dynamodb/
 ANTIGRAVITY_HANDOFF.md
+
+.mcp.json

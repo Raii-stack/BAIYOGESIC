@@ -85,6 +85,7 @@ tmp/
 jspm_packages/
 bower_components/
 web_modules/
+.playwright-mcp/
 
 .serverless/
 .webpack/

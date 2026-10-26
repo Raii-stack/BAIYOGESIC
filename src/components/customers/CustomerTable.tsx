@@ -4,6 +4,7 @@ import type { CustomerPagination } from "../../lib/customer-api"
 const termLabels: Record<Customer["paymentTerm"], string> = {
   "30D": "Net 30",
   "45D": "Net 45",
+  "60D": "Net 60",
   COD: "Cash on delivery",
 }
 

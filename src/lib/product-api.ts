@@ -63,9 +63,12 @@ export const productApi = {
     return { products: data.products.map(toProduct), pagination: data.pagination }
   },
   async priceHistory(code: string, signal?: AbortSignal): Promise<PriceHistoryEntry[]> {
-    const data = await request<{ prices: PriceRow[] }>(`/${encodeURIComponent(code)}/prices`, "GET", undefined, signal)
-    return data.prices.map((row) => ({ effectiveDate: row.effdate, price: Number(row.unitprice), stamp: row.stamp }))
+    const data = await request<{ prices?: PriceRow[]; priceHistory?: PriceRow[] }>(`/${encodeURIComponent(code)}/prices`, "GET", undefined, signal)
+    const list = data.prices || data.priceHistory || []
+    return list.map((row) => ({ effectiveDate: row.effdate, price: Number(row.unitprice), stamp: row.stamp }))
   },
+  addPriceHistory: (code: string, input: { effdate: string; price: number }) =>
+    request<{ price: object }>(`/${encodeURIComponent(code)}/price-history`, "POST", input),
   create: (input: ProductInput) => request<{ product: ProductRow }>("", "POST", input),
   update: (code: string, input: ProductInput) => request<{ product: ProductRow }>(`/${encodeURIComponent(code)}`, "PUT", input),
   archive: (code: string) => request<{ product: ProductRow }>(`/${encodeURIComponent(code)}`, "DELETE"),

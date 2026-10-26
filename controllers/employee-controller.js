@@ -188,16 +188,36 @@ const updateEmployee = asyncHandler(async (req, res) => {
 
 const archiveEmployee = asyncHandler(async (req, res) => {
   const empno = String(req.params.empno || '').trim();
-  let archivedEmpno;
+  const rawDate = req.body?.separation_date ?? req.body?.sepdate;
+  let separationDate = null;
+  if (rawDate !== undefined && rawDate !== null && rawDate !== '') {
+    if (typeof rawDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(rawDate) || Number.isNaN(Date.parse(rawDate))) {
+      throw requestError('separation_date must be a valid date in YYYY-MM-DD format', 400);
+    }
+    separationDate = rawDate;
+  }
+
+  let archived;
   try {
-    archivedEmpno = await withAudit(req.user.email, async (client) => {
-      const existing = await client.query('SELECT empno FROM public.employee WHERE empno = $1 AND is_deleted = false FOR UPDATE', [empno]);
+    archived = await withAudit(req.user.email, async (client) => {
+      const existing = await client.query('SELECT empno, hiredate::text AS hiredate, sepdate::text AS sepdate FROM public.employee WHERE empno = $1 AND is_deleted = false FOR UPDATE', [empno]);
       if (!existing.rows.length) return null;
+      const currentEmployee = existing.rows[0];
+      if (separationDate && currentEmployee.hiredate && separationDate < currentEmployee.hiredate) {
+        throw requestError('Separation date cannot be before hire date', 400);
+      }
       const activeSale = await client.query('SELECT 1 FROM public.sales WHERE empno = $1 AND is_deleted = false LIMIT 1', [empno]);
       if (activeSale.rows.length) throw requestError('Cannot archive employee while active sales records exist.', 409);
       await client.query('UPDATE public.jobhistory SET is_deleted = true WHERE empno = $1 AND is_deleted = false', [empno]);
-      const result = await client.query('UPDATE public.employee SET is_deleted = true WHERE empno = $1 AND is_deleted = false RETURNING empno', [empno]);
-      return result.rows[0]?.empno || null;
+      const result = await client.query(
+        `UPDATE public.employee
+         SET is_deleted = true,
+             sepdate = coalesce($2::date, sepdate, CURRENT_DATE)
+         WHERE empno = $1 AND is_deleted = false
+         RETURNING empno, sepdate::text AS sepdate, is_deleted`,
+        [empno, separationDate]
+      );
+      return result.rows[0] || null;
     });
   } catch (error) {
     if (error.code === 'P0001' && /active related record/i.test(error.message || '')) {
@@ -205,8 +225,8 @@ const archiveEmployee = asyncHandler(async (req, res) => {
     }
     throw error;
   }
-  if (!archivedEmpno) throw requestError('Employee not found', 404);
-  res.json({ success: true, data: { empno: archivedEmpno } });
+  if (!archived) throw requestError('Employee not found', 404);
+  res.json({ success: true, data: { empno: archived.empno, sepdate: archived.sepdate } });
 });
 
 const restoreEmployee = asyncHandler(async (req, res) => {
@@ -214,7 +234,7 @@ const restoreEmployee = asyncHandler(async (req, res) => {
   const restoredEmpno = await withAudit(req.user.email, async (client) => {
     const existing = await client.query('SELECT empno FROM public.employee WHERE empno = $1 AND is_deleted = true FOR UPDATE', [empno]);
     if (!existing.rows.length) return null;
-    const result = await client.query('UPDATE public.employee SET is_deleted = false WHERE empno = $1 AND is_deleted = true RETURNING empno', [empno]);
+    const result = await client.query('UPDATE public.employee SET is_deleted = false, sepdate = NULL WHERE empno = $1 AND is_deleted = true RETURNING empno', [empno]);
     await client.query('UPDATE public.jobhistory SET is_deleted = false WHERE empno = $1 AND is_deleted = true', [empno]);
     return result.rows[0]?.empno || null;
   });

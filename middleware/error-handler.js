@@ -14,7 +14,7 @@ function errorHandler(err, req, res, next) {
     : 500;
   const message = statusCode >= 500
     ? 'The service is temporarily unavailable. Please try again.'
-    : (err.message || 'Request failed');
+    : (err.apiMessage || err.message || 'Request failed');
 
   if (statusCode >= 500) {
     console.error(err);
@@ -24,7 +24,8 @@ function errorHandler(err, req, res, next) {
     success: false,
     error: {
       message,
-      statusCode
+      statusCode,
+      ...(err.details ? { details: err.details } : {})
     }
   });
 }

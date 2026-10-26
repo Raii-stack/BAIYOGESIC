@@ -6,9 +6,10 @@ const { asyncHandler } = require('../middleware/error-handler');
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
 
-function requestError(message, statusCode) {
+function requestError(message, statusCode, details) {
   const error = new Error(message);
   error.statusCode = statusCode;
+  if (details) error.details = details;
   return error;
 }
 
@@ -113,11 +114,28 @@ const getPriceHistory = asyncHandler(async (req, res) => {
 const createProduct = asyncHandler(async (req, res) => {
   const { description, unit, unitprice } = validateProduct(req.body);
   const requestedCode = typeof req.body?.prodcode === 'string' ? req.body.prodcode.trim() : '';
-  if (requestedCode.length > 6) throw requestError('Product code must be at most 6 characters', 400);
+  if (requestedCode.length > 6) {
+    throw requestError('Validation failed', 400, {
+      prodcode: 'Product code must be 6 characters or fewer'
+    });
+  }
 
   try {
     const product = await withAuditContext(req.user.email, async (client) => {
       const prodcode = requestedCode || await nextProductCode(client);
+      const duplicate = await client.query(
+        `SELECT 1
+         FROM public.product
+         WHERE is_deleted = false
+           AND lower(trim(description)) = lower(trim($1))
+         LIMIT 1`,
+        [description]
+      );
+      if (duplicate.rows.length) {
+        throw requestError('A product with that description already exists', 409, {
+          description: 'An active product with this description already exists'
+        });
+      }
       const result = await client.query(
         `INSERT INTO public.product (prodcode, description, unit, is_deleted)
          VALUES ($1, $2, $3, false)

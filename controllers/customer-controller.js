@@ -2,7 +2,7 @@ const { requirePool } = require('../db');
 const { nextCustomerId } = require('../lib/customer-id');
 const { asyncHandler } = require('../middleware/error-handler');
 
-const PAYMENT_TERMS = new Set(['COD', '30D', '45D']);
+const PAYMENT_TERMS = new Set(['COD', '30D', '45D', '60D']);
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
@@ -37,7 +37,7 @@ function validateCustomerPayload(body) {
       : '';
 
   if (!custname || !address || !PAYMENT_TERMS.has(payterm)) {
-    throw requestError('custname, address, and payterm are required; payterm must be COD, 30D, or 45D', 400);
+    throw requestError('custname, address, and payterm are required; payterm must be COD, 30D, 45D, or 60D', 400);
   }
   if (custname.length > 20 || address.length > 50) {
     throw requestError('Customer name must be at most 20 characters and address at most 50 characters', 400);
@@ -70,7 +70,7 @@ const listCustomers = asyncHandler(async (req, res) => {
   const payterm = typeof req.query.payterm === 'string' ? req.query.payterm.trim().toUpperCase() : '';
   const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
   if (payterm && !PAYMENT_TERMS.has(payterm)) {
-    throw requestError('payterm must be COD, 30D, or 45D', 400);
+    throw requestError('payterm must be COD, 30D, 45D, or 60D', 400);
   }
   if (!['all', 'active', 'archived'].includes(status)) {
     throw requestError('status must be all, active, or archived', 400);

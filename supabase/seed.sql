@@ -88,3 +88,74 @@ WHERE NOT EXISTS (
   FROM public.app_user AS existing
   WHERE existing.empno = team.empno
 );
+
+-- Idempotent CRM and inventory demo data for workflow and pagination testing.
+INSERT INTO public.customer (custno, custname, address, payterm, is_deleted)
+VALUES
+  ('C1001', 'Apex Office Co', '12 Market Street', '30D', false),
+  ('C1002', 'Beacon Foods', '18 Harbor Road', '45D', false),
+  ('C1003', 'Cobalt Retail', '24 Central Avenue', 'COD', false),
+  ('C1004', 'Delta Medical', '31 Riverside Drive', '60D', false),
+  ('C1005', 'Elm Manufacturing', '42 Industrial Park', '30D', false),
+  ('C1006', 'Fjord Logistics', '57 Warehouse Lane', '45D', false),
+  ('C1007', 'Granite Hotels', '63 Summit Boulevard', 'COD', false),
+  ('C1008', 'Horizon Schools', '75 College Road', '60D', false),
+  ('C1009', 'Indigo Hardware', '86 Commerce Street', '30D', false),
+  ('C1010', 'Juniper Farms', '91 Orchard Way', '45D', false),
+  ('C1011', 'Keystone Energy', '105 Station Road', 'COD', false),
+  ('C1012', 'Lighthouse Media', '117 Bayfront Street', '60D', false),
+  ('C1013', 'Mariner Transport', '128 Port Avenue', '30D', false),
+  ('C1014', 'Northwind Labs', '139 Science Drive', '45D', false),
+  ('C1015', 'Orchard Pharmacy', '144 Garden Lane', 'COD', false),
+  ('C1016', 'Pioneer Textiles', '156 Mill Road', '60D', false),
+  ('C1017', 'Quartz Telecom', '167 Exchange Street', '30D', false),
+  ('C1018', 'Redwood Builders', '178 Timber Avenue', '45D', false),
+  ('C1019', 'Silverline Events', '189 Parkside Road', 'COD', false),
+  ('C1020', 'Terrace Clinics', '201 Wellness Drive', '60D', false),
+  ('C1021', 'Umber Studios', '214 Creative Lane', '30D', false),
+  ('C1022', 'Valley Hardware', '225 Valley Road', '45D', false),
+  ('C1023', 'Waypoint Travel', '237 Airport Boulevard', 'COD', false),
+  ('C1024', 'Xenon Systems', '248 Technology Park', '60D', false),
+  ('C1025', 'Yellowstone Supply', '259 Depot Street', '30D', false)
+ON CONFLICT (custno) DO UPDATE
+SET custname = EXCLUDED.custname,
+    address = EXCLUDED.address,
+    payterm = EXCLUDED.payterm,
+    is_deleted = false;
+
+INSERT INTO public.product (prodcode, description, unit, is_deleted)
+VALUES
+  ('P1001', 'Copy Paper A4', 'pkg', false),
+  ('P1002', 'Ballpoint Pens', 'pkg', false),
+  ('P1003', 'Desk Organizer', 'ea', false),
+  ('P1004', 'Shipping Carton', 'ea', false),
+  ('P1005', 'Thermal Labels', 'pkg', false),
+  ('P1006', 'Safety Gloves', 'pkg', false),
+  ('P1007', 'Cleaning Solution', 'ltr', false),
+  ('P1008', 'Cable Ties', 'pkg', false),
+  ('P1009', 'Steel Bracket', 'ea', false),
+  ('P1010', 'Packing Tape', 'ea', false),
+  ('P1011', 'Warehouse Cable', 'mtr', false),
+  ('P1012', 'Storage Bin', 'ea', false)
+ON CONFLICT (prodcode) DO UPDATE
+SET description = EXCLUDED.description,
+    unit = EXCLUDED.unit,
+    is_deleted = false;
+
+INSERT INTO public.pricehist (effdate, prodcode, unitprice, is_deleted)
+VALUES
+  ('2025-01-15', 'P1001', 18.50, false), ('2025-07-01', 'P1001', 19.25, false), ('2026-01-15', 'P1001', 20.00, false),
+  ('2025-01-15', 'P1002', 6.75, false),  ('2025-07-01', 'P1002', 7.10, false),  ('2026-01-15', 'P1002', 7.50, false),
+  ('2025-01-15', 'P1003', 12.00, false), ('2025-07-01', 'P1003', 12.75, false), ('2026-01-15', 'P1003', 13.50, false),
+  ('2025-01-15', 'P1004', 2.25, false),  ('2025-07-01', 'P1004', 2.40, false),  ('2026-01-15', 'P1004', 2.60, false),
+  ('2025-01-15', 'P1005', 9.50, false),  ('2025-07-01', 'P1005', 10.00, false), ('2026-01-15', 'P1005', 10.75, false),
+  ('2025-01-15', 'P1006', 24.00, false), ('2025-07-01', 'P1006', 25.50, false), ('2026-01-15', 'P1006', 27.00, false),
+  ('2025-01-15', 'P1007', 8.25, false),  ('2025-07-01', 'P1007', 8.75, false),  ('2026-01-15', 'P1007', 9.25, false),
+  ('2025-01-15', 'P1008', 4.00, false),  ('2025-07-01', 'P1008', 4.35, false),  ('2026-01-15', 'P1008', 4.75, false),
+  ('2025-01-15', 'P1009', 15.00, false), ('2025-07-01', 'P1009', 15.75, false), ('2026-01-15', 'P1009', 16.50, false),
+  ('2025-01-15', 'P1010', 5.25, false),  ('2025-07-01', 'P1010', 5.50, false),  ('2026-01-15', 'P1010', 5.90, false),
+  ('2025-01-15', 'P1011', 3.75, false),  ('2025-07-01', 'P1011', 4.10, false),  ('2026-01-15', 'P1011', 4.50, false),
+  ('2025-01-15', 'P1012', 11.00, false), ('2025-07-01', 'P1012', 11.75, false), ('2026-01-15', 'P1012', 12.50, false)
+ON CONFLICT (effdate, prodcode) DO UPDATE
+SET unitprice = EXCLUDED.unitprice,
+    is_deleted = false;

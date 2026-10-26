@@ -15,6 +15,7 @@ export default defineConfig(({ mode }) => {
       },
     },
     test: {
+      exclude: ['**/node_modules/**', 'tests/integration/**', 'tests/e2e/**', 'tests/qa-unit/**'],
       environment: "jsdom",
       setupFiles: ["./src/test-setup.js"],
       testTimeout: 15000,

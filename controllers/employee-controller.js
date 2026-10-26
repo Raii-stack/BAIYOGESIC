@@ -1,7 +1,9 @@
 const { requirePool } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
 
-const canViewSalary = (user) => ['superadmin', 'administrator', 'admin'].includes(user.role);
+const canViewSalary = (user) =>
+  ['superadmin', 'administrator', 'admin', 'hr', 'hr_manager'].includes(String(user?.role || '').toLowerCase()) ||
+  (Array.isArray(user?.rights) && user.rights.some((r) => ['hr.employee.edit', 'hr.history.edit'].includes(r)));
 
 function requestError(message, statusCode) {
   const error = new Error(message);
@@ -188,6 +190,7 @@ const updateEmployee = asyncHandler(async (req, res) => {
 
 const archiveEmployee = asyncHandler(async (req, res) => {
   const empno = String(req.params.empno || '').trim();
+  if (!empno) throw requestError('Employee number is required', 400);
   const rawDate = req.body?.separation_date ?? req.body?.sepdate;
   let separationDate = null;
   if (rawDate !== undefined && rawDate !== null && rawDate !== '') {
@@ -231,6 +234,7 @@ const archiveEmployee = asyncHandler(async (req, res) => {
 
 const restoreEmployee = asyncHandler(async (req, res) => {
   const empno = String(req.params.empno || '').trim();
+  if (!empno) throw requestError('Employee number is required', 400);
   const restoredEmpno = await withAudit(req.user.email, async (client) => {
     const existing = await client.query('SELECT empno FROM public.employee WHERE empno = $1 AND is_deleted = true FOR UPDATE', [empno]);
     if (!existing.rows.length) return null;
@@ -298,6 +302,7 @@ const updateJob = asyncHandler(async (req, res) => {
 
 const archiveJob = asyncHandler(async (req, res) => {
   const jobcode = String(req.params.jobcode || '').trim().toUpperCase();
+  if (!jobcode) throw requestError('Job code is required', 400);
   let job;
   try {
     job = await withAudit(req.user.email, async (client) => {
@@ -320,6 +325,7 @@ const archiveJob = asyncHandler(async (req, res) => {
 
 const restoreJob = asyncHandler(async (req, res) => {
   const jobcode = String(req.params.jobcode || '').trim().toUpperCase();
+  if (!jobcode) throw requestError('Job code is required', 400);
   const job = await withAudit(req.user.email, async (client) => {
     const result = await client.query('UPDATE public.job SET is_deleted = false WHERE jobcode = $1 AND is_deleted = true RETURNING jobcode, jobdesc, is_deleted, stamp', [jobcode]);
     return result.rows[0] || null;
@@ -384,6 +390,7 @@ const updateDepartment = asyncHandler(async (req, res) => {
 
 const archiveDepartment = asyncHandler(async (req, res) => {
   const deptcode = String(req.params.deptcode || '').trim().toUpperCase();
+  if (!deptcode) throw requestError('Department code is required', 400);
   let department;
   try {
     department = await withAudit(req.user.email, async (client) => {
@@ -406,6 +413,7 @@ const archiveDepartment = asyncHandler(async (req, res) => {
 
 const restoreDepartment = asyncHandler(async (req, res) => {
   const deptcode = String(req.params.deptcode || '').trim().toUpperCase();
+  if (!deptcode) throw requestError('Department code is required', 400);
   const department = await withAudit(req.user.email, async (client) => {
     const result = await client.query('UPDATE public.department SET is_deleted = false WHERE deptcode = $1 AND is_deleted = true RETURNING deptcode, deptname, is_deleted, stamp', [deptcode]);
     return result.rows[0] || null;

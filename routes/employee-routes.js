@@ -4,6 +4,8 @@ const { requirePermission } = require('../middleware/permissions');
 const {
   listEmployees,
   getEmployee,
+  getJobHistory,
+  recordPromotion,
   listOptions,
   createEmployee,
   updateEmployee,
@@ -37,6 +39,9 @@ router.post('/departments', requirePermission('HR', 'edit'), createDepartment);
 router.put('/departments/:deptcode', requirePermission('HR', 'edit'), updateDepartment);
 router.delete('/departments/:deptcode', requirePermission('HR', 'delete'), archiveDepartment);
 router.post('/departments/:deptcode/restore', requirePermission('HR', 'delete'), restoreDepartment);
+
+router.get('/:empno/job-history', requirePermission('HR', 'view'), getJobHistory);
+router.post('/:empno/job-history', requirePermission('HR', 'edit'), recordPromotion);
 
 router.get('/:empno', requirePermission('HR', 'view'), getEmployee);
 router.post('/', requirePermission('HR', 'edit'), createEmployee);

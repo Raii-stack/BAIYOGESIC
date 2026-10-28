@@ -87,6 +87,230 @@ const getEmployee = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { employee: record.rows[0], history: history.rows } });
 });
 
+const getJobHistory = asyncHandler(async (req, res) => {
+  const empno = String(req.params?.empno || '').trim();
+  if (!empno) throw requestError('Employee number is required', 400);
+
+  const employeeResult = await requirePool().query(
+    'SELECT empno, is_deleted FROM public.employee WHERE empno = $1',
+    [empno]
+  );
+  if (!employeeResult.rows.length) throw requestError('Employee not found', 404);
+
+  const salaryAllowed = !req.user || canViewSalary(req.user);
+  const historyResult = await requirePool().query(
+    `SELECT h.empno, h.jobcode, h.deptcode, h.effdate::text AS effdate,
+            j.jobdesc, d.deptname,
+            ${salaryAllowed ? 'h.salary' : 'NULL::numeric'} AS salary,
+            h.is_deleted, h.stamp
+     FROM public.jobhistory h
+     LEFT JOIN public.job j ON j.jobcode = h.jobcode
+     LEFT JOIN public.department d ON d.deptcode = h.deptcode
+     WHERE h.empno = $1 AND h.is_deleted = $2
+     ORDER BY effdate DESC, h.jobcode DESC`,
+    [empno, employeeResult.rows[0].is_deleted]
+  );
+
+  res.json({
+    success: true,
+    data: {
+      empno,
+      history: historyResult.rows,
+      jobHistory: historyResult.rows
+    }
+  });
+});
+
+const recordPromotion = asyncHandler(async (req, res) => {
+  const empno = String(req.params?.empno || '').trim();
+  if (!empno) throw requestError('Employee number is required', 400);
+
+  const rawDeptcode = req.body?.deptcode ?? req.body?.departmentCode ?? req.body?.department;
+  const rawJobcode = req.body?.jobcode ?? req.body?.jobCode ?? req.body?.job;
+  const deptcode = typeof rawDeptcode === 'string' ? rawDeptcode.trim().toUpperCase() : '';
+  const jobcode = typeof rawJobcode === 'string' ? rawJobcode.trim().toUpperCase() : '';
+  if (!deptcode || deptcode.length > 4) {
+    throw requestError('deptcode is required and must be at most 4 characters', 400);
+  }
+  if (!jobcode || jobcode.length > 4) {
+    throw requestError('jobcode is required and must be at most 4 characters', 400);
+  }
+
+  const rawSalary = req.body?.salary;
+  if (rawSalary === undefined || rawSalary === null || rawSalary === '' || typeof rawSalary === 'boolean') {
+    throw requestError('salary is required', 400);
+  }
+  const salary = Number(rawSalary);
+  if (!Number.isFinite(salary) || salary <= 0) {
+    throw requestError('salary must be a positive number', 400);
+  }
+
+  const rawEffdate = typeof req.body?.effdate === 'string'
+    ? req.body.effdate.trim()
+    : typeof req.body?.effectiveDate === 'string'
+      ? req.body.effectiveDate.trim()
+      : '';
+  if (!rawEffdate) {
+    throw requestError('effdate is required', 400);
+  }
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(rawEffdate) ||
+    Number.isNaN(Date.parse(rawEffdate)) ||
+    new Date(rawEffdate).toISOString().slice(0, 10) !== rawEffdate
+  ) {
+    throw requestError('effdate must be a valid date in YYYY-MM-DD format', 400);
+  }
+
+  const actorUserId = req.user?.sub || req.user?.userId || req.user?.id || req.user?.empno || req.user?.email || 'system';
+
+  try {
+    const result = await withAudit(req.user?.email || actorUserId, async (client) => {
+      const empResult = await client.query(
+        `SELECT empno, firstname, lastname, email, gender,
+                birthdate::text AS birthdate, hiredate::text AS hiredate,
+                sepdate::text AS sepdate, is_deleted, stamp
+         FROM public.employee
+         WHERE empno = $1 AND is_deleted = false
+         FOR UPDATE`,
+        [empno]
+      );
+      if (!empResult.rows.length || empResult.rows[0].is_deleted) {
+        throw requestError('Employee not found', 404);
+      }
+      const existingEmployee = empResult.rows[0];
+      if (existingEmployee.hiredate && rawEffdate < existingEmployee.hiredate) {
+        throw requestError('Job effective date cannot be before hire date', 400);
+      }
+
+      const refs = await client.query(
+        `SELECT
+          EXISTS(SELECT 1 FROM public.job WHERE jobcode = $1 AND is_deleted = false) AS job,
+          EXISTS(SELECT 1 FROM public.department WHERE deptcode = $2 AND is_deleted = false) AS department`,
+        [jobcode, deptcode]
+      );
+      if (refs.rows[0] && (!refs.rows[0].job || !refs.rows[0].department)) {
+        throw requestError('Choose a valid job title and department', 400);
+      }
+
+      const duplicate = await client.query(
+        `SELECT 1 FROM public.jobhistory
+         WHERE empno = $1 AND effdate = $2::date AND is_deleted = false
+         LIMIT 1`,
+        [empno, rawEffdate]
+      );
+      if (duplicate.rows.length > 0) {
+        throw requestError('A job history entry with this effective date already exists for this employee', 400);
+      }
+
+      const prevJobResult = await client.query(
+        `SELECT jobcode, deptcode, salary, effdate::text AS effdate
+         FROM public.jobhistory
+         WHERE empno = $1 AND is_deleted = false
+         ORDER BY effdate DESC, jobcode DESC
+         LIMIT 1`,
+        [empno]
+      );
+      const previousJob = prevJobResult.rows[0] || null;
+
+      const insertedHistory = await client.query(
+        `INSERT INTO public.jobhistory (empno, jobcode, deptcode, effdate, salary, is_deleted)
+         VALUES ($1, $2, $3, $4::date, $5, false)
+         RETURNING empno, jobcode, deptcode, effdate::text AS effdate, salary, is_deleted, stamp`,
+        [empno, jobcode, deptcode, rawEffdate, salary]
+      );
+
+      const updatedEmpResult = await client.query(
+        `UPDATE public.employee
+         SET deptcode = $1,
+             jobcode = $2,
+             stamp = public.audit_stamp('EDIT')
+         WHERE empno = $3 AND is_deleted = false
+         RETURNING empno, firstname, lastname, email, gender,
+                   birthdate::text AS birthdate, hiredate::text AS hiredate,
+                   sepdate::text AS sepdate, deptcode, jobcode, is_deleted, stamp`,
+        [deptcode, jobcode, empno]
+      );
+
+      await client.query(
+        `INSERT INTO public.audit_log
+           (table_name, action, record_key, old_values, new_values, action_by, action_at)
+         VALUES
+           ('jobhistory', 'EDIT', $1, $2::jsonb, $3::jsonb, $4, CURRENT_TIMESTAMP)`,
+        [
+          empno,
+          previousJob
+            ? JSON.stringify({
+                empno,
+                deptcode: previousJob.deptcode,
+                jobcode: previousJob.jobcode,
+                salary: Number(previousJob.salary),
+                effdate: previousJob.effdate
+              })
+            : null,
+          JSON.stringify({
+            event: 'PROMOTION',
+            empno,
+            deptcode,
+            jobcode,
+            salary,
+            effdate: rawEffdate
+          }),
+          String(actorUserId)
+        ]
+      );
+
+      const historyRow = insertedHistory.rows[0] || {
+        empno,
+        jobcode,
+        deptcode,
+        effdate: rawEffdate,
+        salary,
+        is_deleted: false,
+        stamp: null
+      };
+      const employeeRow = {
+        ...(updatedEmpResult.rows[0] || existingEmployee),
+        deptcode,
+        jobcode,
+        effdate: rawEffdate,
+        salary: !req.user || canViewSalary(req.user) ? Number(historyRow.salary ?? salary) : null
+      };
+
+      return { historyRow, employeeRow };
+    });
+
+    const formattedPromotion = {
+      empno: result.historyRow.empno || empno,
+      jobcode: result.historyRow.jobcode || jobcode,
+      deptcode: result.historyRow.deptcode || deptcode,
+      effdate: result.historyRow.effdate || rawEffdate,
+      effectiveDate: result.historyRow.effdate || rawEffdate,
+      salary: Number(result.historyRow.salary ?? salary),
+      is_deleted: Boolean(result.historyRow.is_deleted),
+      stamp: result.historyRow.stamp || null
+    };
+
+    res.status(201).json({
+      success: true,
+      data: {
+        empno,
+        promotion: formattedPromotion,
+        jobHistory: formattedPromotion,
+        employee: result.employeeRow
+      }
+    });
+  } catch (error) {
+    if (error.code === '23505') {
+      throw requestError('A job history entry with this effective date already exists for this employee', 400);
+    }
+    if (error.code === '23503') {
+      throw requestError('The selected job or department no longer exists', 400);
+    }
+    throw error;
+  }
+});
+
+
 function validatePayload(body, salaryRequired) {
   const source = body || {};
   const requiredText = (key, max) => {
@@ -522,6 +746,8 @@ module.exports = {
   listEmployees,
   listOptions,
   getEmployee,
+  getJobHistory,
+  recordPromotion,
   createEmployee,
   updateEmployee,
   archiveEmployee,
@@ -537,3 +763,4 @@ module.exports = {
   archiveDepartment,
   restoreDepartment
 };
+

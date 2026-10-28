@@ -1,8 +1,9 @@
 import { cleanup, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter, useLocation } from "react-router"
+import { MemoryRouter, Route, Routes, useLocation } from "react-router"
 import { afterEach, expect, test, vi } from "vitest"
 import { AuthProvider } from "../components/auth/AuthProvider"
+import CreateSalePage from "./CreateSalePage"
 import SalesManagementPage from "./SalesManagementPage"
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
@@ -50,4 +51,85 @@ test("recording a preview payment updates the balance without render warnings", 
   expect(await details.findByText("$24.50", { exact: true })).toBeInTheDocument()
   expect(screen.queryByRole("dialog", { name: "Record Payment", exact: true })).not.toBeInTheDocument()
   expect(errors).not.toHaveBeenCalled()
+})
+
+test("CreateSalePage calculates line totals with price-as-of-date lookup and submits to /api/sales", async () => {
+  const user = userEvent.setup()
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.endsWith("/api/sales") && init?.method === "POST") {
+      const body = JSON.parse(String(init.body || "{}"))
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            sale: {
+              transno: "TR000125",
+              salesdate: body.salesdate,
+              custno: body.custno,
+              custname: "Northstar Office Group",
+              empno: body.empno,
+              empname: "Employee Record 01",
+              is_deleted: false,
+              stamp: "ADD system",
+              lines: body.lines,
+              payments: [],
+            },
+          },
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      )
+    }
+    return new Response(
+      JSON.stringify({
+        success: true,
+        data: {
+          user: {
+            userId: "1",
+            email: "preview@hope.inc",
+            role: "superadmin",
+            status: "active",
+            mustChangePassword: false,
+          },
+        },
+      }),
+      { headers: { "Content-Type": "application/json" } },
+    )
+  })
+  vi.stubGlobal("fetch", fetchMock)
+
+  render(
+    <MemoryRouter initialEntries={["/sales/new?view=create"]}>
+      <AuthProvider>
+        <Routes>
+          <Route path="/sales/new" element={<CreateSalePage />} />
+          <Route path="/sales" element={<div>Sales list destination</div>} />
+        </Routes>
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  expect(await screen.findByRole("heading", { name: "Create sale" })).toBeInTheDocument()
+
+  // Select Customer and Employee
+  const comboboxes = screen.getAllByRole("combobox")
+  await user.click(comboboxes[0])
+  await user.click(screen.getByRole("option", { name: /Northstar Office Group/i }))
+  await user.click(comboboxes[1])
+  await user.click(screen.getByRole("option", { name: /Employee Record 01/i }))
+
+  // Update quantity to 0 and verify validation error
+  const qtyInput = screen.getByLabelText("Quantity 1")
+  await user.clear(qtyInput)
+  await user.type(qtyInput, "0")
+  await user.click(screen.getByRole("button", { name: "Save sale" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent(/Quantity must be greater than zero/i)
+
+  // Set quantity to 4 (P-001 @ $13.75 = $55.00) and submit
+  await user.clear(qtyInput)
+  await user.type(qtyInput, "4")
+  expect(screen.getAllByText("$55.00").length).toBeGreaterThan(0)
+
+  await user.click(screen.getByRole("button", { name: "Save sale" }))
+  expect(await screen.findByText("Sales list destination")).toBeInTheDocument()
 })

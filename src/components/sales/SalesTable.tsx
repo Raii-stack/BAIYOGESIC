@@ -1,5 +1,5 @@
-import type { SaleTransaction } from "../../types/sale"
-import { getSaleBalance, getSaleTotal } from "../../lib/sales"
+import type { PaymentStatus, SaleTransaction } from "../../types/sale"
+import { getPaymentStatus, getSaleBalance, getSaleTotal } from "../../lib/sales"
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -32,7 +32,12 @@ export default function SalesTable({
   const showActions = canViewDetails || canDelete
   return (
     <div className="workspace-panel">
-      <div className="workspace-table-header"><h2>Sales transactions</h2><span className="workspace-badge workspace-badge--neutral">{total} records</span></div>
+      <div className="workspace-table-header">
+        <h2>Sales transactions</h2>
+        <span className="workspace-badge workspace-badge--neutral">
+          {total} records
+        </span>
+      </div>
       <div className="overflow-x-auto">
         <table className="workspace-table min-w-[1040px]">
           <thead>
@@ -50,7 +55,9 @@ export default function SalesTable({
                 <th
                   key={heading}
                   scope="col"
-                  className={` ${heading === "Actions" ? "workspace-table-actions" : ""} ${
+                  className={` ${
+                    heading === "Actions" ? "workspace-table-actions" : ""
+                  } ${
                     ["Total", "Balance"].includes(heading) ? "text-right" : ""
                   }`}
                 >
@@ -62,6 +69,7 @@ export default function SalesTable({
           <tbody>
             {sales.map((sale) => {
               const inactive = sale.status === "Inactive"
+              const paymentStatus = getPaymentStatus(sale)
 
               return (
                 <tr
@@ -74,7 +82,7 @@ export default function SalesTable({
                   <td className="whitespace-nowrap font-mono text-xs text-slate-600">
                     {sale.salesDate}
                   </td>
-                  <td >
+                  <td>
                     <p className="text-[13px] font-semibold text-slate-900">
                       {sale.customerName}
                     </p>
@@ -82,7 +90,7 @@ export default function SalesTable({
                       {sale.customerCode}
                     </p>
                   </td>
-                  <td >
+                  <td>
                     <p className="text-[13px] font-medium text-slate-800">
                       {sale.employeeName}
                     </p>
@@ -94,10 +102,13 @@ export default function SalesTable({
                     {currency.format(getSaleTotal(sale))}
                   </td>
                   <td className="whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-neutral-900">
-                    {currency.format(getSaleBalance(sale))}
+                    <span>{currency.format(getSaleBalance(sale))}</span>
+                    <span className="ml-2 inline-block align-middle">
+                      <PaymentStatusBadge status={paymentStatus} />
+                    </span>
                   </td>
                   {showAdminAudit && (
-                    <td >
+                    <td>
                       <StatusBadge status={sale.status} />
                     </td>
                   )}
@@ -161,11 +172,33 @@ export default function SalesTable({
       )}
 
       <div className="workspace-table-footer">
-        <p>Showing {total ? (page - 1) * 10 + 1 : 0}–{Math.min(page * 10, total)} of {total}</p>
+        <p>
+          Showing {total ? (page - 1) * 10 + 1 : 0}–
+          {Math.min(page * 10, total)} of {total}
+        </p>
         <nav aria-label="Sales table pagination" className="workspace-pagination">
-          <button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Previous</button>
-          <button type="button" aria-current="page" aria-label={`Page ${page}`} onClick={() => onPageChange(page)}>{page}</button>
-          <button type="button" disabled={page >= Math.ceil(total / 10)} onClick={() => onPageChange(page + 1)}>Next</button>
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => onPageChange(page - 1)}
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            aria-current="page"
+            aria-label={`Page ${page}`}
+            onClick={() => onPageChange(page)}
+          >
+            {page}
+          </button>
+          <button
+            type="button"
+            disabled={page >= Math.ceil(total / 10)}
+            onClick={() => onPageChange(page + 1)}
+          >
+            Next
+          </button>
         </nav>
       </div>
     </div>
@@ -184,4 +217,14 @@ export function StatusBadge({ status }: { status: SaleTransaction["status"] }) {
       {status === "Inactive" ? "Archived" : status}
     </span>
   )
+}
+
+export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
+  const styles =
+    status === "Paid"
+      ? "bg-emerald-100 text-emerald-800"
+      : status === "Partial"
+        ? "bg-amber-100 text-amber-800"
+        : "bg-slate-100 text-slate-700"
+  return <span className={`workspace-badge ${styles}`}>{status}</span>
 }

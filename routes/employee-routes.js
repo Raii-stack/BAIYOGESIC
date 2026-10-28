@@ -44,4 +44,23 @@ router.put('/:empno', requirePermission('HR', 'edit'), updateEmployee);
 router.delete('/:empno', requirePermission('HR', 'delete'), archiveEmployee);
 router.post('/:empno/restore', requirePermission('HR', 'delete'), restoreEmployee);
 
+const departmentRouter = express.Router();
+departmentRouter.use(authenticate, requireActiveUser);
+departmentRouter.get('/', requirePermission('HR', 'view'), listDepartments);
+departmentRouter.post('/', requirePermission('HR', 'edit'), createDepartment);
+departmentRouter.put('/:deptcode', requirePermission('HR', 'edit'), updateDepartment);
+departmentRouter.delete('/:deptcode', requirePermission('HR', 'delete'), archiveDepartment);
+departmentRouter.post('/:deptcode/restore', requirePermission('HR', 'delete'), restoreDepartment);
+
+const jobRouter = express.Router();
+jobRouter.use(authenticate, requireActiveUser);
+jobRouter.get('/', requirePermission('HR', 'view'), listJobs);
+jobRouter.post('/', requirePermission('HR', 'edit'), createJob);
+jobRouter.put('/:jobcode', requirePermission('HR', 'edit'), updateJob);
+jobRouter.delete('/:jobcode', requirePermission('HR', 'delete'), archiveJob);
+jobRouter.post('/:jobcode/restore', requirePermission('HR', 'delete'), restoreJob);
+
+router.departmentRouter = departmentRouter;
+router.jobRouter = jobRouter;
+
 module.exports = router;

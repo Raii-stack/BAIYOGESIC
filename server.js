@@ -12,6 +12,7 @@ const customerRoutes = require('./routes/customer-routes');
 const productRoutes = require('./routes/product-routes');
 const employeeRoutes = require('./routes/employee-routes');
 const userRoutes = require('./routes/user-routes');
+const salesRoutes = require('./routes/sales-routes');
 
 const app = express();
 const port = Number.parseInt(process.env.PORT || '3000', 10);
@@ -55,7 +56,10 @@ app.use('/api/auth', auditContext, authRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/departments', employeeRoutes.departmentRouter);
+app.use('/api/jobs', employeeRoutes.jobRouter);
 app.use('/api/users', userRoutes);
+app.use('/api/sales', salesRoutes);
 
 app.get(['/health', '/api/health'], asyncHandler(async (req, res) => {
   const { error } = await supabase.from('_health_check').select('*').limit(1);

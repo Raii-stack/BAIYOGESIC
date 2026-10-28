@@ -217,3 +217,40 @@ test("switches between Employees, Jobs, and Departments tabs and manages lookup 
   await user.click(screen.getByRole("tab", { name: "Departments" }))
   expect(await screen.findByText("Information Tech")).toBeInTheDocument()
 })
+
+
+test("shows a clear archive error when a department or job has active job-history records", async () => {
+  const jobs = [{ jobcode: "DEV", jobdesc: "Developer", is_deleted: false, stamp: "ADD admin" }]
+  const departments = [{ deptcode: "IT", deptname: "Information Tech", is_deleted: false, stamp: "ADD admin" }]
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return response({ user: auth("administrator") })
+    if (url.pathname === "/api/employees/options") return response({ departments: [{ code: "IT", name: "Information Tech" }], jobs: [{ code: "DEV", name: "Developer" }] })
+    if (url.pathname === "/api/employees" && init?.method === "GET") return response({ employees: [row(1)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees/jobs" && init?.method === "GET") return response({ jobs, pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees/jobs/DEV" && init?.method === "DELETE") {
+      return new Response(JSON.stringify({ success: false, error: { message: "Cannot archive job while active job-history records exist." } }), { status: 409, headers: { "Content-Type": "application/json" } })
+    }
+    if (url.pathname === "/api/employees/departments" && init?.method === "GET") return response({ departments, pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees/departments/IT" && init?.method === "DELETE") {
+      return new Response(JSON.stringify({ success: false, error: { message: "Cannot archive department while active job-history records exist." } }), { status: 409, headers: { "Content-Type": "application/json" } })
+    }
+    throw new Error(`Unexpected request ${url.pathname}`)
+  }))
+  const user = userEvent.setup()
+  render(<MemoryRouter><AuthProvider><EmployeeDirectoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Person1 Example")
+
+  await user.click(screen.getByRole("tab", { name: "Jobs" }))
+  await screen.findByText("Developer")
+  await user.click(screen.getByRole("button", { name: "Archive Developer" }))
+  await user.click(screen.getByRole("button", { name: "Archive job" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("Cannot archive job while active job-history records exist.")
+  await user.click(screen.getByRole("button", { name: "Cancel" }))
+
+  await user.click(screen.getByRole("tab", { name: "Departments" }))
+  await screen.findByText("Information Tech")
+  await user.click(screen.getByRole("button", { name: "Archive Information Tech" }))
+  await user.click(screen.getByRole("button", { name: "Archive department" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("Cannot archive department while active job-history records exist.")
+})

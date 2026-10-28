@@ -55,6 +55,8 @@ app.use('/api/auth', auditContext, authRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/employees', employeeRoutes);
+app.use('/api/departments', employeeRoutes.departmentRouter);
+app.use('/api/jobs', employeeRoutes.jobRouter);
 app.use('/api/users', userRoutes);
 
 app.get(['/health', '/api/health'], asyncHandler(async (req, res) => {

@@ -247,52 +247,100 @@ const restoreEmployee = asyncHandler(async (req, res) => {
 });
 
 const listJobs = asyncHandler(async (req, res) => {
-  const page = positiveInteger(req.query.page, 1, 100000);
-  const limit = positiveInteger(req.query.limit, 10, 100);
-  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
-  const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
+  const page = positiveInteger(req?.query?.page, 1, 100000);
+  const limit = positiveInteger(req?.query?.limit, 10, 100);
+  const search = typeof req?.query?.search === 'string' ? req.query.search.trim() : '';
+  const defaultStatus = req?.baseUrl === '/api/jobs' ? 'active' : 'all';
+  const status = typeof req?.query?.status === 'string' ? req.query.status.trim().toLowerCase() : defaultStatus;
   if (!['all', 'active', 'archived'].includes(status)) throw requestError('Invalid status filter', 400);
   const values = [];
   const filters = [];
   if (search) {
     values.push(`%${search}%`);
-    filters.push(`(jobcode ILIKE $${values.length} OR jobdesc ILIKE $${values.length})`);
+    filters.push(`(j.jobcode ILIKE $${values.length} OR j.jobdesc ILIKE $${values.length})`);
   }
   if (status !== 'all') {
     values.push(status === 'archived');
-    filters.push(`is_deleted = $${values.length}`);
+    filters.push(`j.is_deleted = $${values.length}`);
   }
   const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const [count, records] = await Promise.all([
-    requirePool().query(`SELECT count(*)::integer AS total FROM public.job ${where}`, values),
-    requirePool().query(`SELECT jobcode, jobdesc, is_deleted, stamp FROM public.job ${where} ORDER BY jobcode ASC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, [...values, limit, (page - 1) * limit])
+    requirePool().query(`SELECT count(*)::integer AS total FROM public.job j ${where}`, values),
+    requirePool().query(
+      `SELECT j.jobcode, j.jobdesc, j.is_deleted, j.stamp,
+              COALESCE(ec.employee_count, 0)::integer AS employee_count
+       FROM public.job j
+       LEFT JOIN (
+         SELECT h.jobcode, count(*)::integer AS employee_count
+         FROM public.employee e
+         JOIN LATERAL (
+           SELECT jh.jobcode
+           FROM public.jobhistory jh
+           WHERE jh.empno = e.empno AND jh.is_deleted = false
+           ORDER BY jh.effdate DESC, jh.jobcode DESC
+           LIMIT 1
+         ) h ON true
+         WHERE e.is_deleted = false AND e.sepdate IS NULL
+         GROUP BY h.jobcode
+       ) ec ON ec.jobcode = j.jobcode
+       ${where}
+       ORDER BY j.jobcode ASC
+       LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      [...values, limit, (page - 1) * limit]
+    )
   ]);
-  const total = count.rows[0].total;
-  res.json({ success: true, data: { jobs: records.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
+  const total = count.rows[0]?.total ?? records.rows.length;
+  const jobs = records.rows.map((row) => ({
+    ...row,
+    employee_count: Number(row.employee_count ?? row.employeeCount ?? 0),
+    employeeCount: Number(row.employee_count ?? row.employeeCount ?? 0)
+  }));
+  res.json({ success: true, data: { jobs, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
 });
 
 const createJob = asyncHandler(async (req, res) => {
-  const jobcode = typeof req.body?.jobcode === 'string' ? req.body.jobcode.trim().toUpperCase() : '';
-  const jobdesc = typeof req.body?.jobdesc === 'string' ? req.body.jobdesc.trim() : '';
+  const rawCode = req.body?.jobcode ?? req.body?.code;
+  const rawDesc = req.body?.jobdesc ?? req.body?.title ?? req.body?.description;
+  const jobcode = typeof rawCode === 'string' ? rawCode.trim().toUpperCase() : '';
+  const jobdesc = typeof rawDesc === 'string' ? rawDesc.trim() : '';
   if (!jobcode || jobcode.length > 4) throw requestError('Job code is required and must be at most 4 characters', 400);
   if (!jobdesc || jobdesc.length > 20) throw requestError('Job description is required and must be at most 20 characters', 400);
   try {
     const job = await withAudit(req.user.email, async (client) => {
+      const duplicate = await client.query(
+        'SELECT jobcode, jobdesc FROM public.job WHERE UPPER(jobcode) = $1 OR LOWER(jobdesc) = LOWER($2) LIMIT 1',
+        [jobcode, jobdesc]
+      );
+      if (duplicate.rows.length > 0) {
+        if (String(duplicate.rows[0].jobcode || '').toUpperCase() === jobcode) {
+          throw requestError('A job with that code already exists', 400);
+        }
+        throw requestError('A job with that title already exists', 400);
+      }
       const result = await client.query('INSERT INTO public.job (jobcode, jobdesc, is_deleted) VALUES ($1, $2, false) RETURNING jobcode, jobdesc, is_deleted, stamp', [jobcode, jobdesc]);
       return result.rows[0];
     });
     res.status(201).json({ success: true, data: { job } });
   } catch (error) {
-    if (error.code === '23505') throw requestError('A job with that code already exists', 409);
+    if (error.code === '23505') throw requestError('A job with that code or title already exists', 400);
     throw error;
   }
 });
 
 const updateJob = asyncHandler(async (req, res) => {
   const jobcode = String(req.params.jobcode || '').trim().toUpperCase();
-  const jobdesc = typeof req.body?.jobdesc === 'string' ? req.body.jobdesc.trim() : '';
+  const rawDesc = req.body?.jobdesc ?? req.body?.title ?? req.body?.description;
+  const jobdesc = typeof rawDesc === 'string' ? rawDesc.trim() : '';
+  if (!jobcode || jobcode.length > 4) throw requestError('Job code is required and must be at most 4 characters', 400);
   if (!jobdesc || jobdesc.length > 20) throw requestError('Job description is required and must be at most 20 characters', 400);
   const job = await withAudit(req.user.email, async (client) => {
+    const duplicate = await client.query(
+      'SELECT jobcode FROM public.job WHERE LOWER(jobdesc) = LOWER($1) AND UPPER(jobcode) <> $2 LIMIT 1',
+      [jobdesc, jobcode]
+    );
+    if (duplicate.rows.length > 0) {
+      throw requestError('A job with that title already exists', 400);
+    }
     const result = await client.query('UPDATE public.job SET jobdesc = $1 WHERE jobcode = $2 AND is_deleted = false RETURNING jobcode, jobdesc, is_deleted, stamp', [jobdesc, jobcode]);
     return result.rows[0] || null;
   });
@@ -335,52 +383,100 @@ const restoreJob = asyncHandler(async (req, res) => {
 });
 
 const listDepartments = asyncHandler(async (req, res) => {
-  const page = positiveInteger(req.query.page, 1, 100000);
-  const limit = positiveInteger(req.query.limit, 10, 100);
-  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
-  const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
+  const page = positiveInteger(req?.query?.page, 1, 100000);
+  const limit = positiveInteger(req?.query?.limit, 10, 100);
+  const search = typeof req?.query?.search === 'string' ? req.query.search.trim() : '';
+  const defaultStatus = req?.baseUrl === '/api/departments' ? 'active' : 'all';
+  const status = typeof req?.query?.status === 'string' ? req.query.status.trim().toLowerCase() : defaultStatus;
   if (!['all', 'active', 'archived'].includes(status)) throw requestError('Invalid status filter', 400);
   const values = [];
   const filters = [];
   if (search) {
     values.push(`%${search}%`);
-    filters.push(`(deptcode ILIKE $${values.length} OR deptname ILIKE $${values.length})`);
+    filters.push(`(d.deptcode ILIKE $${values.length} OR d.deptname ILIKE $${values.length})`);
   }
   if (status !== 'all') {
     values.push(status === 'archived');
-    filters.push(`is_deleted = $${values.length}`);
+    filters.push(`d.is_deleted = $${values.length}`);
   }
   const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const [count, records] = await Promise.all([
-    requirePool().query(`SELECT count(*)::integer AS total FROM public.department ${where}`, values),
-    requirePool().query(`SELECT deptcode, deptname, is_deleted, stamp FROM public.department ${where} ORDER BY deptcode ASC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, [...values, limit, (page - 1) * limit])
+    requirePool().query(`SELECT count(*)::integer AS total FROM public.department d ${where}`, values),
+    requirePool().query(
+      `SELECT d.deptcode, d.deptname, d.is_deleted, d.stamp,
+              COALESCE(ec.employee_count, 0)::integer AS employee_count
+       FROM public.department d
+       LEFT JOIN (
+         SELECT h.deptcode, count(*)::integer AS employee_count
+         FROM public.employee e
+         JOIN LATERAL (
+           SELECT jh.deptcode
+           FROM public.jobhistory jh
+           WHERE jh.empno = e.empno AND jh.is_deleted = false
+           ORDER BY jh.effdate DESC, jh.jobcode DESC
+           LIMIT 1
+         ) h ON true
+         WHERE e.is_deleted = false AND e.sepdate IS NULL
+         GROUP BY h.deptcode
+       ) ec ON ec.deptcode = d.deptcode
+       ${where}
+       ORDER BY d.deptcode ASC
+       LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      [...values, limit, (page - 1) * limit]
+    )
   ]);
-  const total = count.rows[0].total;
-  res.json({ success: true, data: { departments: records.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
+  const total = count.rows[0]?.total ?? records.rows.length;
+  const departments = records.rows.map((row) => ({
+    ...row,
+    employee_count: Number(row.employee_count ?? row.employeeCount ?? 0),
+    employeeCount: Number(row.employee_count ?? row.employeeCount ?? 0)
+  }));
+  res.json({ success: true, data: { departments, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
 });
 
 const createDepartment = asyncHandler(async (req, res) => {
-  const deptcode = typeof req.body?.deptcode === 'string' ? req.body.deptcode.trim().toUpperCase() : '';
-  const deptname = typeof req.body?.deptname === 'string' ? req.body.deptname.trim() : '';
+  const rawCode = req.body?.deptcode ?? req.body?.code;
+  const rawName = req.body?.deptname ?? req.body?.name;
+  const deptcode = typeof rawCode === 'string' ? rawCode.trim().toUpperCase() : '';
+  const deptname = typeof rawName === 'string' ? rawName.trim() : '';
   if (!deptcode || deptcode.length > 3) throw requestError('Department code is required and must be at most 3 characters', 400);
   if (!deptname || deptname.length > 20) throw requestError('Department name is required and must be at most 20 characters', 400);
   try {
     const department = await withAudit(req.user.email, async (client) => {
+      const duplicate = await client.query(
+        'SELECT deptcode, deptname FROM public.department WHERE UPPER(deptcode) = $1 OR LOWER(deptname) = LOWER($2) LIMIT 1',
+        [deptcode, deptname]
+      );
+      if (duplicate.rows.length > 0) {
+        if (String(duplicate.rows[0].deptcode || '').toUpperCase() === deptcode) {
+          throw requestError('A department with that code already exists', 400);
+        }
+        throw requestError('A department with that name already exists', 400);
+      }
       const result = await client.query('INSERT INTO public.department (deptcode, deptname, is_deleted) VALUES ($1, $2, false) RETURNING deptcode, deptname, is_deleted, stamp', [deptcode, deptname]);
       return result.rows[0];
     });
     res.status(201).json({ success: true, data: { department } });
   } catch (error) {
-    if (error.code === '23505') throw requestError('A department with that code already exists', 409);
+    if (error.code === '23505') throw requestError('A department with that code or name already exists', 400);
     throw error;
   }
 });
 
 const updateDepartment = asyncHandler(async (req, res) => {
   const deptcode = String(req.params.deptcode || '').trim().toUpperCase();
-  const deptname = typeof req.body?.deptname === 'string' ? req.body.deptname.trim() : '';
+  const rawName = req.body?.deptname ?? req.body?.name;
+  const deptname = typeof rawName === 'string' ? rawName.trim() : '';
+  if (!deptcode || deptcode.length > 3) throw requestError('Department code is required and must be at most 3 characters', 400);
   if (!deptname || deptname.length > 20) throw requestError('Department name is required and must be at most 20 characters', 400);
   const department = await withAudit(req.user.email, async (client) => {
+    const duplicate = await client.query(
+      'SELECT deptcode FROM public.department WHERE LOWER(deptname) = LOWER($1) AND UPPER(deptcode) <> $2 LIMIT 1',
+      [deptname, deptcode]
+    );
+    if (duplicate.rows.length > 0) {
+      throw requestError('A department with that name already exists', 400);
+    }
     const result = await client.query('UPDATE public.department SET deptname = $1 WHERE deptcode = $2 AND is_deleted = false RETURNING deptcode, deptname, is_deleted, stamp', [deptname, deptcode]);
     return result.rows[0] || null;
   });

@@ -6,12 +6,17 @@ const apiLimiter = rateLimit({
   standardHeaders: true, // Return standard rate limit headers (RateLimit-Limit, RateLimit-Remaining)
   legacyHeaders: false, // Disable the X-RateLimit-* headers
   message: {
-    status: 429,
-    error: 'Too Many Requests, please try again later.'
+    success: false,
+    error: { message: 'Too Many Requests, please try again later.', statusCode: 429 }
   },
   skip: (req) => {
-    // Ensure /health and /api/health endpoints are excluded from rate limits
-    return req.path === '/health' || req.path === '/api/health';
+    // Exclude health checks
+    if (req.path === '/health' || req.path === '/api/health') {
+      return true;
+    }
+    // Only apply rate limiting to mutation endpoints (POST, PUT, DELETE, PATCH)
+    const isMutation = ['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method);
+    return !isMutation;
   }
 });
 

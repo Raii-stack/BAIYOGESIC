@@ -31,7 +31,7 @@ jobs:
           npm ls undici || true
 
       - name: Install Dependencies
-        run: npm ci
+        run: npm install
 
       - name: Run Unit / Basic Tests
         run: npx vitest run

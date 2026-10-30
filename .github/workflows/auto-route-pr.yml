@@ -1,0 +1,22 @@
+name: Auto Route PR to Test Branch
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  route-to-test:
+    runs-on: ubuntu-latest
+    if: github.base_ref == 'main' && github.head_ref != 'test'
+    steps:
+      - name: Retarget PR to test
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_PAT || secrets.GITHUB_TOKEN }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh pr edit "$PR_URL" --base test
+          gh pr comment "$PR_URL" --body "🤖 Automatically routed base branch from \`main\` to \`test\`."

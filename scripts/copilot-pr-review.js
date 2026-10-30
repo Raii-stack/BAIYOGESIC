@@ -1,9 +1,9 @@
 // scripts/copilot-pr-review.js
-// Automated Cloud PR Reviewer (Copilot-style) for Raii-stack/BAIYOGESIC:
+// Automated Cloud PR Reviewer for Raii-stack/BAIYOGESIC:
 // - Runs 24/7 on GitHub Actions cloud runners
 // - Inspects changed files, diffs, secrets, safety, and testing
 // - Cross-references linked issue requirements, target files, endpoints & acceptance criteria
-// - Generates structured Copilot-style review report
+// - Generates structured professional review report
 // - Automatically submits an approving review as @Raii-stack (Code Owner) if checks pass
 
 const fs = require('fs');
@@ -163,43 +163,43 @@ function buildReviewReport(pr, analysis, files, issueData = null) {
   const { findings, testFilesModified, codeFilesModified, hasBlockers } = analysis;
   const isAuthorOwner = pr.user && pr.user.login === 'Raii-stack';
 
-  let report = `## 🤖 Copilot Automated Code Review\n\n`;
-  report += `### 📋 Summary of Changes\n`;
+  let report = `## Automated Code Review\n\n`;
+  report += `### Summary of Changes\n`;
   report += `- **Author**: \`@${pr.user ? pr.user.login : 'unknown'}\`\n`;
   report += `- **Target**: \`${pr.base ? pr.base.ref : 'main'}\` &larr; \`${pr.head ? pr.head.ref : 'branch'}\`\n`;
   report += `- **Files Changed**: ${files.length} (${codeFilesModified} code files, ${testFilesModified} test files)\n`;
   report += `- **Diff Stats**: +${pr.additions || 0} / -${pr.deletions || 0} lines\n\n`;
 
-  report += `### 🔍 Automated Verification Findings\n`;
-  report += `| Inspection Area | Status | Notes |\n`;
+  report += `### Verification Checklist\n`;
+  report += `| Inspection Area | Status | Details |\n`;
   report += `|---|---|---|\n`;
 
   // Secret Scanning
   const secretFinding = findings.find(f => f.type === 'Secret Leak');
   if (secretFinding) {
-    report += `| **Secret Leak Guard** | ❌ **Failed** | ${secretFinding.message} |\n`;
+    report += `| **Secret Leak Guard** | Failed | ${secretFinding.message} |\n`;
   } else {
-    report += `| **Secret Leak Guard** | ✅ **Passed** | No credentials, private keys, or tokens detected |\n`;
+    report += `| **Secret Leak Guard** | Passed | No credentials, private keys, or tokens detected |\n`;
   }
 
   // Safety & Dangerous patterns
   const dangerFinding = findings.find(f => f.type === 'Dangerous Pattern');
   if (dangerFinding) {
-    report += `| **Code Safety Guard** | ⚠️ **Warning** | ${dangerFinding.message} |\n`;
+    report += `| **Code Safety Guard** | Warning | ${dangerFinding.message} |\n`;
   } else {
-    report += `| **Code Safety Guard** | ✅ **Passed** | No SQL injection or unsanitized command executions detected |\n`;
+    report += `| **Code Safety Guard** | Passed | No SQL injection or unsanitized command executions detected |\n`;
   }
 
   // Conventional Commits
   const titleRegex = /^(feat|fix|chore|docs|perf|refactor|test|ci|style)(\([a-z0-9_-]+\))?:\s.+/i;
   const validTitle = titleRegex.test(pr.title || '');
-  report += `| **Conventional Standards** | ${validTitle ? '✅ **Passed**' : 'ℹ️ **Notice**'} | ${validTitle ? 'Title conforms to standard commit conventions' : 'Title does not match conventional format (e.g. feat: ...)'} |\n`;
+  report += `| **Conventional Standards** | ${validTitle ? 'Passed' : 'Notice'} | ${validTitle ? 'Title conforms to standard commit conventions' : 'Title does not match conventional format (e.g. feat: ...)'} |\n`;
 
   // Test coverage
   if (codeFilesModified > 0 && testFilesModified === 0) {
-    report += `| **Test Coverage** | ℹ️ **Notice** | Code files modified without matching test additions/updates |\n`;
+    report += `| **Test Coverage** | Notice | Code files modified without matching test additions/updates |\n`;
   } else {
-    report += `| **Test Coverage** | ✅ **Passed** | Tests included or no executable logic modified |\n`;
+    report += `| **Test Coverage** | Passed | Tests included or no executable logic modified |\n`;
   }
 
   // Linked Issue Verification
@@ -208,40 +208,40 @@ function buildReviewReport(pr, analysis, files, issueData = null) {
     const fileAlignmentOk = alignment.missingFiles.length === 0;
     const endpointAlignmentOk = alignment.missingEndpoints.length === 0;
 
-    report += `\n### 🎯 Linked Issue Alignment (Issue #${issueNumber})\n`;
+    report += `\n### Linked Issue Alignment (Issue #${issueNumber})\n`;
     report += `| Requirement Scope | Status | Details |\n`;
     report += `|---|---|---|\n`;
-    report += `| **Target Files Check** | ${fileAlignmentOk ? '✅ **Matched**' : '⚠️ **Missing Files**'} | ${fileAlignmentOk ? 'All designated target files were touched' : `Missing expected file: ${alignment.missingFiles.join(', ')}`} |\n`;
-    report += `| **API Contracts** | ${endpointAlignmentOk ? '✅ **Matched**' : '⚠️ **Discrepancy**'} | ${endpointAlignmentOk ? 'Endpoints match specifications' : `Missing endpoints: ${alignment.missingEndpoints.join(', ')}`} |\n`;
-    report += `| **Acceptance Criteria** | 📋 **Tracked** | ${alignment.criteriaCount} criteria evaluated from issue description |\n`;
+    report += `| **Target Files Check** | ${fileAlignmentOk ? 'Matched' : 'Missing Files'} | ${fileAlignmentOk ? 'All designated target files were touched' : `Missing expected file: ${alignment.missingFiles.join(', ')}`} |\n`;
+    report += `| **API Contracts** | ${endpointAlignmentOk ? 'Matched' : 'Discrepancy'} | ${endpointAlignmentOk ? 'Endpoints match specifications' : `Missing endpoints: ${alignment.missingEndpoints.join(', ')}`} |\n`;
+    report += `| **Acceptance Criteria** | Tracked | ${alignment.criteriaCount} criteria evaluated from issue description |\n`;
   }
 
   report += `\n`;
 
   // Recommendations / Findings details
   if (findings.length > 0) {
-    report += `### ⚠️ Issues Requiring Attention\n`;
+    report += `### Issues Requiring Attention\n`;
     for (const f of findings) {
       report += `- **[${f.severity}]** \`${f.file}\`: ${f.message}\n`;
     }
     report += `\n`;
   } else {
-    report += `### 💡 Analysis Feedback\n`;
+    report += `### Analysis Feedback\n`;
     report += `- Automated static inspection passed with no security flags or critical anti-patterns.\n`;
     report += `- Code follows project structure and repository guidelines.\n\n`;
   }
 
   report += `---\n`;
-  report += `### 🎯 Review Decision\n`;
+  report += `### Review Decision\n`;
 
   if (hasBlockers) {
-    report += `- **Decision**: ❌ **Changes Requested**\n`;
+    report += `- **Decision**: Changes Requested\n`;
     report += `- **Action Required**: Please resolve the security or safety issues flagged above before this PR can be approved.\n`;
   } else if (isAuthorOwner) {
-    report += `- **Decision**: 💬 **Comment / Self-Review**\n`;
+    report += `- **Decision**: Comment / Self-Review\n`;
     report += `- **Note**: Authored by repository owner; automated checks passed.\n`;
   } else {
-    report += `- **Decision**: ✅ **Approved**\n`;
+    report += `- **Decision**: Approved\n`;
     report += `- **Code Owner Authority**: Approval granted on behalf of \`@Raii-stack\` (Code Owner).\n`;
     report += `- **Merge Readiness**: The pull request meets code owner review requirements and is ready to be merged.\n`;
   }

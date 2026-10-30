@@ -7,6 +7,7 @@ const helmet = require('helmet');
 const { supabase } = require('./db');
 const { asyncHandler, errorHandler } = require('./middleware/error-handler');
 const { auditContext } = require('./middleware/audit-context');
+const { apiLimiter } = require('./middleware/rate-limiter');
 const authRoutes = require('./routes/auth-routes');
 const customerRoutes = require('./routes/customer-routes');
 const productRoutes = require('./routes/product-routes');
@@ -46,12 +47,17 @@ app.use(cors({
   },
   credentials: true
 }));
+
 app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
+
+app.use('/api', apiLimiter);
+
 app.use('/api', (_req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();
 });
+
 app.use('/api/auth', auditContext, authRoutes);
 app.use('/api/customers', customerRoutes);
 app.use('/api/products', productRoutes);
@@ -64,7 +70,6 @@ app.use('/api/sales', salesRoutes);
 app.get(['/health', '/api/health'], asyncHandler(async (req, res) => {
   const { error } = await supabase.from('_health_check').select('*').limit(1);
 
-  // A missing health-check table is expected until the first schema is deployed.
   if (error && error.code !== '42P01' && error.code !== 'PGRST205') {
     const databaseError = new Error('Database health check failed');
     databaseError.statusCode = 503;

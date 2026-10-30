@@ -1,0 +1,2 @@
+This test is working.
+MCP server and GitHub integration test verified.

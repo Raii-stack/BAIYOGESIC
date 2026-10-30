@@ -8,7 +8,7 @@ on:
 
 jobs:
   # -------------------------------------------------------------
-  # Acceptance Criteria 1 & 3: Testing & Dependency Audit
+  # Acceptance Criteria 1, 2 & 3: Code Linting, Testing, Schema Drift & Audit
   # -------------------------------------------------------------
   build-and-test:
     name: Build, Test & Dependency Audit
@@ -33,8 +33,14 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
-      - name: Run Unit / Basic Tests
-        run: npx vitest run
+      - name: Run Code Linting & Syntax Checks
+        run: npm run lint
+
+      - name: Verify Migration Sequences & Schema Drift
+        run: node scripts/verify-migrations.js
+
+      - name: Run Automated Test Suites (Vitest)
+        run: npm test -- --reporter=default --reporter=summary
         env:
           SUPABASE_URL: 'https://mock.supabase.co'
           SUPABASE_KEY: 'mock-supabase-key-for-ci'
@@ -43,7 +49,7 @@ jobs:
         run: npm audit --audit-level=critical
 
   # -------------------------------------------------------------
-  # Acceptance Criteria 2: Secret Scanning
+  # Secret Scanning (TruffleHog)
   # -------------------------------------------------------------
   secret-scan:
     name: Secret Scanning (TruffleHog)

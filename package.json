@@ -11,6 +11,8 @@
     "api:dev": "node --watch server.js",
     "build": "vite build",
     "preview": "vite preview",
+    "lint": "node scripts/lint.js",
+    "verify:migrations": "node scripts/verify-migrations.js",
     "test": "vitest run"
   },
   "engines": {

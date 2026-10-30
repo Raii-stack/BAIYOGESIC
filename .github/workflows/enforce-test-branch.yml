@@ -1,24 +1,66 @@
 name: Enforce Test Branch Workflow
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - main
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
 
 jobs:
   enforce-source-branch:
     runs-on: ubuntu-latest
     steps:
       - name: Verify PR originates from test branch
+        env:
+          PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REF: ${{ github.head_ref }}
         run: |
-          if [[ "${{ github.head_ref }}" != "test" ]]; then
-            echo "Error: Direct PRs to main are not allowed. Please merge your feature into 'test' first."
+          if [[ "$HEAD_REF" != "test" ]]; then
+            echo "Rejecting PR #$PR_NUMBER: head branch '$HEAD_REF' is not 'test'."
+
+            COMMENT="❌ **Pull Request Rejected**: Direct pull requests to \`main\` are not allowed unless they originate from the \`test\` branch.
+
+            Your pull request originated from \`$HEAD_REF\`. Please point your pull request to the \`test\` branch first."
+
+            TOKEN="${PROJECT_PAT:-$GITHUB_TOKEN}"
+
+            # Post rejection reason comment
+            GH_TOKEN="$TOKEN" gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" -f body="$COMMENT" || true
+
+            # Close (reject) the PR
+            GH_TOKEN="$TOKEN" gh api --method PATCH "repos/$GH_REPO/pulls/$PR_NUMBER" -f state=closed
+
             exit 1
           fi
 
       - name: Verify PR author is authorized
+        env:
+          PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          ACTOR: ${{ github.actor }}
         run: |
-          if [[ "${{ github.actor }}" != "Raii-stack" ]]; then
-            echo "Error: Only repository owner (@Raii-stack) is authorized to open or promote pull requests to 'main'."
+          if [[ "$ACTOR" != "Raii-stack" ]]; then
+            echo "Rejecting PR #$PR_NUMBER: actor '$ACTOR' is not authorized to merge to main."
+
+            COMMENT="❌ **Pull Request Rejected**: Only repository owner (@Raii-stack) is authorized to open or promote pull requests to \`main\`."
+
+            TOKEN="${PROJECT_PAT:-$GITHUB_TOKEN}"
+
+            # Post rejection reason comment
+            GH_TOKEN="$TOKEN" gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" -f body="$COMMENT" || true
+
+            # Close (reject) the PR
+            GH_TOKEN="$TOKEN" gh api --method PATCH "repos/$GH_REPO/pulls/$PR_NUMBER" -f state=closed
+
             exit 1
           fi

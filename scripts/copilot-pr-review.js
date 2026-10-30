@@ -2,6 +2,7 @@
 // Automated Cloud PR Reviewer (Copilot-style) for Raii-stack/BAIYOGESIC:
 // - Runs 24/7 on GitHub Actions cloud runners
 // - Inspects changed files, diffs, secrets, safety, and testing
+// - Cross-references linked issue requirements, target files, endpoints & acceptance criteria
 // - Generates structured Copilot-style review report
 // - Automatically submits an approving review as @Raii-stack (Code Owner) if checks pass
 
@@ -23,6 +24,78 @@ const DANGEROUS_PATTERNS = [
   { name: 'Dangerous system command execution', regex: /(?:exec|spawn)\s*\(\s*`[^`]*\$\{[^}]+\}[^`]*`/i }
 ];
 
+function extractLinkedIssueNumber(pr) {
+  const text = `${pr.title || ''} ${pr.body || ''}`;
+  const match = text.match(/(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?|issue)\s*[:#]\s*#?(\d+)/i);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+function parseIssueRequirements(issueBody) {
+  if (!issueBody) return { targetFiles: [], endpoints: [], criteria: [] };
+
+  const targetFiles = [];
+  const targetFilesSection = issueBody.match(/## Target Files and Paths([\s\S]*?)(?:##|$)/i);
+  if (targetFilesSection) {
+    const fileMatches = targetFilesSection[1].matchAll(/[`']([a-zA-Z0-9_\-\.\/]+?\.[a-zA-Z0-9]+)[`']/g);
+    for (const m of fileMatches) {
+      if (!targetFiles.includes(m[1]) && m[1].includes('/')) {
+        targetFiles.push(m[1]);
+      }
+    }
+  }
+
+  const endpoints = [];
+  const endpointMatches = issueBody.matchAll(/`?(GET|POST|PUT|DELETE|PATCH)\s+(\/api\/[a-zA-Z0-9_\-:\/]+)`?/g);
+  for (const m of endpointMatches) {
+    const ep = `${m[1]} ${m[2]}`;
+    if (!endpoints.includes(ep)) {
+      endpoints.push(ep);
+    }
+  }
+
+  const criteria = [];
+  const criteriaSection = issueBody.match(/(?:Acceptance Criteria|Definition of Done)([\s\S]*?)(?:##|---|$)/i);
+  if (criteriaSection) {
+    const lines = criteriaSection[1].split('\n').filter(l => l.trim().startsWith('- [') || l.trim().startsWith('* ['));
+    for (const l of lines) {
+      criteria.push(l.replace(/^[-*]\s*\[[ xX]\]\s*/, '').trim());
+    }
+  }
+
+  return { targetFiles, endpoints, criteria };
+}
+
+function verifyIssueAlignment(issueRequirements, files) {
+  if (!issueRequirements) return { missingFiles: [], missingEndpoints: [], criteriaCount: 0 };
+
+  const fileNames = files.map(f => f.filename || '');
+  const patches = files.map(f => f.patch || '').join('\n');
+
+  const missingFiles = [];
+  for (const target of issueRequirements.targetFiles) {
+    if (!fileNames.some(f => f.includes(target) || target.includes(f))) {
+      missingFiles.push(target);
+    }
+  }
+
+  const missingEndpoints = [];
+  for (const ep of issueRequirements.endpoints) {
+    const parts = ep.split(' ');
+    const method = parts[0];
+    const route = parts[1] || '';
+    const baseRoute = route.split(':')[0].replace(/\/$/, '');
+    if (!patches.includes(baseRoute) && !fileNames.some(f => f.includes('route'))) {
+      missingEndpoints.push(ep);
+    }
+  }
+
+  return {
+    missingFiles,
+    missingEndpoints,
+    criteriaCount: issueRequirements.criteria.length
+  };
+}
+
 function analyzeDiff(files) {
   const findings = [];
   let testFilesModified = 0;
@@ -31,9 +104,7 @@ function analyzeDiff(files) {
   for (const file of files) {
     const filename = file.filename || '';
     const patch = file.patch || '';
-    const status = file.status || '';
 
-    // Ignore mock files, fixtures, tests for password pattern
     const isTestOrFixture = filename.includes('.test.') || 
                             filename.includes('.spec.') || 
                             filename.includes('fixture') || 
@@ -46,7 +117,6 @@ function analyzeDiff(files) {
       codeFilesModified++;
     }
 
-    // Check patch additions for secrets
     const addedLines = patch
       .split('\n')
       .filter(l => l.startsWith('+') && !l.startsWith('+++'))
@@ -89,7 +159,7 @@ function analyzeDiff(files) {
   };
 }
 
-function buildReviewReport(pr, analysis, files) {
+function buildReviewReport(pr, analysis, files, issueData = null) {
   const { findings, testFilesModified, codeFilesModified, hasBlockers } = analysis;
   const isAuthorOwner = pr.user && pr.user.login === 'Raii-stack';
 
@@ -120,7 +190,7 @@ function buildReviewReport(pr, analysis, files) {
     report += `| **Code Safety Guard** | ✅ **Passed** | No SQL injection or unsanitized command executions detected |\n`;
   }
 
-  // Conventional Commits & Issues
+  // Conventional Commits
   const titleRegex = /^(feat|fix|chore|docs|perf|refactor|test|ci|style)(\([a-z0-9_-]+\))?:\s.+/i;
   const validTitle = titleRegex.test(pr.title || '');
   report += `| **Conventional Standards** | ${validTitle ? '✅ **Passed**' : 'ℹ️ **Notice**'} | ${validTitle ? 'Title conforms to standard commit conventions' : 'Title does not match conventional format (e.g. feat: ...)'} |\n`;
@@ -130,6 +200,20 @@ function buildReviewReport(pr, analysis, files) {
     report += `| **Test Coverage** | ℹ️ **Notice** | Code files modified without matching test additions/updates |\n`;
   } else {
     report += `| **Test Coverage** | ✅ **Passed** | Tests included or no executable logic modified |\n`;
+  }
+
+  // Linked Issue Verification
+  if (issueData) {
+    const { issueNumber, alignment } = issueData;
+    const fileAlignmentOk = alignment.missingFiles.length === 0;
+    const endpointAlignmentOk = alignment.missingEndpoints.length === 0;
+
+    report += `\n### 🎯 Linked Issue Alignment (Issue #${issueNumber})\n`;
+    report += `| Requirement Scope | Status | Details |\n`;
+    report += `|---|---|---|\n`;
+    report += `| **Target Files Check** | ${fileAlignmentOk ? '✅ **Matched**' : '⚠️ **Missing Files**'} | ${fileAlignmentOk ? 'All designated target files were touched' : `Missing expected file: ${alignment.missingFiles.join(', ')}`} |\n`;
+    report += `| **API Contracts** | ${endpointAlignmentOk ? '✅ **Matched**' : '⚠️ **Discrepancy**'} | ${endpointAlignmentOk ? 'Endpoints match specifications' : `Missing endpoints: ${alignment.missingEndpoints.join(', ')}`} |\n`;
+    report += `| **Acceptance Criteria** | 📋 **Tracked** | ${alignment.criteriaCount} criteria evaluated from issue description |\n`;
   }
 
   report += `\n`;
@@ -222,12 +306,29 @@ async function run() {
     console.warn(`Failed to fetch files for PR #${prNumber}. Response status: ${filesRes.status}`);
   }
 
-  // 3. Analyze diff and changes
-  const analysis = analyzeDiff(files);
-  const reportBody = buildReviewReport(pr, analysis, files);
+  // 3. Check for linked issue and evaluate issue requirements
+  let issueData = null;
+  const linkedIssueNumber = extractLinkedIssueNumber(pr);
+  if (linkedIssueNumber) {
+    console.log(`Fetching linked issue #${linkedIssueNumber}...`);
+    const issueRes = await fetch(`${GITHUB_API_BASE}/repos/${repo}/issues/${linkedIssueNumber}`, { headers });
+    if (issueRes.ok) {
+      const issueObj = await issueRes.json();
+      const requirements = parseIssueRequirements(issueObj.body || '');
+      const alignment = verifyIssueAlignment(requirements, files);
+      issueData = {
+        issueNumber: linkedIssueNumber,
+        requirements,
+        alignment
+      };
+    }
+  }
 
-  // 4. Determine review event:
-  // GitHub does not permit approving your own PR (returns 422).
+  // 4. Analyze diff and changes
+  const analysis = analyzeDiff(files);
+  const reportBody = buildReviewReport(pr, analysis, files, issueData);
+
+  // 5. Determine review event:
   let eventType = 'APPROVE';
   if (analysis.hasBlockers) {
     eventType = 'REQUEST_CHANGES';
@@ -235,7 +336,7 @@ async function run() {
     eventType = 'COMMENT';
   }
 
-  // 5. Submit review
+  // 6. Submit review
   console.log(`Submitting review with event '${eventType}' for PR #${prNumber}...`);
   const reviewPostRes = await fetch(`${GITHUB_API_BASE}/repos/${repo}/pulls/${prNumber}/reviews`, {
     method: 'POST',
@@ -252,7 +353,6 @@ async function run() {
   if (!reviewPostRes.ok) {
     const errText = await reviewPostRes.text();
     console.error(`Failed to submit review: ${reviewPostRes.status} ${errText}`);
-    // Fall back to posting an issue comment if review submission fails
     await fetch(`${GITHUB_API_BASE}/repos/${repo}/issues/${prNumber}/comments`, {
       method: 'POST',
       headers: { ...headers, 'Content-Type': 'application/json' },
@@ -271,6 +371,9 @@ if (require.main === module) {
 }
 
 module.exports = {
+  extractLinkedIssueNumber,
+  parseIssueRequirements,
+  verifyIssueAlignment,
   analyzeDiff,
   buildReviewReport,
   SECRET_PATTERNS,

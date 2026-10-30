@@ -40,7 +40,7 @@ jobs:
         run: node scripts/verify-migrations.js
 
       - name: Run Automated Test Suites (Vitest)
-        run: npm test -- --reporter=default --reporter=summary
+        run: npm test
         env:
           SUPABASE_URL: 'https://mock.supabase.co'
           SUPABASE_KEY: 'mock-supabase-key-for-ci'

@@ -243,6 +243,13 @@ function formatReadyNotification(assignees) {
   return `${mentions}: All prerequisite tasks for this issue have been completed. This task is now in the **Ready** column on the [Sprint Plan](https://github.com/users/Raii-stack/projects/5) board and is ready to be picked up.`;
 }
 
+function formatBlockedNotification(unmetPrereqs) {
+  const reqStr = Array.isArray(unmetPrereqs) && unmetPrereqs.length > 0
+    ? unmetPrereqs.map((n) => `#${n}`).join(', ')
+    : 'unmet dependencies';
+  return `⏳ **Task Status Update**: This issue is currently blocked by open prerequisite task(s) ${reqStr}. It has been moved to the **Backlog** column on the [Sprint Plan](https://github.com/users/Raii-stack/projects/5) and will automatically return to **Ready** once all prerequisites are completed.`;
+}
+
 async function graphql(token, query, variables = {}) {
   const authHeader = token.startsWith('Bearer ') || token.startsWith('token ') ? token : `Bearer ${token}`;
   const res = await fetch('https://api.github.com/graphql', {
@@ -449,7 +456,7 @@ function parseClosingIssueNumbers(body, branch = '', title = '') {
 async function notifyReady(token, issueNum, assignees, body) {
   const authHeader = token.startsWith('Bearer ') || token.startsWith('token ') ? token : `Bearer ${token}`;
 
-  // 1. Check if notification comment was already posted
+  // 1. Check if notification comment was already posted as the latest status update
   const commentsRes = await fetch(`https://api.github.com/repos/Raii-stack/BAIYOGESIC/issues/${issueNum}/comments`, {
     headers: {
       Authorization: authHeader,
@@ -460,10 +467,10 @@ async function notifyReady(token, issueNum, assignees, body) {
 
   if (commentsRes.ok) {
     const comments = await commentsRes.json();
-    const alreadyNotified = comments.some(
-      (c) => c.body && c.body.includes('ready to be picked up')
+    const lastStatusComment = [...comments].reverse().find(
+      (c) => c.body && (c.body.includes('ready to be picked up') || c.body.includes('blocked by open prerequisite') || c.body.includes('moved to the **Backlog** column'))
     );
-    if (alreadyNotified) {
+    if (lastStatusComment && lastStatusComment.body.includes('ready to be picked up')) {
       console.log(`Issue #${issueNum} was already notified. Skipping.`);
       return;
     }
@@ -498,6 +505,50 @@ async function notifyReady(token, issueNum, assignees, body) {
   } else {
     const err = await postRes.text();
     console.error(`Failed to post comment on #${issueNum}:`, err);
+  }
+}
+
+async function notifyBlocked(token, issueNum, unmetPrereqs) {
+  const authHeader = token.startsWith('Bearer ') || token.startsWith('token ') ? token : `Bearer ${token}`;
+  try {
+    const commentsRes = await fetch(`https://api.github.com/repos/Raii-stack/BAIYOGESIC/issues/${issueNum}/comments`, {
+      headers: {
+        Authorization: authHeader,
+        'User-Agent': 'GitHub-Action-Automation',
+        Accept: 'application/vnd.github.v3+json'
+      }
+    });
+
+    if (commentsRes.ok) {
+      const comments = await commentsRes.json();
+      const lastStatusComment = [...comments].reverse().find(
+        (c) => c.body && (c.body.includes('ready to be picked up') || c.body.includes('blocked by open prerequisite') || c.body.includes('moved to the **Backlog** column'))
+      );
+      if (lastStatusComment && (lastStatusComment.body.includes('blocked by open prerequisite') || lastStatusComment.body.includes('moved to the **Backlog** column'))) {
+        return;
+      }
+    }
+
+    const commentText = formatBlockedNotification(unmetPrereqs);
+    const postRes = await fetch(`https://api.github.com/repos/Raii-stack/BAIYOGESIC/issues/${issueNum}/comments`, {
+      method: 'POST',
+      headers: {
+        Authorization: authHeader,
+        'Content-Type': 'application/json',
+        'User-Agent': 'GitHub-Action-Automation',
+        Accept: 'application/vnd.github.v3+json'
+      },
+      body: JSON.stringify({ body: commentText })
+    });
+
+    if (postRes.ok) {
+      console.log(`Posted blocked notice on Issue #${issueNum}.`);
+    } else {
+      const err = await postRes.text();
+      console.error(`Failed to post blocked notice on #${issueNum}:`, err);
+    }
+  } catch (err) {
+    console.warn(`Could not post blocked notice on #${issueNum}:`, err.message);
   }
 }
 
@@ -702,7 +753,8 @@ async function handleEvent() {
   }
 
   // 4. Check Prerequisites for open items
-  // If all prerequisites are closed, promote to Ready and notify developer
+  // - Blocked items (unmet prerequisites) MUST remain in / demote to Backlog
+  // - When all prerequisites are closed -> promote to Ready and notify developer
   for (const it of items) {
     if (!it.content || !it.content.number) continue;
     const issueNum = it.content.number;
@@ -713,19 +765,28 @@ async function handleEvent() {
     const currentStatus = statusVal ? statusVal.name : 'Backlog';
 
     const assignees = it.content.assignees?.nodes?.map((n) => n.login) || [];
+    const prereqs = parsePrerequisiteNumbers(it.content.body);
+    const hasPrereqs = prereqs.length > 0;
+    const unmetPrereqs = prereqs.filter((req) => !closedIssueNums.has(req));
+    const isBlocked = hasPrereqs && unmetPrereqs.length > 0;
+
+    if (isBlocked) {
+      if (currentStatus === 'Ready' || !statusVal) {
+        console.log(`Demoting blocked Issue #${issueNum} (unmet prereqs: [${unmetPrereqs.join(', ')}]) from ${currentStatus} -> Backlog`);
+        await updateItemStatus(token, it.id, STATUS_OPTIONS.BACKLOG);
+        await notifyBlocked(token, issueNum, unmetPrereqs);
+      }
+      continue;
+    }
 
     if (currentStatus === 'Backlog' || !statusVal) {
-      const prereqs = parsePrerequisiteNumbers(it.content.body);
-      if (prereqs.length > 0) {
-        const allMet = prereqs.every((req) => closedIssueNums.has(req));
-        if (allMet) {
-          console.log(`All prerequisites [${prereqs.join(', ')}] met for Issue #${issueNum}! Moving to Ready.`);
-          await updateItemStatus(token, it.id, STATUS_OPTIONS.READY);
-          await notifyReady(token, issueNum, assignees, it.content.body);
-        }
+      if (hasPrereqs && unmetPrereqs.length === 0) {
+        console.log(`All prerequisites [${prereqs.join(', ')}] met for Issue #${issueNum}! Moving to Ready.`);
+        await updateItemStatus(token, it.id, STATUS_OPTIONS.READY);
+        await notifyReady(token, issueNum, assignees, it.content.body);
       }
     } else if (currentStatus === 'Ready') {
-      // Ensure assignee has been notified for ready item
+      // Ensure assignee has been notified for unblocked ready item
       await notifyReady(token, issueNum, assignees, it.content.body);
     }
   }
@@ -745,6 +806,8 @@ module.exports = {
   parsePrerequisiteNumbers,
   parseClosingIssueNumbers,
   formatReadyNotification,
+  formatBlockedNotification,
+  notifyBlocked,
   isBugIssue,
   determineBugAssignee,
   formatBugTriageComment,

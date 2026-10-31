@@ -3,6 +3,7 @@ import {
   parsePrerequisiteNumbers,
   parseClosingIssueNumbers,
   formatReadyNotification,
+  formatBlockedNotification,
   isBugIssue,
   determineBugAssignee,
   formatBugTriageComment,
@@ -66,7 +67,16 @@ describe('project-automation', () => {
     expect(parseClosingIssueNumbers(null)).toEqual([]);
   });
 
+  it('formats blocked notification with unmet prerequisite numbers', () => {
+    const text = formatBlockedNotification([31, 106]);
+    expect(text).toContain('#31, #106');
+    expect(text).toContain('moved to the **Backlog** column');
+    expect(text).toContain('Sprint Plan');
+  });
+
   it('exposes valid Project #5 status option IDs', () => {
+    expect(STATUS_OPTIONS.BACKLOG).toBe('f75ad846');
+    expect(STATUS_OPTIONS.READY).toBe('61e4505c');
     expect(STATUS_OPTIONS.IN_PROGRESS).toBe('47fc9ee4');
     expect(STATUS_OPTIONS.IN_REVIEW).toBe('df73e18b');
     expect(STATUS_OPTIONS.DONE).toBe('98236657');

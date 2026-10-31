@@ -1,0 +1,90 @@
+name: "Bug Report"
+description: "File an automated defect report for HOPE, Inc. ERP to auto-assign the developer."
+title: "[BUG]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Automated Defect Intake
+        Fill out this report to log a defect. The automation engine will classify the report and assign the responsible developer automatically on the Sprint board.
+
+        *PR Convention:* Resolving PRs should follow the automated review title convention: `bug: <summary> (Fixes #...)` or `bug(<scope>): <summary> (Fixes #...)`.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Component / Area
+      description: Select the system area where the defect occurs.
+      options:
+        - "Backend / API (Express, Endpoints, Auth, Controllers)"
+        - "Frontend / UI/UX (React, UI Components, Styling, Responsive Layouts)"
+        - "Database / DB Admin (Supabase, PostgreSQL, Migrations, Schemas, Triggers)"
+        - "DevSecOps / CI/CD (Vercel, Deployment, GitHub Actions, Security, SSL)"
+        - "Testing / QA (Playwright, Vitest, Test Cases, Regressions)"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity / Priority
+      description: Operational impact of this defect.
+      options:
+        - "P1 (Critical - System Blocker / Data Loss / Security Vulnerability)"
+        - "P2 (High - Core Feature Broken)"
+        - "P3 (Medium - Minor Defect / Edge Case / Polish)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Defect Description
+      description: Clear summary of the defect observed.
+      placeholder: "When attempting to perform..., the application..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: Detailed reproduction steps.
+      placeholder: |
+        1. Navigate to '...'
+        2. Click on '...'
+        3. Observe error response
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected_vs_actual
+    attributes:
+      label: Expected vs Actual Behavior
+      description: Contrast what should happen with what actually happens.
+      placeholder: |
+        Expected: HTTP 200 OK / Table updates in-place
+        Actual: HTTP 500 / Page crashes with console error
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Logs / Screenshots / Environment
+      description: Paste any server error traces, browser console errors, or network responses.
+      placeholder: "Stack traces, console error messages, response payloads..."
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance Criteria Checklist
+      description: Criteria required before closing this bug.
+      options:
+        - label: "Steps to reproduce identified and documented."
+        - label: "Root cause resolved in code or database configuration."
+        - label: "Passing automated integration/regression tests added."
+        - label: "Verified by QA on the target branch."

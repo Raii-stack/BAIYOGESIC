@@ -191,9 +191,9 @@ function buildReviewReport(pr, analysis, files, issueData = null) {
   }
 
   // Conventional Commits
-  const titleRegex = /^(feat|fix|chore|docs|perf|refactor|test|ci|style)(\([a-z0-9_-]+\))?:\s.+/i;
+  const titleRegex = /^(feat|new feat|new feature|feature|fix|bug|bug fix|bugfix|chore|docs|perf|refactor|test|ci|style)(\([a-z0-9_-]+\))?:\s.+/i;
   const validTitle = titleRegex.test(pr.title || '');
-  report += `| **Conventional Standards** | ${validTitle ? 'Passed' : 'Notice'} | ${validTitle ? 'Title conforms to standard commit conventions' : 'Title does not match conventional format (e.g. feat: ...)'} |\n`;
+  report += `| **Conventional Standards** | ${validTitle ? 'Passed' : 'Notice'} | ${validTitle ? 'Title conforms to standard commit conventions' : 'Title does not match conventional format (e.g. feat: ..., new feat: ..., fix: ..., bug: ...)'} |\n`;
 
   // Test coverage
   if (codeFilesModified > 0 && testFilesModified === 0) {

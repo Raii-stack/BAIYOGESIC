@@ -1,0 +1,45 @@
+name: Auto Route PR to Test Branch
+
+on:
+  pull_request_target:
+    types: [opened]
+
+permissions:
+  pull-requests: write
+  issues: write
+  contents: read
+
+jobs:
+  route-to-test:
+    runs-on: ubuntu-latest
+    if: github.base_ref == 'main' && github.head_ref != 'test'
+    steps:
+      - name: Retarget PR to test
+        env:
+          PROJECT_PAT: ${{ secrets.PROJECT_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          echo "Retargeting PR #$PR_NUMBER in $GH_REPO to base branch 'test'..."
+          
+          # Try with PROJECT_PAT if available, else GITHUB_TOKEN
+          SUCCESS=0
+          if [ -n "$PROJECT_PAT" ]; then
+            echo "Attempting retarget with PROJECT_PAT..."
+            if GH_TOKEN="$PROJECT_PAT" gh api --method PATCH "repos/$GH_REPO/pulls/$PR_NUMBER" -f base=test; then
+              SUCCESS=1
+              ACTIVE_TOKEN="$PROJECT_PAT"
+            else
+              echo "PROJECT_PAT attempt failed. Falling back to GITHUB_TOKEN..."
+            fi
+          fi
+
+          if [ "$SUCCESS" -eq 0 ]; then
+            echo "Attempting retarget with GITHUB_TOKEN..."
+            GH_TOKEN="$GITHUB_TOKEN" gh api --method PATCH "repos/$GH_REPO/pulls/$PR_NUMBER" -f base=test
+            ACTIVE_TOKEN="$GITHUB_TOKEN"
+          fi
+
+          echo "Posting confirmation comment..."
+          GH_TOKEN="$ACTIVE_TOKEN" gh api "repos/$GH_REPO/issues/$PR_NUMBER/comments" -f body="🤖 Automatically routed base branch from \`main\` to \`test\`." || true

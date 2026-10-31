@@ -126,4 +126,39 @@ describe('Copilot PR Review Automated Analysis', () => {
     expect(result.hasBlockers).toBe(true);
     expect(result.findings.some(f => f.type === 'Secret Leak')).toBe(true);
   });
+
+  it('validates PR title conventions including "new feat", "bug", and standard types', () => {
+    const validTitles = [
+      'new feat: implement employee job history',
+      'new feat(api): add customer export endpoint',
+      'bug: resolve payment rounding error',
+      'bug fix(auth): prevent session timeout race condition',
+      'fix: correct customer status filter',
+      'feat: add sales chart',
+      'chore: update dependencies',
+      'docs: update API documentation',
+      'perf: add trigram index on customer name',
+      'refactor: clean up permissions middleware',
+      'test: add regression tests for sales API',
+      'ci: update GitHub Actions workflow',
+      'style: adjust table padding for mobile'
+    ];
+
+    for (const title of validTitles) {
+      const report = buildReviewReport(
+        { number: 1, title, user: { login: 'dev' }, base: { ref: 'test' }, head: { ref: 'feature' } },
+        { findings: [], testFilesModified: 1, codeFilesModified: 1, hasBlockers: false },
+        [{ filename: 'file.js' }]
+      );
+      expect(report).toContain('| **Conventional Standards** | Passed |');
+    }
+
+    const invalidReport = buildReviewReport(
+      { number: 2, title: 'random commit title without prefix', user: { login: 'dev' }, base: { ref: 'test' }, head: { ref: 'feature' } },
+      { findings: [], testFilesModified: 1, codeFilesModified: 1, hasBlockers: false },
+      [{ filename: 'file.js' }]
+    );
+    expect(invalidReport).toContain('| **Conventional Standards** | Notice |');
+    expect(invalidReport).toContain('Title does not match conventional format (e.g. feat: ..., new feat: ..., fix: ..., bug: ...)');
+  });
 });

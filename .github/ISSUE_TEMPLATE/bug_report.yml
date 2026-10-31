@@ -9,6 +9,8 @@ body:
         ### Automated Defect Intake
         Fill out this report to log a defect. The automation engine will classify the report and assign the responsible developer automatically on the Sprint board.
 
+        *PR Convention:* Resolving PRs should follow the automated review title convention: `bug: <summary> (Fixes #...)` or `bug(<scope>): <summary> (Fixes #...)`.
+
   - type: dropdown
     id: area
     attributes:

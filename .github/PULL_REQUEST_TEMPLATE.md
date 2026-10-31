@@ -1,3 +1,25 @@
+<!--
+PULL REQUEST TITLE CONVENTION:
+Follow the conventional PR naming standard recognized by automated review:
+  <type>(<scope>): <summary> (Closes #<issue_number>)
+
+Examples:
+  new feat(api): implement employee job history (Closes #114)
+  bug(auth): resolve session timeout on page refresh (Fixes #51)
+  chore: update npm dependencies (Closes #88)
+
+Supported types recognized by automated review:
+- new feat / feat: New feature or capability
+- bug / fix: Bug fix or defect resolution
+- chore: Maintenance, build, dependencies, or tooling
+- docs: Documentation additions or updates
+- perf: Performance optimization
+- refactor: Code refactoring without behavioral modification
+- test: Unit, integration, or E2E tests
+- ci: Continuous Integration / GitHub Actions workflows
+- style: Formatting, whitespace, or UI styling adjustments
+-->
+
 ## Description
 <!-- Provide a clear and concise summary of the changes introduced by this pull request. -->
 <!-- Explain the motivation and context behind these changes. -->
@@ -7,11 +29,13 @@
 Closes #
 
 ## Type of Change
-<!-- Select the appropriate change category. -->
-- [ ] Bug fix (non-breaking change resolving an issue or defect)
-- [ ] New feature (non-breaking change adding new functionality)
+<!-- Select the appropriate change category matching the PR title prefix. -->
+- [ ] Bug fix (`bug` / `fix` - non-breaking change resolving an issue or defect)
+- [ ] New feature (`new feat` / `feat` - non-breaking change adding new functionality)
 - [ ] Breaking change (modification that alters existing functionality or interfaces)
-- [ ] Refactor / Maintenance (code improvements, documentation, dependencies, or CI/CD without functional change)
+- [ ] Refactor / Maintenance (`chore` / `refactor` / `perf` / `style` - code improvements or tooling without functional change)
+- [ ] Testing & CI (`test` / `ci` - adding or updating tests or pipeline automation)
+- [ ] Documentation (`docs` - documentation updates)
 
 ---
 

@@ -62,32 +62,40 @@ const listProducts = asyncHandler(async (req, res) => {
   const offset = (page - 1) * limit;
   values.push(limit, offset);
 
-  const [productsResult, countResult] = await Promise.all([
-    requirePool().query(
-      `SELECT p.prodcode, p.description, p.unit, p.is_deleted, p.stamp,
-              price.unitprice, price.effdate::text AS effdate
-       FROM public.product p
-       LEFT JOIN (
-         SELECT DISTINCT ON (prodcode, is_deleted) prodcode, is_deleted, unitprice, effdate
-         FROM public.pricehist
-         WHERE effdate <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
-         ORDER BY prodcode, is_deleted, effdate DESC
-       ) price ON price.prodcode = p.prodcode AND price.is_deleted = p.is_deleted
-       ${whereClause}
-       ORDER BY p.description ASC, p.prodcode ASC
-       LIMIT $${values.length - 1} OFFSET $${values.length}`,
-      values
-    ),
-    requirePool().query(
+  const pool = requirePool();
+  const productsResult = await pool.query(
+    `SELECT p.prodcode, p.description, p.unit, p.is_deleted, p.stamp,
+            price.unitprice, price.effdate::text AS effdate,
+            count(*) OVER()::integer AS _total
+     FROM public.product p
+     LEFT JOIN LATERAL (
+       SELECT ph.unitprice, ph.effdate
+       FROM public.pricehist ph
+       WHERE ph.prodcode = p.prodcode
+         AND ph.is_deleted = p.is_deleted
+         AND ph.effdate <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+       ORDER BY ph.effdate DESC
+       LIMIT 1
+     ) price ON true
+     ${whereClause}
+     ORDER BY p.description ASC, p.prodcode ASC
+     LIMIT $${values.length - 1} OFFSET $${values.length}`,
+    values
+  );
+
+  let total = productsResult.rows[0] ? productsResult.rows[0]._total : 0;
+  if (productsResult.rows.length === 0 && offset > 0) {
+    const countResult = await pool.query(
       `SELECT count(*)::integer AS total FROM public.product p ${whereClause}`,
       countValues
-    )
-  ]);
-  const total = countResult.rows[0].total;
+    );
+    total = countResult.rows[0].total;
+  }
+  const products = productsResult.rows.map(({ _total, ...row }) => row);
   res.json({
     success: true,
     data: {
-      products: productsResult.rows,
+      products,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     }
   });

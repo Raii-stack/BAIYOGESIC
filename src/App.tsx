@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
-import { createBrowserRouter, Navigate, RouterProvider } from "react-router"
+import { createBrowserRouter, Navigate, RouterProvider, useLocation } from "react-router"
+import { Analytics } from "@vercel/analytics/react"
 
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider"
 import ToastHost from "./components/common/ToastHost"
@@ -7,6 +8,7 @@ import { isSuperAdminRole } from "./lib/auth"
 import { canAccessModule, hasRight, type ErpModuleKey } from "./lib/rbac"
 
 import DashboardPage from "./components/pages/DashboardPage"
+import LandingPage from "./components/pages/LandingPage"
 import LoginPage from "./components/pages/LoginPage"
 import ProfilePage from "./components/pages/ProfilePage"
 import ResetPasswordPage from "./components/pages/ResetPasswordPage"
@@ -39,8 +41,10 @@ export function ProtectedPage({
   right?: string
 }) {
   const { user, loading } = useAuth()
+  const location = useLocation()
   if (loading) return <div role="status" className="grid min-h-screen place-items-center bg-slate-100 text-sm text-slate-600">Checking your session…</div>
-  if (!user || user.status !== "active" || user.isBlocked || user.mustChangePassword) return <Navigate to="/" replace />
+  if (!user || user.status !== "active" || user.isBlocked) return <Navigate to="/login" replace />
+  if (user.mustChangePassword && location.pathname !== "/dashboard") return <Navigate to="/dashboard" replace />
   if (roles && !matchesAllowedRoles(user.role, roles)) return <Navigate to="/dashboard" replace />
   if (module && !canAccessModule(user, module)) return <Navigate to="/dashboard" replace />
   if (right && !hasRight(user, right)) return <Navigate to="/dashboard" replace />
@@ -57,8 +61,9 @@ const protectedPage = (
 )
 
 const router = createBrowserRouter([
-  { path: "/", Component: LoginPage },
-  { path: "/create-account", element: <Navigate to="/" replace /> },
+  { path: "/", Component: LandingPage },
+  { path: "/login", Component: LoginPage },
+  { path: "/create-account", element: <Navigate to="/login" replace /> },
   { path: "/reset-password", Component: ResetPasswordPage },
   { path: "/dashboard", element: protectedPage(<DashboardPage />) },
   { path: "/profile", element: protectedPage(<ProfilePage />) },
@@ -70,9 +75,9 @@ const router = createBrowserRouter([
   { path: "/sales/new", element: protectedPage(<CreateSalePage />, { module: "sales", right: "sales.add" }) },
   { path: "/sales", element: protectedPage(<SalesManagementPage />, { module: "sales" }) },
   { path: "/users", element: protectedPage(<UserManagementPage />, { roles: ["superadmin", "administrator", "admin"], module: "users" }) },
-  { path: "*", Component: LoginPage },
+  { path: "*", element: <Navigate to="/" replace /> },
 ])
 
 export default function App() {
-  return <AuthProvider><ToastHost /><RouterProvider router={router} /></AuthProvider>
+  return <AuthProvider><ToastHost /><RouterProvider router={router} /><Analytics /></AuthProvider>
 }

@@ -142,7 +142,7 @@ export default function CreateAccountPage() {
       <p className="mt-6 text-center text-sm text-slate-600">
         Returning to your workspace?{" "}
         <Link
-          to="/"
+          to="/login"
           className="font-semibold text-blue-800 underline-offset-4 hover:text-blue-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
         >
           Back to sign in

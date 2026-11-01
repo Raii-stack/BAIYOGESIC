@@ -6,8 +6,8 @@ import PasswordStrengthMeter from "./PasswordStrengthMeter"
 import { useAuth } from "./AuthProvider"
 import { notifyToast } from "../../lib/toast"
 
-export default function ChangePasswordModal({ onComplete }: { onComplete: () => void }) {
-  const { changePassword, logout, user } = useAuth()
+export default function ChangePasswordModal() {
+  const { changePassword, logout } = useAuth()
   const dialogRef = useRef<HTMLDivElement>(null)
   const [currentPassword, setCurrentPassword] = useState("")
   const [newPassword, setNewPassword] = useState("")
@@ -55,7 +55,6 @@ export default function ChangePasswordModal({ onComplete }: { onComplete: () => 
       setNewPassword("")
       setConfirmPassword("")
       notifyToast("Password changed successfully.")
-      onComplete()
     } catch (error) {
       setServerError(error instanceof Error ? error.message : "Unable to update your password.")
     } finally {
@@ -64,7 +63,7 @@ export default function ChangePasswordModal({ onComplete }: { onComplete: () => 
   }
 
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-[#071b30]/75 p-4 sm:p-6">
+    <div className="fixed inset-0 z-50 grid place-items-center overflow-y-auto bg-black/45 p-4 sm:p-6">
       <div
         ref={dialogRef}
         role="dialog"
@@ -72,16 +71,16 @@ export default function ChangePasswordModal({ onComplete }: { onComplete: () => 
         aria-labelledby="change-password-title"
         aria-describedby="change-password-description"
         onKeyDown={trapFocus}
-        className="w-full max-w-lg border border-slate-300 border-t-[3px] border-t-blue-900 bg-white px-6 py-7 shadow-[0_24px_70px_rgba(0,0,0,0.25)] sm:px-9 sm:py-9"
+        className="workspace-panel max-h-[calc(100dvh-2rem)] w-full max-w-[440px] overflow-y-auto p-6 shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:p-8"
       >
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-800">
+        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-neutral-500">
           Account security
         </p>
-        <h2 id="change-password-title" className="mt-3 text-2xl font-bold tracking-tight text-slate-950">
-          Change your default password
+        <h2 id="change-password-title" className="mt-3 text-xl font-semibold tracking-[-0.4px] text-neutral-900">
+          Set a new password
         </h2>
-        <p id="change-password-description" className="mt-3 text-sm leading-6 text-slate-600">
-          {user?.email} must set a personal password before entering the workspace.
+        <p id="change-password-description" className="mt-2 text-[13px] leading-5 text-neutral-500">
+          You’re signed in with a temporary password. Create a personal password to secure your account.
         </p>
 
         <form onSubmit={submit} noValidate className="mt-6">
@@ -130,7 +129,7 @@ export default function ChangePasswordModal({ onComplete }: { onComplete: () => 
           onClick={() => logout().catch((error: unknown) => {
             setServerError(error instanceof Error ? error.message : "Unable to sign out.")
           })}
-          className="mt-5 w-full text-center text-sm font-semibold text-slate-600 underline-offset-4 hover:text-slate-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+          className="workspace-secondary-action mt-3 w-full"
         >
           Sign out
         </button>

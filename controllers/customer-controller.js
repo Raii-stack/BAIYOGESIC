@@ -107,8 +107,10 @@ const listCustomers = asyncHandler(async (req, res) => {
   const limitParameter = values.length - 1;
   const offsetParameter = values.length;
   const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
-  const result = await requirePool().query(
-    `SELECT custno, custname, address, payterm, is_deleted, stamp
+  const pool = requirePool();
+  const result = await pool.query(
+    `SELECT custno, custname, address, payterm, is_deleted, stamp,
+            count(*) OVER()::integer AS _total
      FROM public.customer
      ${whereClause}
      ORDER BY custname ASC, custno ASC
@@ -116,18 +118,22 @@ const listCustomers = asyncHandler(async (req, res) => {
     values
   );
 
-  const countResult = await requirePool().query(
-    `SELECT count(*)::integer AS total
-     FROM public.customer
-     ${whereClause}`,
-    filterValues
-  );
-  const total = countResult.rows[0].total;
+  let total = result.rows[0] ? result.rows[0]._total : 0;
+  if (result.rows.length === 0 && offset > 0) {
+    const countResult = await pool.query(
+      `SELECT count(*)::integer AS total
+       FROM public.customer
+       ${whereClause}`,
+      filterValues
+    );
+    total = countResult.rows[0].total;
+  }
+  const customers = result.rows.map(({ _total, ...row }) => row);
 
   res.json({
     success: true,
     data: {
-      customers: result.rows,
+      customers,
       pagination: {
         page,
         limit,

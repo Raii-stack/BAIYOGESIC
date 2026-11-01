@@ -1,6 +1,32 @@
 const jwt = require('jsonwebtoken');
 const { requirePool } = require('../db');
 
+// shortcut: 15s process-local cache, switch to shared cache if multi-instance instant revocation is needed
+const USER_CACHE_TTL_MS = 15_000;
+const activeUserCache = new Map();
+
+function primeUserCache(user) {
+  if (!user || !user.user_id) return;
+  activeUserCache.set(String(user.user_id), {
+    expiresAt: Date.now() + USER_CACHE_TTL_MS,
+    row: {
+      user_id: String(user.user_id),
+      empno: user.empno,
+      email: user.email,
+      role: user.role,
+      status: user.status,
+      is_blocked: Boolean(user.is_blocked),
+      must_change_password: Boolean(user.must_change_password),
+      rights: Array.isArray(user.rights) ? user.rights : []
+    }
+  });
+}
+
+function invalidateUserCache(userId) {
+  if (userId) activeUserCache.delete(String(userId));
+  else activeUserCache.clear();
+}
+
 function requireJwtSecret() {
   if (!process.env.JWT_SECRET) {
     const error = new Error('JWT_SECRET must be configured');
@@ -33,23 +59,33 @@ function authenticate(req, res, next) {
 }
 
 async function requireActiveUser(req, res, next) {
-  if (!req.user || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(req.user.sub || ''))) {
+  const userId = String((req.user && req.user.sub) || '');
+  if (!req.user || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
     return res.status(401).json({ success: false, error: { message: 'Authentication required', statusCode: 401 } });
   }
 
   try {
-    const result = await requirePool().query(
-      `SELECT u.user_id, u.empno, u.email, u.role, u.status, u.is_blocked, u.must_change_password,
-              COALESCE(array_agg(ur.right_code) FILTER (WHERE ur.right_code IS NOT NULL), '{}') AS rights
-       FROM public.app_user u
-       LEFT JOIN public.app_user_right ur ON ur.user_id = u.user_id
-       WHERE u.user_id = $1::uuid
-       GROUP BY u.user_id
-       LIMIT 1`,
-      [req.user.sub]
-    );
-    const user = result.rows[0];
+    const useCache = !process.env.VITEST && process.env.NODE_ENV !== 'test';
+    const cached = useCache ? activeUserCache.get(userId) : null;
+    let user = cached && cached.expiresAt > Date.now() ? cached.row : null;
+
+    if (!user) {
+      const result = await requirePool().query(
+        `SELECT u.user_id, u.empno, u.email, u.role, u.status, u.is_blocked, u.must_change_password,
+                COALESCE(array_agg(ur.right_code) FILTER (WHERE ur.right_code IS NOT NULL), '{}') AS rights
+         FROM public.app_user u
+         LEFT JOIN public.app_user_right ur ON ur.user_id = u.user_id
+         WHERE u.user_id = $1::uuid
+         GROUP BY u.user_id
+         LIMIT 1`,
+        [userId]
+      );
+      user = result.rows[0];
+      if (useCache && user) primeUserCache(user);
+    }
+
     if (!user || user.status !== 'active' || user.is_blocked) {
+      invalidateUserCache(userId);
       return res.status(401).json({ success: false, error: { message: 'Authentication required', statusCode: 401 } });
     }
     if (user.must_change_password) {
@@ -68,4 +104,4 @@ async function requireActiveUser(req, res, next) {
   }
 }
 
-module.exports = { authenticate, requireActiveUser };
+module.exports = { authenticate, requireActiveUser, primeUserCache, invalidateUserCache };

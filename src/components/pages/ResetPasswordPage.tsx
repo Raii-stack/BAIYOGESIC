@@ -105,7 +105,7 @@ export default function ResetPasswordPage() {
 
           <p className="mt-7 text-center text-sm text-slate-600">
             <Link
-              to="/"
+              to="/login"
               className="font-semibold text-blue-800 underline-offset-4 hover:text-blue-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
             >
               Return to sign in

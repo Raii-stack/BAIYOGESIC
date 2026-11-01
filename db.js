@@ -103,9 +103,10 @@ function resolveDatabaseConfig(
       isLocalhost && nodeEnv !== 'production'
         ? undefined
         : { rejectUnauthorized: false },
-    max: Number.parseInt(process.env.DATABASE_POOL_MAX || '5', 10),
-    idleTimeoutMillis: 10000,
-    connectionTimeoutMillis: 10000
+    max: Number.parseInt(process.env.DATABASE_POOL_MAX || '10', 10),
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
+    keepAlive: true
   };
 }
 

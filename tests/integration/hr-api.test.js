@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 
 const mockClient = {
@@ -29,7 +30,9 @@ const {
   updateDepartment,
   listJobs,
   createJob,
-  updateJob
+  updateJob,
+  getJobHistory,
+  recordPromotion
 } = require('../../controllers/employee-controller');
 const { requirePermission } = require('../../middleware/permissions');
 const employeeRoutes = require('../../routes/employee-routes');
@@ -415,3 +418,380 @@ describe('[S3-DEV-01] Department and Job Master List CRUD Endpoints', () => {
     });
   });
 });
+
+describe('[S3-DEV-06] Employee Job History Promotion & Transfer Tracking', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockClient.query.mockReset();
+    mockPool.query.mockReset();
+    mockPool.connect.mockResolvedValue(mockClient);
+
+    mockPool.query.mockImplementation(async (sql, params) => {
+      if (typeof sql === 'string' && sql.includes('SELECT empno, is_deleted FROM public.employee WHERE empno = $1')) {
+        if (params?.[0] === 'NONEXISTENT') return { rows: [] };
+        return { rows: [{ empno: params?.[0] || '00001', is_deleted: false }] };
+      }
+      if (typeof sql === 'string' && sql.includes('FROM public.jobhistory h') && sql.includes('ORDER BY effdate DESC')) {
+        const isRedacted = sql.includes('NULL::numeric AS salary');
+        return {
+          rows: [
+            {
+              empno: '00001',
+              jobcode: 'MGR',
+              deptcode: 'IT',
+              effdate: '2025-01-15',
+              jobdesc: 'Manager',
+              deptname: 'Information Tech',
+              salary: isRedacted ? null : '75000.00',
+              is_deleted: false,
+              stamp: 'ADD admin'
+            },
+            {
+              empno: '00001',
+              jobcode: 'ANYS',
+              deptcode: 'IT',
+              effdate: '2022-03-01',
+              jobdesc: 'Analyst',
+              deptname: 'Information Tech',
+              salary: isRedacted ? null : '62000.00',
+              is_deleted: false,
+              stamp: 'ADD admin'
+            },
+            {
+              empno: '00001',
+              jobcode: 'PR1',
+              deptcode: 'IT',
+              effdate: '2010-05-11',
+              jobdesc: 'Programmer 1',
+              deptname: 'Information Tech',
+              salary: isRedacted ? null : '48000.00',
+              is_deleted: false,
+              stamp: 'ADD admin'
+            }
+          ]
+        };
+      }
+      return { rows: [] };
+    });
+
+    mockClient.query.mockImplementation(async (sql, params) => {
+      if (typeof sql === 'string' && sql.includes('FROM public.employee') && sql.includes('FOR UPDATE')) {
+        if (params?.[0] === 'NONEXISTENT') return { rows: [] };
+        return {
+          rows: [{
+            empno: params?.[0] || '00001',
+            firstname: 'John',
+            lastname: 'Smith',
+            email: 'smith.john@hope.inc',
+            gender: 'M',
+            birthdate: '1985-02-20',
+            hiredate: '2010-05-11',
+            sepdate: null,
+            is_deleted: false,
+            stamp: 'ADD admin'
+          }]
+        };
+      }
+      if (typeof sql === 'string' && sql.includes('EXISTS(SELECT 1 FROM public.job')) {
+        const [jobcode, deptcode] = params || [];
+        return {
+          rows: [{
+            job: jobcode !== 'BADJ',
+            department: deptcode !== 'BADD'
+          }]
+        };
+      }
+      if (typeof sql === 'string' && sql.includes('SELECT 1 FROM public.jobhistory') && sql.includes('effdate = $2::date')) {
+        if (params?.[1] === '2025-01-15') return { rows: [{ 1: 1 }] };
+        return { rows: [] };
+      }
+      if (typeof sql === 'string' && sql.includes('SELECT jobcode, deptcode, salary, effdate::text AS effdate') && sql.includes('FROM public.jobhistory')) {
+        return {
+          rows: [{
+            jobcode: 'MGR',
+            deptcode: 'IT',
+            salary: '75000.00',
+            effdate: '2025-01-15'
+          }]
+        };
+      }
+      if (typeof sql === 'string' && sql.includes('INSERT INTO public.jobhistory')) {
+        if (params?.[3] === '2025-12-31') {
+          const err = new Error('duplicate key value violates unique constraint "jobhistory_pkey"');
+          err.code = '23505';
+          throw err;
+        }
+        return {
+          rows: [{
+            empno: params?.[0] || '00001',
+            jobcode: params?.[1] || 'VP',
+            deptcode: params?.[2] || 'EXC',
+            effdate: params?.[3] || '2026-06-01',
+            salary: params?.[4] || 95000,
+            is_deleted: false,
+            stamp: 'ADD admin@hope.inc'
+          }]
+        };
+      }
+      if (typeof sql === 'string' && sql.includes('UPDATE public.employee') && sql.includes('SET deptcode = $1')) {
+        return {
+          rows: [{
+            empno: params?.[2] || '00001',
+            firstname: 'John',
+            lastname: 'Smith',
+            email: 'smith.john@hope.inc',
+            gender: 'M',
+            birthdate: '1985-02-20',
+            hiredate: '2010-05-11',
+            sepdate: null,
+            deptcode: params?.[0] || 'EXC',
+            jobcode: params?.[1] || 'VP',
+            is_deleted: false,
+            stamp: 'EDIT admin@hope.inc'
+          }]
+        };
+      }
+      return { rows: [] };
+    });
+  });
+
+  describe('GET /api/employees/:empno/job-history', () => {
+    test('returns chronological career history ordered by effdate DESC', async () => {
+      const req = { params: { empno: '00001' }, user: { role: 'admin', email: 'admin@hope.inc' } };
+      let responseStatus = 200;
+      let responseBody = null;
+      const res = {
+        status: (s) => { responseStatus = s; return res; },
+        json: (data) => { responseBody = data; return res; }
+      };
+
+      await getJobHistory(req, res, (err) => { if (err) throw err; });
+
+      expect(responseStatus).toBe(200);
+      expect(responseBody.success).toBe(true);
+      expect(responseBody.data.empno).toBe('00001');
+      expect(Array.isArray(responseBody.data.jobHistory)).toBe(true);
+      expect(responseBody.data.jobHistory).toHaveLength(3);
+      expect(responseBody.data.jobHistory[0].effdate).toBe('2025-01-15');
+      expect(responseBody.data.jobHistory[1].effdate).toBe('2022-03-01');
+      expect(responseBody.data.jobHistory[2].effdate).toBe('2010-05-11');
+      expect(responseBody.data.history).toEqual(responseBody.data.jobHistory);
+
+      const historyCall = mockPool.query.mock.calls.find(([sql]) =>
+        typeof sql === 'string' && sql.includes('ORDER BY effdate DESC')
+      );
+      expect(historyCall).toBeDefined();
+    });
+
+    test('redacts salary for standard employees without salary view rights', async () => {
+      const req = { params: { empno: '00001' }, user: { role: 'employee', rights: ['hr.access', 'hr.history.view'] } };
+      let responseBody = null;
+      const res = {
+        status: () => res,
+        json: (data) => { responseBody = data; return res; }
+      };
+
+      await getJobHistory(req, res, (err) => { if (err) throw err; });
+
+      expect(responseBody.success).toBe(true);
+      expect(responseBody.data.jobHistory[0].salary).toBeNull();
+    });
+
+    test('returns HTTP 404 when employee is not found', async () => {
+      const req = { params: { empno: 'NONEXISTENT' }, user: { role: 'admin' } };
+      let capturedError = null;
+      const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+
+      await getJobHistory(req, res, (err) => { capturedError = err; });
+
+      expect(capturedError).not.toBeNull();
+      expect(capturedError.statusCode).toBe(404);
+      expect(capturedError.message).toMatch(/employee not found/i);
+    });
+  });
+
+  describe('POST /api/employees/:empno/job-history', () => {
+    test('recording a promotion writes to jobhistory, updates employee master row, and logs in audit_log', async () => {
+      const req = {
+        params: { empno: '00001' },
+        body: {
+          deptcode: 'exc',
+          jobcode: 'vp',
+          salary: 95000,
+          effdate: '2026-06-01'
+        },
+        user: { sub: 'admin-uuid-1', email: 'admin@hope.inc', role: 'admin' }
+      };
+
+      let responseStatus = 200;
+      let responseBody = null;
+      const res = {
+        status: (s) => { responseStatus = s; return res; },
+        json: (data) => { responseBody = data; return res; }
+      };
+
+      await recordPromotion(req, res, (err) => { if (err) throw err; });
+
+      expect(responseStatus).toBe(201);
+      expect(responseBody.success).toBe(true);
+      expect(responseBody.data.promotion).toMatchObject({
+        empno: '00001',
+        deptcode: 'EXC',
+        jobcode: 'VP',
+        salary: 95000,
+        effdate: '2026-06-01'
+      });
+      expect(responseBody.data.employee).toMatchObject({
+        empno: '00001',
+        deptcode: 'EXC',
+        jobcode: 'VP'
+      });
+
+      // Verify transaction boundaries
+      const executedSql = mockClient.query.mock.calls.map(([sql]) => String(sql));
+      expect(executedSql).toContain('BEGIN');
+      expect(executedSql).toContain('COMMIT');
+
+      // 1. Verify insert into jobhistory
+      const jhInsert = mockClient.query.mock.calls.find(([sql]) =>
+        typeof sql === 'string' && sql.includes('INSERT INTO public.jobhistory')
+      );
+      expect(jhInsert).toBeDefined();
+      expect(jhInsert[1]).toEqual(['00001', 'VP', 'EXC', '2026-06-01', 95000]);
+
+      // 2. Verify employee master table update with new deptcode and jobcode
+      const empUpdate = mockClient.query.mock.calls.find(([sql]) =>
+        typeof sql === 'string' && sql.includes('UPDATE public.employee') && sql.includes('SET deptcode = $1')
+      );
+      expect(empUpdate).toBeDefined();
+      expect(empUpdate[1]).toEqual(['EXC', 'VP', '00001']);
+
+      // 3. Verify promotion event logged in audit_log
+      const auditInsert = mockClient.query.mock.calls.find(([sql]) =>
+        typeof sql === 'string' && sql.includes('INSERT INTO public.audit_log')
+      );
+      expect(auditInsert).toBeDefined();
+      const [, auditParams] = auditInsert;
+      expect(auditParams[0]).toBe('00001');
+      const oldValues = JSON.parse(auditParams[1]);
+      const newValues = JSON.parse(auditParams[2]);
+      expect(oldValues).toMatchObject({
+        empno: '00001',
+        deptcode: 'IT',
+        jobcode: 'MGR',
+        salary: 75000
+      });
+      expect(newValues).toMatchObject({
+        event: 'PROMOTION',
+        empno: '00001',
+        deptcode: 'EXC',
+        jobcode: 'VP',
+        salary: 95000,
+        effdate: '2026-06-01'
+      });
+      expect(auditParams[3]).toBe('admin-uuid-1');
+    });
+
+    test('duplicate effective dates for the same employee return HTTP 400', async () => {
+      const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+      let dupError = null;
+
+      await recordPromotion(
+        {
+          params: { empno: '00001' },
+          body: { deptcode: 'EXC', jobcode: 'VP', salary: 95000, effdate: '2025-01-15' },
+          user: { email: 'admin@hope.inc', role: 'admin' }
+        },
+        res,
+        (err) => { dupError = err; }
+      );
+
+      expect(dupError).not.toBeNull();
+      expect(dupError.statusCode).toBe(400);
+      expect(dupError.message).toMatch(/effective date already exists/i);
+
+      let constraintDupError = null;
+      await recordPromotion(
+        {
+          params: { empno: '00001' },
+          body: { deptcode: 'EXC', jobcode: 'VP', salary: 95000, effdate: '2025-12-31' },
+          user: { email: 'admin@hope.inc', role: 'admin' }
+        },
+        res,
+        (err) => { constraintDupError = err; }
+      );
+
+      expect(constraintDupError).not.toBeNull();
+      expect(constraintDupError.statusCode).toBe(400);
+      expect(constraintDupError.message).toMatch(/effective date already exists/i);
+    });
+
+    test('rejects non-positive salary, invalid dates, and invalid references with HTTP 400', async () => {
+      const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+
+      let zeroSalaryErr = null;
+      await recordPromotion(
+        {
+          params: { empno: '00001' },
+          body: { deptcode: 'EXC', jobcode: 'VP', salary: 0, effdate: '2026-06-01' },
+          user: { email: 'admin@hope.inc' }
+        },
+        res,
+        (err) => { zeroSalaryErr = err; }
+      );
+      expect(zeroSalaryErr).not.toBeNull();
+      expect(zeroSalaryErr.statusCode).toBe(400);
+      expect(zeroSalaryErr.message).toMatch(/positive number/i);
+
+      let negativeSalaryErr = null;
+      await recordPromotion(
+        {
+          params: { empno: '00001' },
+          body: { deptcode: 'EXC', jobcode: 'VP', salary: -1000, effdate: '2026-06-01' },
+          user: { email: 'admin@hope.inc' }
+        },
+        res,
+        (err) => { negativeSalaryErr = err; }
+      );
+      expect(negativeSalaryErr).not.toBeNull();
+      expect(negativeSalaryErr.statusCode).toBe(400);
+
+      let beforeHireErr = null;
+      await recordPromotion(
+        {
+          params: { empno: '00001' },
+          body: { deptcode: 'EXC', jobcode: 'VP', salary: 85000, effdate: '2005-01-01' },
+          user: { email: 'admin@hope.inc' }
+        },
+        res,
+        (err) => { beforeHireErr = err; }
+      );
+      expect(beforeHireErr).not.toBeNull();
+      expect(beforeHireErr.statusCode).toBe(400);
+      expect(beforeHireErr.message).toMatch(/before hire date/i);
+
+      let badRefErr = null;
+      await recordPromotion(
+        {
+          params: { empno: '00001' },
+          body: { deptcode: 'BADD', jobcode: 'BADJ', salary: 85000, effdate: '2026-06-01' },
+          user: { email: 'admin@hope.inc' }
+        },
+        res,
+        (err) => { badRefErr = err; }
+      );
+      expect(badRefErr).not.toBeNull();
+      expect(badRefErr.statusCode).toBe(400);
+    });
+
+    test('registers GET and POST /:empno/job-history routes on employeeRoutes', () => {
+      const empRoutes = employeeRoutes.stack
+        .filter((l) => l.route)
+        .map((l) => ({ path: l.route.path, methods: Object.keys(l.route.methods) }));
+
+      expect(empRoutes.some((r) => r.path === '/:empno/job-history' && r.methods.includes('get'))).toBe(true);
+      expect(empRoutes.some((r) => r.path === '/:empno/job-history' && r.methods.includes('post'))).toBe(true);
+    });
+  });
+});
+

@@ -297,6 +297,7 @@ Update team velocity burndown metrics, maintain the Sprint 4 Risk Register cover
 ## 🟣 Sprint 4 Tasks (Sales & Reports Modules - Unimplemented Backlog)
 
 ### [#71 [S4-DEV-01 & S4-DEV-02] API & UI: Sales Transaction Header & Line Items with Price Lookup](https://github.com/Raii-stack/BAIYOGESIC/issues/71)
+**Status:** Closed (Merged in PR #144)  
 **Assignee:** @KathrynChloe, @AlainDeiniel  
 **Role:** BackEnd Engineer & Frontend Developer  
 **Priority:** P1 (High)  
@@ -304,28 +305,32 @@ Update team velocity burndown metrics, maintain the Sprint 4 Risk Register cover
 **Description:**  
 Implement the Sales module backend and frontend. Support auto-generated transaction numbering, customer and salesperson selection, line item entry (product, quantity), and auto-filling unit price from price history as of sales date.  
 **Acceptance Criteria:**  
-- [ ] Create `POST /api/sales` and `GET /api/sales` endpoints supporting transaction header and line items.
-- [ ] Auto-lookup unit price from `public.current_active_price(prodcode)` or effective date query as of `salesdate`.
-- [ ] Replace mock sales data in `CreateSalePage.tsx` and `SalesManagementPage.tsx` with live API integration.
-- [ ] Calculate total sale amount, tax, and item subtotals accurately.
+- [x] Create `POST /api/sales` and `GET /api/sales` endpoints supporting transaction header and line items.
+- [x] Auto-lookup unit price from `public.current_active_price(prodcode)` or effective date query as of `salesdate`.
+- [x] Replace mock sales data in `CreateSalePage.tsx` and `SalesManagementPage.tsx` with live API integration.
+- [x] Calculate total sale amount, tax, and item subtotals accurately.
 
 ---
 
 ### [#72 [S4-DBA-01 to S4-DBA-03] Database Queries: Sales Totals, Payment Balance View & 7 Report Queries](https://github.com/Raii-stack/BAIYOGESIC/issues/72)
+**Status:** In Progress (Balance view completed in migration; Report queries pending)  
 **Assignee:** @KathrynChloe  
 **Role:** BackEnd Engineer & DB Admin  
 **Priority:** P1 (High)  
 **Deadline:** Sprint 4, Day 4 (Week 7)  
 **Description:**  
-Write optimized PostgreSQL views and functions for sales calculations, payment balances, and all 7 report queries (master lists, active/separated employee rosters, Top N sales aggregations).  
+Write optimized PostgreSQL views and functions for sales calculations, payment balances, and all 7 report queries per Guide §3.7 (master lists, active/separated employee rosters, Top N sales aggregations).  
 **Acceptance Criteria:**  
-- [ ] Create `sales_balance_view` calculating line subtotals, VAT, total amount, payments, and balance.
-- [ ] Write SQL queries for Top N Customers, Top N Products, and Top N Sales orders with date filters.
-- [ ] Ensure report aggregation queries utilize covering indexes and run within acceptable performance thresholds.
+- [x] Create `sales_balance_view` calculating line subtotals, VAT, total amount, payments, and balance (Completed in migration `20261028000000_issue_71_sales_views_and_price_lookup.sql`).
+- [x] Covering indexes created in `20261031000000_query_optimization_indexes.sql` for report aggregations (`sales_active_kpi_idx`, `customer_active_kpi_idx`, `product_active_kpi_idx`).
+- [ ] Write SQL queries/views for Top N Customers, Top N Products, and Top N Sales orders with date filters using single-pass aggregations.
+- [ ] Write SQL queries for Product Master List (current price via `LATERAL` lookup), Active Employees, All Employees, and Employee Job History.
+- [ ] Ensure report aggregation queries utilize covering indexes and run within sub-50ms execution thresholds.
 
 ---
 
 ### [#73 [S4-TST-01] Test Cases: Sales Transactions and Unit Price-as-of-Date Calculation](https://github.com/Raii-stack/BAIYOGESIC/issues/73)
+**Status:** Implemented in Codebase (Verification Pending)  
 **Assignee:** @PrinceNelson  
 **Role:** Test Engineer  
 **Priority:** P2 (Medium)  
@@ -333,13 +338,14 @@ Write optimized PostgreSQL views and functions for sales calculations, payment b
 **Description:**  
 Develop automated integration test suites validating sales creation, price lookup logic effective as of transaction date, line-item quantity math, and subtotal computations.  
 **Acceptance Criteria:**  
-- [ ] Write integration tests for sales creation with single and multiple line items.
-- [ ] Test edge cases: historical price changes, zero quantities, and invalid product codes.
-- [ ] Validate tax and line-item total calculations match backend constraints.
+- [x] Write integration tests for sales creation with single and multiple line items (in `tests/integration/sales-api.test.js`).
+- [x] Test edge cases: historical price changes, zero quantities, and invalid product codes.
+- [x] Validate tax and line-item total calculations match backend constraints (in `lib/sales-calculations.test.js`).
 
 ---
 
 ### [#74 [S4-DEV-03 & S4-DEV-06] API & UI: Payment Recording & Customer Transaction Balance Calculation](https://github.com/Raii-stack/BAIYOGESIC/issues/74)
+**Status:** Implemented in PR #144 (Verification Pending)  
 **Assignee:** @KathrynChloe, @AlainDeiniel  
 **Role:** BackEnd Engineer & Frontend Developer  
 **Priority:** P1 (High)  
@@ -347,28 +353,39 @@ Develop automated integration test suites validating sales creation, price looku
 **Description:**  
 Build endpoints and UI to record customer payments against sales transactions, calculate remaining outstanding balances per sale and per customer, and handle partial/full payment states.  
 **Acceptance Criteria:**  
-- [ ] Create `POST /api/sales/:transno/payments` to record payment amount, date, and method.
-- [ ] Implement balance calculation view returning `total_amount - amount_paid`.
-- [ ] Provide modal in Sales Management UI to log payments and display updated balance badges (Unpaid, Partial, Paid).
+- [x] Create `POST /api/sales/:transno/payments` to record payment amount, date, and method (Implemented in `controllers/sales-controller.js`).
+- [x] Implement balance calculation view returning `total_amount - amount_paid` (Implemented in `sales_balance_view`).
+- [x] Provide modal in Sales Management UI to log payments and display updated balance badges (Unpaid, Partial, Paid) (Implemented in `RecordPaymentModal.tsx` and `SalesTable.tsx`).
 
 ---
 
 ### [#75 [S4-DEV-04 & S4-DEV-05] API & UI: Reports Module (7 Reports, Date Range, Top N, PDF Export)](https://github.com/Raii-stack/BAIYOGESIC/issues/75)
+**Status:** Pending Development (Sprint 4 Core Deliverable)  
 **Assignee:** @KathrynChloe, @AlainDeiniel  
 **Role:** BackEnd Engineer & Frontend Developer  
 **Priority:** P1 (High)  
 **Deadline:** Sprint 4, Day 6 (Week 8)  
 **Description:**  
-Implement the Reports module supporting all 7 system reports: Product Master List, Active Employees, All Employees, Employee Job History, Top Customers, Top Products, and Top Sales. Support date range, Top N parameter, per-report permissions, and Print/Save as PDF.  
+Implement the Reports module supporting all 7 system reports with live database queries, per-report rights enforcement, dynamic filter inputs (Date Ranges, Top N, Employee Dropdown), and Print/Save as PDF styling per Guide §3.7:
+1. Top Customers (Inputs: From date, To date, Top N)
+2. Product Master List (Current Price, no date filter)
+3. Top Products (Inputs: From date, To date, Top N)
+4. Active Employees (sepDate is null)
+5. All Employees (including separated)
+6. Employee Job History (Inputs: Employee selector dropdown)
+7. Top Sales (Inputs: From date, To date, Top N)  
 **Acceptance Criteria:**  
-- [ ] Create `GET /api/reports/:reportType` endpoint with query parameters for `startDate`, `endDate`, and `limit`.
+- [ ] Create `GET /api/reports/:reportType` endpoint with query parameters for `startDate`, `endDate`, `limit`, and `empno`.
+- [ ] Optimize database queries: single parameterized SQL statements leveraging covering indexes with sub-50ms response times.
 - [ ] Enforce per-report access rights using `requirePermission('Reports', reportCode)`.
+- [ ] Implement Date Range pickers (`From`, `To`) and Employee selector dropdown in `ReportsPage.tsx` matching Guide §3.7.
 - [ ] Replace sample report data in `ReportsPage.tsx` with live data fetching.
-- [ ] Implement browser Print and Save as PDF styling.
+- [ ] Implement browser Print and Save as PDF styling (`@media print`).
 
 ---
 
 ### [#76 [S4-DBA-04 & S4-DBA-05] Database: Audit Log Filter Queries & Sales Child Delete Integrity Rules](https://github.com/Raii-stack/BAIYOGESIC/issues/76)
+**Status:** In Progress (Sales delete rules & covering indexes implemented; Audit filter queries pending)  
 **Assignee:** @KathrynChloe  
 **Role:** BackEnd Engineer & DB Admin  
 **Priority:** P2 (Medium)  
@@ -376,13 +393,15 @@ Implement the Reports module supporting all 7 system reports: Product Master Lis
 **Description:**  
 Write filtered audit log query procedures, verify cascade and restrict delete constraints on sales details and payments, ensuring payments cannot be orphaned.  
 **Acceptance Criteria:**  
-- [ ] Implement database triggers blocking deletion of sales with active payment records.
-- [ ] Write optimized query procedure for `audit_log` filtering by table, actor, and timestamp.
+- [x] Implement database checks/triggers blocking deletion of sales with active payment records (Implemented in `controllers/sales-controller.js` and `tests/integration/sales-api.test.js`).
+- [x] Create covering composite indexes for audit log querying (`audit_log_table_action_at_idx`, `audit_log_actor_action_at_idx` in `20261031000000_query_optimization_indexes.sql`).
+- [ ] Write optimized query procedure for `audit_log` filtering by table, actor, action, and timestamp using single-roundtrip window pagination (`count(*) OVER()`).
 - [ ] Document relational integrity and foreign key behavior.
 
 ---
 
 ### [#77 [S4-TST-02] Test Cases: Payment Processing and Transaction Balance Reductions](https://github.com/Raii-stack/BAIYOGESIC/issues/77)
+**Status:** Implemented in Codebase (Verification Pending)  
 **Assignee:** @PrinceNelson  
 **Role:** Test Engineer  
 **Priority:** P2 (Medium)  
@@ -390,13 +409,14 @@ Write filtered audit log query procedures, verify cascade and restrict delete co
 **Description:**  
 Validate payment application rules against sales transactions, ensuring partial payments decrease balance, full payments transition status to Paid, and overpayments are rejected.  
 **Acceptance Criteria:**  
-- [ ] Test valid partial payment reduces open balance.
-- [ ] Test that payment equal to outstanding balance marks transaction Paid.
-- [ ] Test that payment exceeding balance returns HTTP 400 Bad Request.
+- [x] Test valid partial payment reduces open balance (in `tests/integration/sales-api.test.js`).
+- [x] Test that payment equal to outstanding balance marks transaction Paid.
+- [x] Test that payment exceeding balance returns HTTP 400 Bad Request.
 
 ---
 
 ### [#78 [S4-DEV-07] API & UI: Sales Soft Delete, Restoration & Sale Rights Enforcement](https://github.com/Raii-stack/BAIYOGESIC/issues/78)
+**Status:** Implemented in PR #144 (Verification Pending)  
 **Assignee:** @KathrynChloe, @AlainDeiniel  
 **Role:** BackEnd Engineer & Frontend Developer  
 **Priority:** P1 (High)  
@@ -404,10 +424,10 @@ Validate payment application rules against sales transactions, ensuring partial 
 **Description:**  
 Support archiving and restoring sales transactions with audit stamp and status flags, strictly enforcing Sale and Sale Detail permissions.  
 **Acceptance Criteria:**  
-- [ ] Create `DELETE /api/sales/:transno` (soft-archive) and `PATCH /api/sales/:transno/restore`.
-- [ ] Enforce `sales.delete` and `sales.restore` permissions.
-- [ ] Block archiving if payments have already been applied, returning HTTP 409 Conflict.
-- [ ] Connect archive/restore actions in the Sales UI table with confirmation modal and status badges.
+- [x] Create `DELETE /api/sales/:transno` (soft-archive) and `PATCH /api/sales/:transno/restore` (Implemented in `sales-controller.js` and `sales-routes.js`).
+- [x] Enforce `sales.delete` and `sales.restore` permissions.
+- [x] Block archiving if payments have already been applied, returning HTTP 409 Conflict.
+- [x] Connect archive/restore actions in the Sales UI table with confirmation modal and status badges.
 
 ---
 
@@ -426,6 +446,7 @@ Create tests verifying all 7 reports for accurate data filtering and permissions
 ---
 
 ### [#80 [S4-DEV-08] API & UI: Superadmin Audit Log Viewer with Multi-Filter Search](https://github.com/Raii-stack/BAIYOGESIC/issues/80)
+**Status:** Ready for Development (Sprint 4)  
 **Assignee:** @KathrynChloe, @AlainDeiniel  
 **Role:** BackEnd Engineer & Frontend Developer  
 **Priority:** P2 (Medium)  
@@ -435,6 +456,7 @@ Build the superadmin audit log viewer endpoint and interface, allowing administr
 **Acceptance Criteria:**  
 - [ ] Create `GET /api/audit-logs` endpoint accessible exclusively to Superadmin accounts.
 - [ ] Support filters: `tableName`, `action`, `user`, `from`, `to`, and pagination.
+- [ ] Optimize query using single-roundtrip window function `count(*) OVER()::integer AS _total` and composite index scans (`audit_log_table_action_at_idx`) for sub-50ms responses.
 - [ ] Build UI table in admin panel displaying audit entries, old/new diffs, and timestamps.
 
 ---
@@ -495,3 +517,55 @@ Lead the final Sprint 4 delivery, assemble the production release checklist, wri
 - [ ] Draft end-to-end product demo script for stakeholder presentation.
 - [ ] Collect and compile peer evaluation submissions.
 - [ ] Deliver the Final Project Report and Retrospective in `docs/agile/final-project-report.md`.
+
+---
+
+### [#167 [S4-DEV-09] API & UI: Live Dashboard KPI Statistic Cards (Customers, Products, Orders, Revenue)](https://github.com/Raii-stack/BAIYOGESIC/issues/167)
+**Status:** Ready for Development (Sprint 4)  
+**Assignee:** @KathrynChloe, @AlainDeiniel  
+**Role:** BackEnd Engineer & Frontend Developer  
+**Priority:** P2 (Medium)  
+**Deadline:** Sprint 4, Day 7 (Week 8)  
+**Description:**  
+Implement live database aggregation query (`GET /api/dashboard/stats`) and display the 4 Dashboard metric KPI cards (Customers, Products, Open Orders, Revenue) and role-sensitive Quick Actions matching Guide §3.2 (Figures 6, 7, 8).  
+**Acceptance Criteria:**  
+- [ ] Backend endpoint `GET /api/dashboard/stats` calculates live counts and revenue sums in a single consolidated SQL query leveraging covering indexes (`sales_active_kpi_idx`, `customer_active_kpi_idx`, `product_active_kpi_idx`).
+- [ ] Implement short in-memory cache TTL (5-10s) to prevent database load spikes under multiple simultaneous dashboard visits.
+- [ ] `DashboardPage.tsx` displays 4 KPI metric cards matching Guide Figures 6, 7, 8.
+- [ ] Quick Actions render appropriately according to user rights, with unauthorized actions greyed out.
+
+---
+
+### [#169 [S4-DBA-07] Database: Query Optimization, Covering Indexes & Fast API Response Tuning](https://github.com/Raii-stack/BAIYOGESIC/issues/169)
+**Status:** Completed (Migration & Optimization Report Merged)  
+**Assignee:** @RyanJames  
+**Role:** Scrum Master & DB Performance Lead  
+**Priority:** P2 (Performance & Latency)  
+**Deadline:** Sprint 4, Day 7 (Week 8)  
+**Description:**  
+Optimize slow database queries across Product, Customer, Sales, Employee, Dashboard, and Audit Log endpoints by converting full subquery scans to LATERAL index lookups, introducing covering B-tree/partial indexes, and consolidating paginated counts with window functions.  
+**Acceptance Criteria:**  
+- [x] Implement `20261031000000_query_optimization_indexes.sql` with covering indexes.
+- [x] Convert `listProducts` in `controllers/product-controller.js` to `LATERAL` price lookup.
+- [x] Convert `listCustomers`, `listProducts`, `listUsers`, `listEmployees`, and `listSales` to single-roundtrip window functions (`count(*) OVER()`).
+- [x] Verify `EXPLAIN ANALYZE` confirms Index Scans / Index-Only Scans across `/api/customers`, `/api/products`, `/api/sales`, and `/api/dashboard/stats`.
+- [x] Document performance benchmarks and EXPLAIN ANALYZE results in `docs/database/query-optimization-report.md`.
+
+---
+
+## ⚪ Post-Sprint 4 Backlog Tasks (Priority: Last)
+
+### [#168 [POST-S4-AUTH] Auth: Re-integrate Public Landing Page, User Self-Registration & Password Reset Flows (Guide §3.1)](https://github.com/Raii-stack/BAIYOGESIC/issues/168)
+**Status:** Backlog (Scheduled After Sprint 4 Core Deliverables)  
+**Assignee:** @KathrynChloe, @AlainDeiniel  
+**Role:** BackEnd Engineer & Frontend Developer  
+**Priority:** P3 (Lowest / Last Priority)  
+**Deadline:** Post-Sprint 4  
+**Description:**  
+Re-integrate the public landing page, user self-registration workflow, and forgot/reset password email token flows specified in Guide §3.1 (Figures 2, 3, 4, 5) and §4.1 (Step 3). Scheduled last to ensure Sprint 4 core business modules (Reports, Audit Log) are delivered first without regression.  
+**Acceptance Criteria:**  
+- [ ] Public landing page accessible at `/` with Sign In and Register options (Guide Figure 2).
+- [ ] `POST /api/auth/register` creates accounts with role `employee` (`User`) with password hashing.
+- [ ] `POST /api/auth/forgot-password` and `POST /api/auth/reset-password` generate and redeem secure tokens.
+- [ ] Registration and password reset modals match Guide Figures 3 and 5.
+

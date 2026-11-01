@@ -12,6 +12,10 @@ HOPE, Inc. ERP is a web-based enterprise resource planning platform that brings 
 
 Role-based permissions give each team member access to the tools and information they need. Historical records, audit logs, and printable reports help administrators review changes and keep daily operations organized.
 
+## Project documentation
+
+See the [project documentation](docs/PROJECT_DOCUMENTATION.md) for current status, completion estimate, architecture, setup instructions, testing results, roadmap, and the live project tracker.
+
 ## Key capabilities
 
 - **Customers & sales** — Maintain customer records and payment terms, create itemized sales transactions, and track payments and balances.

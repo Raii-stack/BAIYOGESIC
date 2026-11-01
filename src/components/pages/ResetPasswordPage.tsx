@@ -45,25 +45,25 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-col bg-[#edf1f5] px-4 py-6 font-sans text-slate-950 antialiased sm:px-6 sm:py-10">
+    <main className="workspace-auth flex min-h-dvh flex-col bg-[#f6f6f7] px-4 py-6 font-sans text-neutral-900 antialiased sm:px-6 sm:py-10">
       <div className="flex flex-1 items-center justify-center">
         <section
           aria-labelledby="reset-password-heading"
-          className="w-full max-w-[520px] border border-slate-300 border-t-[3px] border-t-blue-900 bg-white px-6 py-8 shadow-[0_20px_60px_rgba(15,39,67,0.10)] sm:px-10 sm:py-10"
+          className="workspace-panel w-full max-w-[440px] p-6 sm:p-8"
         >
           <Logo />
 
-          <div className="mt-9">
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-blue-800">
+          <div className="mt-8">
+            <p className="text-xs font-medium text-neutral-500">
               Secure password reset
             </p>
             <h1
               id="reset-password-heading"
-              className="mt-3 text-3xl font-bold tracking-[-0.035em] text-slate-950"
+              className="mt-3 text-2xl font-semibold tracking-[-0.5px] text-neutral-900"
             >
               Create New Password
             </h1>
-            <p className="mt-4 text-sm leading-6 text-slate-600">{token ? "Choose a new password using your reset link." : "A valid password-reset link is required. Contact your administrator to request one."}</p>
+            <p className="mt-2 text-[13px] leading-5 text-neutral-500">{token ? "Choose a new password using your reset link." : "A valid password-reset link is required. Contact your administrator to request one."}</p>
           </div>
 
           {token && !done && <form onSubmit={submit} noValidate className="mt-7">

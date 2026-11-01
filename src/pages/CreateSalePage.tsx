@@ -314,7 +314,7 @@ export default function CreateSalePage() {
               </h2>
             </div>
 
-            <div className="grid gap-4 p-6 sm:grid-cols-2">
+            <div className="workspace-form-section grid gap-4 sm:grid-cols-2">
               <label>
                 <span className="workspace-label">Transaction number</span>
                 <input
@@ -357,7 +357,7 @@ export default function CreateSalePage() {
 
             <section
               aria-labelledby="sale-line-items-heading"
-              className="border-t border-neutral-200 p-6"
+              className="workspace-form-section border-t border-neutral-200"
             >
               <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
                 <div>
@@ -381,7 +381,7 @@ export default function CreateSalePage() {
               </div>
 
               <div className="workspace-panel workspace-table-scroll">
-                <table className="workspace-table min-w-[680px]">
+                <table role="table" className="workspace-table min-w-[680px]">
                   <thead>
                     <tr className="border-b border-slate-300 bg-slate-100">
                       <th scope="col">Product</th>
@@ -411,7 +411,7 @@ export default function CreateSalePage() {
 
                       return (
                         <tr key={line.id}>
-                          <td>
+                          <td data-label="Product">
                             <select
                               aria-label={`Product ${index + 1}`}
                               value={line.productCode}
@@ -428,7 +428,7 @@ export default function CreateSalePage() {
                               ))}
                             </select>
                           </td>
-                          <td className="w-36">
+                          <td data-label="Quantity" className="w-36">
                             <input
                               type="number"
                               aria-label={`Quantity ${index + 1}`}
@@ -444,13 +444,13 @@ export default function CreateSalePage() {
                               className="workspace-control"
                             />
                           </td>
-                          <td className="whitespace-nowrap text-right text-sm tabular-nums text-slate-700">
+                          <td data-label="Unit price" className="whitespace-nowrap text-right text-sm tabular-nums text-slate-700">
                             {currency.format(line.unitPrice)}
                           </td>
-                          <td className="whitespace-nowrap text-right text-sm font-bold tabular-nums text-slate-950">
+                          <td data-label="Line subtotal" className="whitespace-nowrap text-right text-sm font-bold tabular-nums text-slate-950">
                             {currency.format(lineSubtotal)}
                           </td>
-                          <td className="workspace-table-actions">
+                          <td data-label="Actions" className="workspace-table-actions">
                             <button
                               type="button"
                               disabled={lines.length <= 1}
@@ -476,7 +476,7 @@ export default function CreateSalePage() {
                 </p>
               )}
 
-              <div className="mt-6 grid grid-cols-3 gap-4 border-t border-neutral-200 pt-4 text-right">
+              <div className="workspace-summary mt-6 grid grid-cols-3 gap-4 border-t border-neutral-200 pt-4 text-right">
                 <div>
                   <p className="text-xs font-medium text-neutral-500">
                     Subtotal

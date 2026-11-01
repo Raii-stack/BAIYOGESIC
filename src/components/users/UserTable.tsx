@@ -1,22 +1,13 @@
+import { TableSkeletonRows } from "../common/TableSkeleton"
 import type { UserPagination } from "../../lib/user-api"
 import type { SystemUser, UserRole } from "../../types/user"
+
+const headings = ["Emp No", "Name", "Email", "Role", "Status", "Last change", "Actions"]
 
 const roleLabels: Record<UserRole, string> = {
   superadmin: "Superadmin",
   admin: "Admin",
   employee: "Employee",
-}
-
-function SkeletonRows() {
-  return Array.from({ length: 8 }, (_, index) => (
-    <tr key={index} className="border-b border-slate-100 last:border-0" aria-hidden="true">
-      {["w-16", "w-40", "w-48", "w-24", "w-20", "w-36", "w-28"].map((width, column) => (
-        <td key={column}>
-          <div className={`h-3.5 ${width} max-w-full animate-pulse rounded bg-slate-200`} />
-        </td>
-      ))}
-    </tr>
-  ))
 }
 
 function visiblePages(page: number, totalPages: number) {
@@ -75,10 +66,10 @@ export default function UserTable({
       </div>
 
       <div className="overflow-x-auto" aria-busy={loading}>
-        <table className="workspace-table min-w-[1040px]">
+        <table role="table" className="workspace-table min-w-[1040px]">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              {["Emp No", "Name", "Email", "Role", "Status", "Last change", "Actions"].map((heading) => (
+              {headings.map((heading) => (
                 <th
                   key={heading}
                   scope="col"
@@ -93,7 +84,7 @@ export default function UserTable({
           </thead>
           <tbody>
             {loading ? (
-              <SkeletonRows />
+              <TableSkeletonRows headings={headings} />
             ) : (
               users.map((user) => {
                 const isSelf = String(user.userId) === String(currentUserId)
@@ -124,10 +115,10 @@ export default function UserTable({
                         : "hover:bg-neutral-50"
                     }`}
                   >
-                    <td className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">
+                    <td data-label="Emp No" className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">
                       {user.empno || "—"}
                     </td>
-                    <td className="min-w-48">
+                    <td data-label="Name" className="min-w-48">
                       <p className="text-[13px] font-medium text-neutral-900">{user.name}</p>
                       {(user.jobTitle || user.departmentName) && (
                         <p className="mt-0.5 text-xs text-slate-500">
@@ -135,23 +126,23 @@ export default function UserTable({
                         </p>
                       )}
                     </td>
-                    <td className="text-sm text-slate-600">{user.email}</td>
-                    <td className="whitespace-nowrap">
+                    <td data-label="Email" className="text-sm text-slate-600">{user.email}</td>
+                    <td data-label="Role" className="whitespace-nowrap">
                       <span className="workspace-badge workspace-badge--neutral" data-role={user.role}>
                         {roleLabels[user.role]}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap">
+                    <td data-label="Status" className="whitespace-nowrap">
                       <span
                         className={`workspace-badge ${statusBadgeStyle}`}
                       >
                         {statusLabel}
                       </span>
                     </td>
-                    <td className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">
+                    <td data-label="Last change" className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">
                       {user.stamp || "—"}
                     </td>
-                    <td
+                    <td data-label="Actions"
                       className={`workspace-table-actions ${
                         user.isBlocked ? "bg-red-50/60" : "bg-white"
                       }`}

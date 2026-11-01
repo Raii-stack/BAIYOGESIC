@@ -68,19 +68,19 @@ export default function RecordPaymentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center px-4 py-6">
+    <div className="workspace-modal-overlay z-[70]">
       <button
         type="button"
         aria-label="Close payment form"
         onClick={onClose}
-        className="absolute inset-0 bg-slate-950/70"
+        className="absolute inset-0 bg-black/45"
       />
 
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="record-payment-title"
-        className="relative flex max-h-[calc(100dvh-48px)] w-full max-w-lg flex-col workspace-panel shadow-xl"
+        className="workspace-modal workspace-panel relative w-full max-w-lg shadow-xl"
       >
         <header className="workspace-drawer-header">
           <div>
@@ -101,7 +101,7 @@ export default function RecordPaymentModal({
           </button>
         </header>
 
-        <form onSubmit={submit} noValidate className="flex min-h-0 flex-col">
+        <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
           <div className="workspace-drawer-body space-y-4">
             <label className="block">
               <span className="workspace-label">

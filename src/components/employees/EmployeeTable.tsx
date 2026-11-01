@@ -1,3 +1,4 @@
+import TableSkeleton, { TableSkeletonRows } from "../common/TableSkeleton"
 import { Fragment, useEffect, useState } from "react"
 import { Link } from "react-router"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
@@ -33,12 +34,12 @@ function JobHistory({ empno, fullName }: { empno: string; fullName: string }) {
           <p className="mt-1 text-xs leading-5 text-slate-500">Recorded positions, departments, and compensation for {fullName}.</p>
         </div>
         <div className="workspace-panel" aria-busy={loading}>
-          {loading ? <div className="space-y-3 p-4" aria-label="Loading job history">{[0, 1, 2].map((item) => <div key={item} className="h-4 animate-pulse rounded bg-slate-200" />)}</div>
+          {loading ? <TableSkeleton label="Loading job history" headings={["Effective date", "Job title", "Department", "Salary", "Last change"]} />
             : error ? <div role="alert" className="flex items-center justify-between gap-3 p-4 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => setRetry((value) => value + 1)} className="font-semibold underline">Retry</button></div>
               : entries.length === 0 ? <p className="p-4 text-sm text-slate-500">No job history recorded.</p>
-                : <table className="workspace-table">
-                  <thead><tr className="border-b border-slate-200 bg-white text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500"><th className="px-4 py-3">Effective date</th><th className="px-4 py-3">Job title</th><th className="px-4 py-3">Department</th><th className="px-4 py-3 text-right">Salary</th><th className="hidden px-4 py-3 sm:table-cell">Last change</th></tr></thead>
-                  <tbody>{entries.map((entry) => <tr key={entry.id} className="border-b border-slate-100 last:border-0"><td className="px-4 py-3 font-mono text-xs text-slate-600">{entry.effectiveDate}</td><td className="px-4 py-3 text-xs font-semibold text-slate-900">{entry.jobTitle}</td><td className="px-4 py-3 text-xs text-slate-700">{entry.department}</td><td className="px-4 py-3 text-right text-sm font-bold tabular-nums text-slate-900">{entry.canViewSalary ? money.format(entry.salary) : <span className="text-slate-400">••••••</span>}</td><td className="hidden px-4 py-3 font-mono text-[11px] text-slate-500 sm:table-cell">{entry.stamp || "—"}</td></tr>)}</tbody>
+                : <table role="table" className="workspace-table">
+                  <thead><tr className="border-b border-slate-200 bg-white text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500"><th className="px-4 py-3">Effective date</th><th className="px-4 py-3">Job title</th><th className="px-4 py-3">Department</th><th className="px-4 py-3 text-right">Salary</th><th className="px-4 py-3 sm:table-cell">Last change</th></tr></thead>
+                  <tbody>{entries.map((entry) => <tr key={entry.id} className="border-b border-slate-100 last:border-0"><td data-label="Effective date" className="px-4 py-3 font-mono text-xs text-slate-600">{entry.effectiveDate}</td><td data-label="Job title" className="px-4 py-3 text-xs font-semibold text-slate-900">{entry.jobTitle}</td><td data-label="Department" className="px-4 py-3 text-xs text-slate-700">{entry.department}</td><td data-label="Salary" className="px-4 py-3 text-right text-sm font-bold tabular-nums text-slate-900">{entry.canViewSalary ? money.format(entry.salary) : <span className="text-slate-400">••••••</span>}</td><td data-label="Last change" className="px-4 py-3 font-mono text-[11px] text-slate-500 sm:table-cell">{entry.stamp || "—"}</td></tr>)}</tbody>
                 </table>}
         </div>
       </div>
@@ -56,22 +57,22 @@ export default function EmployeeTable({ employees, pagination, loading, error, o
   const headings = ["Emp No", "Last name", "First name", "Gender", "Birth date", "Hire date", "Sep date", "Status", "Last change", "Actions"]
   return <section aria-label="Employee records" className="workspace-panel">
     <div className="workspace-table-header"><div><h2 className="text-sm font-semibold text-neutral-900">Personnel register</h2><p className="mt-0.5 text-xs text-slate-500">Employee records, personal details, and employment status</p></div><span className="workspace-badge workspace-badge--neutral">{loading ? "Loading…" : error ? "Unavailable" : `${pagination.total} records`}</span></div>
-    <div className="overflow-x-auto" aria-busy={loading}><table className="workspace-table min-w-[1160px]"><thead><tr className="border-b border-slate-200 bg-slate-50">{headings.map((heading) => <th key={heading} scope="col" className={`workspace-table-heading ${heading === "Actions" ? "workspace-table-actions" : ""}`}>{heading}</th>)}</tr></thead><tbody>
-      {loading ? Array.from({ length: 8 }, (_, index) => <tr key={index} aria-hidden="true" className="border-b border-slate-100">{Array.from({ length: headings.length }, (_, column) => <td key={column}><div className="h-3.5 max-w-full animate-pulse rounded bg-slate-200" style={{ width: column === 1 || column === 2 ? 110 : column === 8 ? 140 : 72 }} /></td>)}</tr>) : employees.map((employee) => {
+    <div className="overflow-x-auto" aria-busy={loading}><table role="table" className="workspace-table min-w-[1160px]"><thead><tr className="border-b border-slate-200 bg-slate-50">{headings.map((heading) => <th key={heading} scope="col" className={`workspace-table-heading ${heading === "Actions" ? "workspace-table-actions" : ""}`}>{heading}</th>)}</tr></thead><tbody>
+      {loading ? <TableSkeletonRows headings={headings} /> : employees.map((employee) => {
         const status = employee.archived ? "Archived" : employee.separationDate ? "Separated" : "Active"
         const expanded = expandedEmployee === employee.id
         return <Fragment key={employee.id}>
           <tr className={`border-b border-slate-100 transition-colors last:border-0 ${expanded ? "is-expanded" : employee.archived ? "is-muted" : "hover:bg-neutral-50"}`}>
-            <td className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600"><Link to={`/employees/${encodeURIComponent(employee.id)}?view=details`} className="underline-offset-4 hover:underline">{employee.id}</Link></td>
-            <td className="text-[13px] font-medium text-neutral-900">{employee.lastName || "—"}</td>
-            <td><Link to={`/employees/${encodeURIComponent(employee.id)}?view=details`} className="text-[13px] font-medium text-neutral-900 underline-offset-4 hover:text-blue-800 hover:underline">{employee.firstName || "—"} <span className="sr-only">{employee.fullName}</span></Link><p className="mt-0.5 text-xs text-slate-500">{employee.email || "—"}</p>{!employee.canViewSalary && <span aria-label="Salary hidden due to permissions" className="sr-only">••••••</span>}</td>
-            <td className="whitespace-nowrap text-sm font-medium text-slate-700">{employee.gender || "—"}</td>
-            <td className="whitespace-nowrap font-mono text-xs text-slate-600">{employee.birthDate || "—"}</td>
-            <td className="whitespace-nowrap font-mono text-xs text-slate-600">{employee.hireDate || "—"}</td>
-            <td className="whitespace-nowrap font-mono text-xs text-slate-600">{employee.separationDate || "—"}</td>
-            <td className="whitespace-nowrap"><span className={`workspace-badge ${status === "Active" ? "bg-emerald-100 text-emerald-800" : status === "Separated" ? "bg-amber-100 text-amber-900" : "bg-neutral-100 text-neutral-600"}`}>{status}</span></td>
-            <td className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">{employee.stamp || "—"}</td>
-            <td className={`workspace-table-actions ${employee.archived ? "bg-slate-50" : "bg-white"}`}><div className="flex items-center gap-1">
+            <td data-label="Emp No" className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600"><Link to={`/employees/${encodeURIComponent(employee.id)}?view=details`} className="underline-offset-4 hover:underline">{employee.id}</Link></td>
+            <td data-label="Last name" className="text-[13px] font-medium text-neutral-900">{employee.lastName || "—"}</td>
+            <td data-label="First name"><Link to={`/employees/${encodeURIComponent(employee.id)}?view=details`} className="text-[13px] font-medium text-neutral-900 underline-offset-4 hover:text-blue-800 hover:underline">{employee.firstName || "—"} <span className="sr-only">{employee.fullName}</span></Link><p className="mt-0.5 text-xs text-slate-500">{employee.email || "—"}</p>{!employee.canViewSalary && <span aria-label="Salary hidden due to permissions" className="sr-only">••••••</span>}</td>
+            <td data-label="Gender" className="whitespace-nowrap text-sm font-medium text-slate-700">{employee.gender || "—"}</td>
+            <td data-label="Birth date" className="whitespace-nowrap font-mono text-xs text-slate-600">{employee.birthDate || "—"}</td>
+            <td data-label="Hire date" className="whitespace-nowrap font-mono text-xs text-slate-600">{employee.hireDate || "—"}</td>
+            <td data-label="Sep date" className="whitespace-nowrap font-mono text-xs text-slate-600">{employee.separationDate || "—"}</td>
+            <td data-label="Status" className="whitespace-nowrap"><span className={`workspace-badge ${status === "Active" ? "bg-emerald-100 text-emerald-800" : status === "Separated" ? "bg-amber-100 text-amber-900" : "bg-neutral-100 text-neutral-600"}`}>{status}</span></td>
+            <td data-label="Last change" className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">{employee.stamp || "—"}</td>
+            <td data-label="Actions" className={`workspace-table-actions ${employee.archived ? "bg-slate-50" : "bg-white"}`}><div className="flex items-center gap-1">
               <button type="button" aria-label={`${expanded ? "Hide" : "Show"} job history for ${employee.fullName}`} aria-expanded={expanded} aria-controls={`job-history-${employee.id}`} title="Job history" onClick={() => setExpandedEmployee(expanded ? null : employee.id)} className="workspace-icon-action"><DashboardIcon name="history" className="h-4 w-4" /></button>
               {!employee.archived ? <>
                 {canEdit && <button type="button" onClick={() => onEdit(employee)} aria-label={`Edit ${employee.fullName}`} title="Edit employee" className="workspace-icon-action"><DashboardIcon name="edit" className="h-4 w-4" /></button>}

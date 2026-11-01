@@ -94,7 +94,7 @@ export default function CustomerPanel({
         aria-label="Close customer details"
         onClick={() => { if (!saving) onClose() }}
         tabIndex={open ? 0 : -1}
-        className={`absolute inset-0 bg-slate-950/45 transition-opacity duration-200 ${
+        className={`absolute inset-0 bg-black/45 transition-opacity duration-200 ${
           open ? "opacity-100" : "opacity-0"
         }`}
       />

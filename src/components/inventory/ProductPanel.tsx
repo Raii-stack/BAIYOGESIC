@@ -90,7 +90,7 @@ export default function ProductPanel({
         aria-label="Close product form"
         onClick={() => { if (!saving) onClose() }}
         tabIndex={open ? 0 : -1}
-        className={`absolute inset-0 bg-slate-950/45 transition-opacity duration-200 ${
+        className={`absolute inset-0 bg-black/45 transition-opacity duration-200 ${
           open ? "opacity-100" : "opacity-0"
         }`}
       />

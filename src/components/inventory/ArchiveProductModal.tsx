@@ -17,10 +17,10 @@ export default function ArchiveProductModal({ productName, open, onCancel, onCon
 
   if (!open) return null
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center px-4 py-8">
-      <button type="button" aria-label="Cancel archive" onClick={() => { if (!loading) onCancel() }} className="absolute inset-0 bg-slate-950/70" />
-      <section role="alertdialog" aria-modal="true" aria-labelledby="archive-product-title" aria-describedby="archive-product-description" className="relative w-full max-w-lg workspace-panel shadow-xl">
-        <div className="p-6 text-center">
+    <div className="workspace-modal-overlay z-[60]">
+      <button type="button" aria-label="Cancel archive" onClick={() => { if (!loading) onCancel() }} className="absolute inset-0 bg-black/45" />
+      <section role="alertdialog" aria-modal="true" aria-labelledby="archive-product-title" aria-describedby="archive-product-description" className="workspace-modal workspace-panel relative w-full max-w-lg shadow-xl">
+        <div className="workspace-drawer-body text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-red-200 bg-red-50 text-red-700"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 2.8 19a1.3 1.3 0 0 0 1.1 2h16.2a1.3 1.3 0 0 0 1.1-2L12 3Z" /><path d="M12 9v5M12 18h.01" /></svg></div>
           <p className="mt-5 text-[10px] font-bold uppercase tracking-[0.18em] text-red-700">Destructive action</p>
           <h2 id="archive-product-title" className="mt-2 text-xl font-semibold tracking-tight text-neutral-900">Archive this product?</h2>

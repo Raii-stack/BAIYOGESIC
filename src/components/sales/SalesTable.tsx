@@ -39,7 +39,7 @@ export default function SalesTable({
         </span>
       </div>
       <div className="overflow-x-auto">
-        <table className="workspace-table min-w-[1040px]">
+        <table role="table" className="workspace-table min-w-[1040px]">
           <thead>
             <tr className="border-b border-slate-300 bg-slate-100">
               {[
@@ -76,13 +76,13 @@ export default function SalesTable({
                   key={sale.transactionNo}
                   className={inactive ? "is-muted" : ""}
                 >
-                  <td className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">
+                  <td data-label="Transaction" className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">
                     {sale.transactionNo}
                   </td>
-                  <td className="whitespace-nowrap font-mono text-xs text-slate-600">
+                  <td data-label="Sales date" className="whitespace-nowrap font-mono text-xs text-slate-600">
                     {sale.salesDate}
                   </td>
-                  <td>
+                  <td data-label="Customer">
                     <p className="text-[13px] font-semibold text-slate-900">
                       {sale.customerName}
                     </p>
@@ -90,7 +90,7 @@ export default function SalesTable({
                       {sale.customerCode}
                     </p>
                   </td>
-                  <td>
+                  <td data-label="Employee">
                     <p className="text-[13px] font-medium text-slate-800">
                       {sale.employeeName}
                     </p>
@@ -98,27 +98,27 @@ export default function SalesTable({
                       {sale.employeeCode}
                     </p>
                   </td>
-                  <td className="whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-neutral-900">
+                  <td data-label="Total" className="whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-neutral-900">
                     {currency.format(getSaleTotal(sale))}
                   </td>
-                  <td className="whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-neutral-900">
+                  <td data-label="Balance" className="whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-neutral-900">
                     <span>{currency.format(getSaleBalance(sale))}</span>
                     <span className="ml-2 inline-block align-middle">
                       <PaymentStatusBadge status={paymentStatus} />
                     </span>
                   </td>
                   {showAdminAudit && (
-                    <td>
+                    <td data-label="Status">
                       <StatusBadge status={sale.status} />
                     </td>
                   )}
                   {showAdminAudit && (
-                    <td className="max-w-56 font-mono text-[10px] leading-5 text-slate-500">
+                    <td data-label="Last change" className="max-w-56 font-mono text-[10px] leading-5 text-slate-500">
                       {sale.stamp}
                     </td>
                   )}
                   {showActions && (
-                    <td className="workspace-table-actions">
+                    <td data-label="Actions" className="workspace-table-actions">
                       {inactive ? (
                         canDelete ? (
                           <button

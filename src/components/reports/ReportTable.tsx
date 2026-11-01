@@ -270,7 +270,7 @@ export default function ReportTable({
     >
       <div className="workspace-table-header"><h2>{report}</h2><span className="workspace-badge workspace-badge--neutral">{rows.length} results</span></div>
       <div className="overflow-x-auto">
-        <table className="workspace-table min-w-[760px]">
+        <table role="table" className="workspace-table min-w-[760px]">
           <thead>
             <tr className="border-b border-slate-300 bg-slate-100">
               {table.columns.map((column) => (
@@ -292,7 +292,7 @@ export default function ReportTable({
                 key={`${report}-${index}`}
               >
                 {table.columns.map((column) => (
-                  <td
+                  <td data-label={column.label}
                     key={column.key}
                     className={`text-sm text-slate-700 ${
                       column.align === "right"

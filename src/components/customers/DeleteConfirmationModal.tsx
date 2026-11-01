@@ -49,12 +49,12 @@ export default function DeleteConfirmationModal({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center px-4 py-8">
+    <div className="workspace-modal-overlay z-[60]">
       <button
         type="button"
         aria-label="Cancel archive"
         onClick={() => { if (!loading) onCancel() }}
-        className="absolute inset-0 bg-slate-950/70"
+        className="absolute inset-0 bg-black/45"
       />
 
       <section
@@ -62,9 +62,9 @@ export default function DeleteConfirmationModal({
         aria-modal="true"
         aria-labelledby="archive-dialog-title"
         aria-describedby="archive-dialog-description"
-        className="relative w-full max-w-lg workspace-panel shadow-xl"
+        className="workspace-modal workspace-panel relative w-full max-w-lg shadow-xl"
       >
-        <div className="p-6 text-center">
+        <div className="workspace-drawer-body text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-red-200 bg-red-50 text-red-700">
             <WarningIcon />
           </div>

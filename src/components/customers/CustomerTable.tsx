@@ -1,3 +1,4 @@
+import { TableSkeletonRows } from "../common/TableSkeleton"
 import type { Customer } from "../../types/customer"
 import type { CustomerPagination } from "../../lib/customer-api"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
@@ -7,26 +8,6 @@ const termLabels: Record<Customer["paymentTerm"], string> = {
   "45D": "Net 45",
   "60D": "Net 60",
   COD: "Cash on delivery",
-}
-
-function SkeletonRows({ showActions, canViewAudit }: { showActions: boolean; canViewAudit: boolean }) {
-  const widths = [
-    "w-20",
-    "w-40",
-    "w-52",
-    "w-24",
-    ...(canViewAudit ? ["w-16", "w-36"] : []),
-    ...(showActions ? ["w-16"] : []),
-  ]
-  return Array.from({ length: 8 }, (_, index) => (
-    <tr key={index} className="border-b border-slate-100 last:border-0" aria-hidden="true">
-      {widths.map((width, column) => (
-        <td key={column}>
-          <div className={`h-3.5 ${width} max-w-full animate-pulse rounded bg-slate-200`} />
-        </td>
-      ))}
-    </tr>
-  ))
 }
 
 function visiblePages(page: number, totalPages: number) {
@@ -87,7 +68,7 @@ export default function CustomerTable({
       </div>
 
       <div className="overflow-x-auto" aria-busy={loading}>
-        <table className="workspace-table min-w-[820px]">
+        <table role="table" className="workspace-table min-w-[820px]">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
               {headings.map((heading) => (
@@ -96,15 +77,15 @@ export default function CustomerTable({
             </tr>
           </thead>
           <tbody>
-            {loading ? <SkeletonRows showActions={showActions} canViewAudit={canViewAudit} /> : customers.map((customer) => (
+            {loading ? <TableSkeletonRows headings={headings} /> : customers.map((customer) => (
               <tr key={customer.id} className={`border-b border-slate-100 transition-colors last:border-0 ${customer.status === "Active" ? "hover:bg-neutral-50" : "is-muted"}`}>
-                <td className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">{customer.id}</td>
-                <td className="min-w-48 text-[13px] font-medium text-neutral-900">{customer.company}</td>
-                <td className="max-w-72 text-sm leading-5 text-slate-600">{customer.address}</td>
-                <td className="whitespace-nowrap"><span className="workspace-badge workspace-badge--neutral" data-term={customer.paymentTerm}>{termLabels[customer.paymentTerm] || customer.paymentTerm}</span></td>
-                {canViewAudit && <td className="whitespace-nowrap"><span className={`workspace-badge ${customer.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-600"}`}>{customer.status === "Active" ? "Active" : "Archived"}</span></td>}
-                {canViewAudit && <td className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">{customer.stamp || "—"}</td>}
-                {showActions && <td className={`workspace-table-actions ${customer.status === "Active" ? "bg-white" : "bg-slate-50"}`}><div className="flex items-center gap-1">
+                <td data-label="Customer ID" className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">{customer.id}</td>
+                <td data-label="Customer" className="min-w-48 text-[13px] font-medium text-neutral-900">{customer.company}</td>
+                <td data-label="Address" className="max-w-72 text-sm leading-5 text-slate-600">{customer.address}</td>
+                <td data-label="Payment terms" className="whitespace-nowrap"><span className="workspace-badge workspace-badge--neutral" data-term={customer.paymentTerm}>{termLabels[customer.paymentTerm] || customer.paymentTerm}</span></td>
+                {canViewAudit && <td data-label="Status" className="whitespace-nowrap"><span className={`workspace-badge ${customer.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-600"}`}>{customer.status === "Active" ? "Active" : "Archived"}</span></td>}
+                {canViewAudit && <td data-label="Last change" className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">{customer.stamp || "—"}</td>}
+                {showActions && <td data-label="Actions" className={`workspace-table-actions ${customer.status === "Active" ? "bg-white" : "bg-slate-50"}`}><div className="flex items-center gap-1">
                   {customer.status === "Active" ? <>
                     {canEdit && <button type="button" onClick={() => onEdit(customer)} aria-label={`Edit ${customer.company}`} title="Edit customer" className="workspace-icon-action"><DashboardIcon name="edit" className="h-4 w-4" /></button>}
                     {canDelete && <button type="button" onClick={() => onArchive(customer)} aria-label={`Archive ${customer.company}`} title="Archive customer" className="workspace-icon-action workspace-icon-action--danger"><DashboardIcon name="archive" className="h-4 w-4" /></button>}

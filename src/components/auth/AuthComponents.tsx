@@ -274,7 +274,7 @@ export function AuthShell({
   const headingId = useId()
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f6f6f7] font-sans text-neutral-900 antialiased">
+    <div className="workspace-auth flex min-h-dvh flex-col bg-[#f6f6f7] font-sans text-neutral-900 antialiased">
       <main className="flex flex-1 items-center justify-center px-5 py-12 sm:px-8">
         <section aria-labelledby={headingId} className="workspace-panel w-full max-w-[440px] p-6 sm:p-8">
           <Logo />

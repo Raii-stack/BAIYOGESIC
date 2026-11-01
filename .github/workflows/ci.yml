@@ -79,12 +79,13 @@ jobs:
           path: ./
           base: ${{ github.event.pull_request.base.sha }}
           head: ${{ github.event.pull_request.head.sha }}
-          extra_args: --debug
+          extra_args: --only-verified --debug
 
       - name: Run TruffleHog OSS (Push)
         if: github.event_name != 'pull_request'
         uses: trufflesecurity/trufflehog@v3.90.0
         with:
           path: ./
+          base: ${{ github.event.before != '0000000000000000000000000000000000000000' && github.event.before || '' }}
           head: ${{ github.sha }}
-          extra_args: --debug
+          extra_args: --only-verified --debug

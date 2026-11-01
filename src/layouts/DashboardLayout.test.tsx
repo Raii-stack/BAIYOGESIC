@@ -60,6 +60,28 @@ test("account menu closes with Escape and links to the account", async () => {
   expect(await screen.findByText("Account details")).toBeInTheDocument()
 })
 
+test("Escape dismisses an open select before reaching a drawer's window listener", async () => {
+  renderWorkspace("/dashboard")
+  await screen.findByText("Home workspace")
+  vi.stubGlobal("CSS", { supports: () => true })
+  const select = document.createElement("select")
+  const option = document.createElement("option")
+  select.append(option)
+  screen.getByText("Home workspace").append(select)
+  const matches = vi.spyOn(select, "matches").mockReturnValue(true)
+  const closeDrawer = vi.fn()
+  window.addEventListener("keydown", closeDrawer)
+  try {
+    fireEvent.keyDown(option, { key: "Escape" })
+    expect(closeDrawer).not.toHaveBeenCalled()
+    matches.mockReturnValue(false)
+    fireEvent.keyDown(select, { key: "Escape" })
+    expect(closeDrawer).toHaveBeenCalledOnce()
+  } finally {
+    window.removeEventListener("keydown", closeDrawer)
+  }
+})
+
 test("mobile navigation restores page scrolling when resized to desktop", async () => {
   renderWorkspace("/dashboard")
   await screen.findByRole("link", { name: /Agent One/ })

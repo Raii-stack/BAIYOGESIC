@@ -123,7 +123,11 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
   }, [mobileSidebarOpen])
 
   return (
-    <div className="erp-workspace flex min-h-screen bg-[#1c1c1c] font-sans text-neutral-900 antialiased">
+    <div className="erp-workspace flex min-h-screen bg-[#1c1c1c] font-sans text-neutral-900 antialiased"
+      onKeyDown={(event) => {
+        // Let Escape dismiss an open select before a containing drawer handles it.
+        if (event.key === "Escape" && event.target instanceof Element && CSS.supports("appearance", "base-select") && event.target.closest("select")?.matches(":open")) event.stopPropagation()
+      }}>
       {mobileSidebarOpen && <button type="button" aria-label="Close navigation" onClick={closeMobileNavigation} className="fixed inset-0 z-30 bg-black/45 lg:hidden" />}
 
       <aside

@@ -1,232 +1,67 @@
-# HOPE, Inc. ERP System (BAIYOGESIC)
+<div align="center">
+  <h1>HOPE, Inc. ERP</h1>
+  <p><strong>People, products, and everyday operations in one workspace.</strong></p>
+  <p>Developed by Team BAIYOGESIC · Software Engineering 1</p>
+</div>
 
-Enterprise Resource Planning (ERP) platform developed for HOPE, Inc. The system integrates customer management, product catalog and price history tracking, human resources and job history, sales transactions with price-as-of-date calculation, payment processing, granular role-based access control (RBAC), audit logging, and reporting.
+![HOPE, Inc. ERP landing page introducing the connected business workspace](docs/images/hope-erp-preview.png)
 
-Developed for **Software Engineering 1**.
+## About the project
 
----
+HOPE, Inc. ERP is a web-based enterprise resource planning platform that brings customer relationships, product pricing, employee records, and sales into a shared workspace. It helps teams follow the full sales process—from selecting a customer and applying the price effective on the transaction date to recording payments and tracking outstanding balances.
 
-## Project Team and Roles
+Role-based permissions give each team member access to the tools and information they need. Historical records, audit logs, and printable reports help administrators review changes and keep daily operations organized.
 
-| Role | Team Member | Primary Responsibilities |
-| --- | --- | --- |
-| Scrum Master | Ryan James M. Gopio | Agile sprint orchestration, velocity tracking, impediment management, project board automation |
-| Test Engineer | Prince Nelson J. Aguinaldo Jr. | Automated integration and regression test suites, defect verification, QA sign-off |
-| UI/UX Developer | Alain Deiniel S. Montes | Frontend component architecture, design system standards, layout accessibility (WCAG AA) |
-| Backend Engineer and DB Admin | Kathryn Chloe V. Silvestre | Database migrations, relational integrity constraints, API route controllers, query tuning |
-| DevSecOps Engineer | Marron Beroy | CI/CD pipelines, security scanning, audit trail verification, environment configuration |
+## Key capabilities
 
----
+- **Customers & sales** — Maintain customer records and payment terms, create itemized sales transactions, and track payments and balances.
+- **Products & pricing** — Manage the product catalog and dated price history, with automatic price lookup for each transaction date.
+- **People & job history** — Organize employee records, departments, and job assignments, with restricted access to salary information.
+- **Reports** — Generate printable product, employee, and sales reports, including top customers and products.
+- **Access & accountability** — Manage user roles and module permissions, and review changes through a dedicated audit trail.
 
-## Architecture and Technology Stack
+## Built with
 
-The project follows a decoupled client-server architecture with an Express application backend and a React single-page application (SPA) frontend.
+| Layer | Technologies |
+| --- | --- |
+| Frontend | React · TypeScript · Vite · Tailwind CSS |
+| Backend | Node.js · Express |
+| Database | PostgreSQL · Supabase |
+| Quality & delivery | Vitest · React Testing Library · GitHub Actions |
 
-- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, React Router 8
-- **Backend:** Node.js (v20+), Express 5, Helmet, Cookie Parser, CORS
-- **Database:** PostgreSQL via Supabase, pg (node-postgres), connection pooling
-- **Authentication & Security:** JWT session management via HttpOnly cookies, bcrypt password hashing, audit context logging
-- **Testing:** Vitest, React Testing Library, jsdom
-- **CI/CD & Automation:** GitHub Actions, GitHub Projects v2 automation
+## Development team
 
----
-
-## Core ERP Modules
-
-### 1. Authentication and Access Control (RBAC)
-- Multi-tier role permissions: Superadmin, Admin, and Employee.
-- Session tokens stored in secure, HttpOnly cookies (`access_token`).
-- Default password detection on first login forcing mandatory password update.
-- Password reset workflow with time-limited tokens (15-minute validity).
-- Granular per-module rights assignment across Customer, Product, HR, Sales, and Reports.
-- Superadmin account protection (last remaining Superadmin cannot be demoted or disabled).
-
-### 2. Customer Management (CRM)
-- Customer directory with server-side pagination, status filtering, and payment terms (`COD`, `30D`, `45D`, `60D`).
-- Wildcard customer search with frontend input debouncing (300ms).
-- Soft deletion with referential integrity: archiving is blocked if active sales orders exist.
-
-### 3. Inventory and Product Management
-- Product catalog supporting item status filtering and categorization.
-- Multi-tier price history tracking effective price points by date.
-- Historical price lookup retrieves active unit price effective on or before the transaction date.
-- Soft-archive protection prevents deletion of products with open sales transactions.
-
-### 4. Human Resources and Personnel
-- Employee directory with department and job title lookups.
-- Chronological job history timeline capturing promotions, transfers, and compensation revisions.
-- Confidential salary masking: compensation data is restricted to authorized personnel and redacted for standard employees.
-- Employee separation tracking with soft-archive workflow.
-
-### 5. Sales Transactions and Payment Processing
-- Sequential transaction number generation (`SO-YYYYMM-XXXX`).
-- Multi-line sales entry with automatic unit price lookup based on transaction date.
-- Customer payment recording against sales transactions with real-time balance calculations.
-- Transaction status indicators: Unpaid, Partial, and Paid.
-- Overpayment prevention and soft-delete protections against orders with recorded payments.
-
-### 6. Reports and Analytics
-- Pre-built system reports: Product Master List, Active Employees, All Employees, Employee Job History, Top Customers, Top Products, and Top Sales.
-- Configurable date ranges and Top N ranking limits.
-- Optimized print stylesheets (`@media print`) for clean PDF generation and export.
-
-### 7. Superadmin Audit Trail
-- System-wide audit log tracking `INSERT`, `UPDATE`, and `DELETE` actions across core tables.
-- Captured metadata: actor username, affected table, operation type, timestamp, and row state diffs.
-- Read-only audit log viewer with multi-field search for compliance auditing.
-
----
-
-## Project Structure
-
-```
-BAIYOGESIC/
-├── .github/
-│   ├── ISSUE_TEMPLATE/       # Standardized issue templates
-│   ├── workflows/            # CI/CD and board automation workflows
-│   └── PULL_REQUEST_TEMPLATE.md
-├── controllers/              # Express route business logic and query handlers
-│   ├── auth-controller.js
-│   ├── customer-controller.js
-│   ├── employee-controller.js
-│   ├── product-controller.js
-│   └── user-controller.js
-├── docs/                     # Engineering documentation
-│   ├── agile/                # Sprint tracking, retrospectives, and impediment logs
-│   ├── database/             # Schema definitions and disaster recovery scripts
-│   ├── design/               # Design specifications and usability reviews
-│   └── qa/                   # Test plans, bug logs, and QA sign-off reports
-├── lib/                      # Core backend utilities and database pool configuration
-├── middleware/               # Express authentication, permission, and audit middleware
-│   ├── audit-context.js
-│   ├── auth.js
-│   ├── error-handler.js
-│   └── permissions.js
-├── routes/                   # Modular API route definitions
-│   ├── auth-routes.js
-│   ├── customer-routes.js
-│   ├── employee-routes.js
-│   ├── product-routes.js
-│   └── user-routes.js
-├── scripts/                  # Project automation and field synchronization scripts
-├── src/                      # React frontend source code
-│   ├── components/           # Reusable UI components by feature domain
-│   ├── hooks/                # Custom React application hooks
-│   ├── layouts/              # Dashboard and authentication view layouts
-│   ├── pages/                # Top-level page views and integration tests
-│   ├── types/                # TypeScript interfaces and schema types
-│   └── utils/                # Frontend validation and transformation helpers
-├── supabase/
-│   ├── migrations/           # Versioned PostgreSQL schema migrations
-│   └── seed.sql              # Database initialization and demo records
-├── server.js                 # Express application root entry point
-├── package.json              # Project dependencies and script definitions
-├── vite.config.ts            # Vite bundler and development proxy configuration
-└── README.md
-```
-
----
-
-## Getting Started
-
-### Prerequisites
-- Node.js 20.x or higher
-- npm 10.x or higher
-- A Supabase PostgreSQL database instance
-
-### Environment Configuration
-Create a `.env` file in the project root:
-
-```env
-# Application Port and Environment
-PORT=3000
-NODE_ENV=development
-
-# Client Origin (CORS)
-CLIENT_ORIGIN=http://localhost:5173
-
-# Supabase Credentials
-SUPABASE_URL=https://<your-project-ref>.supabase.co
-SUPABASE_KEY=<your-supabase-service-role-or-anon-key>
-
-# Database Connection Pool
-DATABASE_URL=postgresql://postgres:<password>@<db-host>:5432/postgres
-
-# JWT Secret
-JWT_SECRET=<your-jwt-secret-key>
-```
-
-For frontend local development, create `.env.local` if custom proxying is required:
-```env
-VITE_API_PROXY_TARGET=http://localhost:3000
-```
-
-### Installation and Execution
-
-1. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-2. **Run backend and frontend concurrently (development):**
-   ```bash
-   npm run dev
-   ```
-   - Frontend: `http://localhost:5173`
-   - Backend API: `http://localhost:3000`
-
-3. **Run services independently:**
-   ```bash
-   # Backend API server with watch mode
-   npm run api:dev
-
-   # Frontend development server
-   npm run dev:frontend
-   ```
-
-4. **Build frontend for production:**
-   ```bash
-   npm run build
-   ```
-
----
-
-## Testing and Quality Assurance
-
-The codebase uses Vitest alongside React Testing Library for unit and integration testing.
-
-```bash
-# Run all test suites
-npm test
-
-# Run tests in watch mode
-npx vitest
-
-# Run a specific test suite
-npx vitest run src/pages/CustomerManagementPage.test.tsx
-```
-
-Live API integration tests must use a non-production Supabase project. Create an ignored `.env.test` with:
-
-```env
-API_BASE_URL=http://localhost:3000
-SUPABASE_URL=https://<test-project-ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<test-project-service-role-key>
-QA_PASSWORD=<random-password-at-least-12-characters>
-ALLOW_QA_USER_SEED=true
-```
-
-Then run `npm run test:integration`. The explicit seed flag prevents the test fixture from creating QA accounts accidentally.
-
-All pull requests must pass automated linting and the test suite before merging.
-
----
-
-## Agile Workflow and Project Tracking
-
-Sprint delivery is tracked via GitHub Projects v2:
-- **Sprint Board:** [Sprint Plan for HOPE Inc.](https://github.com/users/Raii-stack/projects/5)
-- Automated status progression:
-  - Pull request opened with linked issue -> `In review`
-  - Pull request merged -> `Done`
-  - All prerequisite tasks completed -> `Ready` (assignee notified automatically)
+<table>
+  <tr>
+    <td align="center" width="20%">
+      <a href="https://github.com/Raii-stack"><img src="https://github.com/Raii-stack.png?size=160" width="80" height="80" alt="Ryan James M. Gopio's GitHub profile picture" /></a><br />
+      <strong>Ryan James M. Gopio</strong><br />
+      <sub>Scrum Master</sub><br />
+      <a href="https://github.com/Raii-stack">@Raii-stack</a>
+    </td>
+    <td align="center" width="20%">
+      <a href="https://github.com/princeaguinaldo"><img src="https://github.com/princeaguinaldo.png?size=160" width="80" height="80" alt="Prince Nelson J. Aguinaldo Jr.'s GitHub profile picture" /></a><br />
+      <strong>Prince Nelson J. Aguinaldo Jr.</strong><br />
+      <sub>Test Engineer</sub><br />
+      <a href="https://github.com/princeaguinaldo">@princeaguinaldo</a>
+    </td>
+    <td align="center" width="20%">
+      <a href="https://github.com/alainmnts"><img src="https://github.com/alainmnts.png?size=160" width="80" height="80" alt="Alain Deiniel S. Montes's GitHub profile picture" /></a><br />
+      <strong>Alain Deiniel S. Montes</strong><br />
+      <sub>UI/UX Developer</sub><br />
+      <a href="https://github.com/alainmnts">@alainmnts</a>
+    </td>
+    <td align="center" width="20%">
+      <a href="https://github.com/itsmechloe"><img src="https://github.com/itsmechloe.png?size=160" width="80" height="80" alt="Kathryn Chloe V. Silvestre's GitHub profile picture" /></a><br />
+      <strong>Kathryn Chloe V. Silvestre</strong><br />
+      <sub>Backend Engineer &amp; DB Admin</sub><br />
+      <a href="https://github.com/itsmechloe">@itsmechloe</a>
+    </td>
+    <td align="center" width="20%">
+      <a href="https://github.com/Polygonic"><img src="https://github.com/Polygonic.png?size=160" width="80" height="80" alt="Marron Beroy's GitHub profile picture" /></a><br />
+      <strong>Marron Beroy</strong><br />
+      <sub>DevSecOps Engineer</sub><br />
+      <a href="https://github.com/Polygonic">@Polygonic</a>
+    </td>
+  </tr>
+</table>

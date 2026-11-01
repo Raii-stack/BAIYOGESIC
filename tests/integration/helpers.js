@@ -1,11 +1,13 @@
 require('dotenv').config({ path: '.env.test', quiet: true });
 const request = require('supertest');
 const { createClient } = require('@supabase/supabase-js');
-const { QA_USERS, QA_PASSWORD } = require('./setup/qa-users');
+const { QA_USERS } = require('./setup/qa-users');
 
-for (const name of ['API_BASE_URL', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
+for (const name of ['API_BASE_URL', 'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'QA_PASSWORD']) {
   if (!process.env[name]) throw new Error(`Missing ${name} in .env.test`);
 }
+
+const QA_PASSWORD = process.env.QA_PASSWORD;
 
 const api = request(process.env.API_BASE_URL);
 const db = createClient(
@@ -24,8 +26,6 @@ const asLogin = (u) => ({ email: u.email, password: QA_PASSWORD });
 
 const USERS = {
   active: asLogin(QA_USERS.standard),
-  admin: asLogin(QA_USERS.admin),
-  superadmin: asLogin(QA_USERS.superadmin),
   firstLogin: asLogin(QA_USERS.firstLogin),
   pwChange: asLogin(QA_USERS.pwChange),
   deleted: asLogin(QA_USERS.pending), // a non-active (pending) account must not be able to log in

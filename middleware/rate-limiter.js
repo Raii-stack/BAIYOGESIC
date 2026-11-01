@@ -5,6 +5,7 @@ const apiLimiter = rateLimit({
   max: 100, // Limit each IP to 100 requests per windowMs
   standardHeaders: true, // Return standard rate limit headers (`RateLimit-Limit`, `RateLimit-Remaining`)
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  validate: { xForwardedForHeader: false },
   message: {
     status: 429,
     error: 'Too Many Requests, please try again later.'

@@ -8,6 +8,7 @@ const { supabase } = require('./db');
 const { asyncHandler, errorHandler } = require('./middleware/error-handler');
 const { auditContext } = require('./middleware/audit-context');
 const { apiLimiter } = require('./middleware/rate-limiter');
+const { requestLogger } = require('./middleware/logger');
 const authRoutes = require('./routes/auth-routes');
 const customerRoutes = require('./routes/customer-routes');
 const productRoutes = require('./routes/product-routes');
@@ -22,8 +23,12 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
   throw new Error('PORT must be an integer between 1 and 65535');
 }
 
+// Trust reverse proxy (Vercel, Cloudflare, etc.) so express-rate-limit and req.ip accurately reflect client IP
+app.set('trust proxy', 1);
 app.disable('x-powered-by');
+app.use(requestLogger);
 app.use(helmet());
+
 const allowedOrigins = new Set(
   (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
     .split(',')

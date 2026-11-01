@@ -40,7 +40,7 @@ router.put('/departments/:deptcode', requirePermission('HR', 'edit'), updateDepa
 router.delete('/departments/:deptcode', requirePermission('HR', 'delete'), archiveDepartment);
 router.post('/departments/:deptcode/restore', requirePermission('HR', 'delete'), restoreDepartment);
 
-router.get('/:empno/job-history', requirePermission('HR', 'view'), getJobHistory);
+router.get('/:empno/job-history', requirePermission('Human Resources', 'View Job History'), getJobHistory);
 router.post('/:empno/job-history', requirePermission('HR', 'edit'), recordPromotion);
 
 router.get('/:empno', requirePermission('HR', 'view'), getEmployee);

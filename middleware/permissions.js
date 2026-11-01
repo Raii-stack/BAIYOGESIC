@@ -1,8 +1,20 @@
+const MODULE_ALIASES = {
+  hr: 'HR',
+  'human resources': 'HR',
+  crm: 'CRM',
+  customers: 'CRM',
+  inventory: 'Inventory',
+  products: 'Inventory',
+  sales: 'Sales',
+  reports: 'Reports',
+  users: 'Users'
+};
+
 const PERMISSIONS = {
   superadmin: {
     CRM: new Set(['view', 'edit', 'delete']),
     Inventory: new Set(['view', 'edit', 'delete']),
-    HR: new Set(['view', 'edit', 'delete', 'salary']),
+    HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
     Sales: new Set(['view', 'edit', 'delete']),
     Reports: new Set(['view']),
     Users: new Set(['view', 'edit', 'delete'])
@@ -10,7 +22,7 @@ const PERMISSIONS = {
   administrator: {
     CRM: new Set(['view', 'edit', 'delete']),
     Inventory: new Set(['view', 'edit', 'delete']),
-    HR: new Set(['view', 'edit', 'delete', 'salary']),
+    HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
     Sales: new Set(['view', 'edit', 'delete']),
     Reports: new Set(['view']),
     Users: new Set(['view', 'edit', 'delete'])
@@ -18,7 +30,7 @@ const PERMISSIONS = {
   admin: {
     CRM: new Set(['view', 'edit', 'delete']),
     Inventory: new Set(['view', 'edit', 'delete']),
-    HR: new Set(['view', 'edit', 'delete', 'salary']),
+    HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
     Sales: new Set(['view', 'edit', 'delete']),
     Reports: new Set(['view']),
     Users: new Set(['view', 'edit'])
@@ -26,14 +38,14 @@ const PERMISSIONS = {
   user: {
     CRM: new Set(['view']),
     Inventory: new Set(['view']),
-    HR: new Set(['view']),
+    HR: new Set(['view', 'view_job_history', 'View Job History']),
     Sales: new Set(['view']),
     Reports: new Set(['view'])
   },
   employee: {
     CRM: new Set(['view']),
     Inventory: new Set(['view']),
-    HR: new Set(['view']),
+    HR: new Set(['view', 'view_job_history', 'View Job History']),
     Sales: new Set(['view']),
     Reports: new Set(['view'])
   }
@@ -56,7 +68,20 @@ const EMPLOYEE_RIGHT_RULES = {
       'hr.job.add', 'hr.job.edit', 'hr.job.delete',
       'hr.department.add', 'hr.department.edit', 'hr.department.delete',
       'hr.employee.add', 'hr.employee.edit', 'hr.employee.delete',
-      'hr.history.view', 'hr.history.add', 'hr.history.edit', 'hr.history.delete'
+      'hr.history.view', 'hr.history.add', 'hr.history.edit', 'hr.history.delete',
+      'hr.view_job_history'
+    ],
+    view_job_history: [
+      'hr.access',
+      'hr.history.view', 'hr.history.add', 'hr.history.edit', 'hr.history.delete',
+      'hr.employee.edit',
+      'hr.view_job_history'
+    ],
+    'View Job History': [
+      'hr.access',
+      'hr.history.view', 'hr.history.add', 'hr.history.edit', 'hr.history.delete',
+      'hr.employee.edit',
+      'hr.view_job_history'
     ],
     edit: [
       'hr.job.add', 'hr.job.edit',
@@ -91,22 +116,35 @@ const EMPLOYEE_RIGHT_RULES = {
 };
 
 function hasGranularRight(user, moduleName, action) {
-  if (!user || !Array.isArray(user.rights)) {
+  const userRights = Array.isArray(user?.rights)
+    ? user.rights
+    : (Array.isArray(user?.permissions) ? user.permissions : null);
+  if (!user || !userRights) {
     return null;
   }
   const moduleRules = EMPLOYEE_RIGHT_RULES[moduleName];
   if (!moduleRules || !moduleRules[action]) {
     return false;
   }
-  const rightSet = new Set(user.rights);
-  return moduleRules[action].some((code) => rightSet.has(code));
+  const rightSet = new Set(userRights.map((code) => String(code).toLowerCase().trim()));
+  return moduleRules[action].some((code) => rightSet.has(code.toLowerCase()));
 }
 
 function requirePermission(moduleName, action) {
+  const normalizedModule = MODULE_ALIASES[String(moduleName || '').toLowerCase().trim()] || moduleName;
+  let normalizedAction = action;
+  if (normalizedModule === 'HR' && ['view job history', 'view_job_history', 'hr.view_job_history'].includes(String(action || '').toLowerCase().trim())) {
+    normalizedAction = 'view_job_history';
+  }
+
   return (req, res, next) => {
     const role = req.user && req.user.role;
-    if ((role === 'employee' || role === 'user') && Array.isArray(req.user.rights)) {
-      if (hasGranularRight(req.user, moduleName, action)) {
+    const userRights = Array.isArray(req.user?.rights)
+      ? req.user.rights
+      : (Array.isArray(req.user?.permissions) ? req.user.permissions : null);
+
+    if ((role === 'employee' || role === 'user') && Array.isArray(userRights)) {
+      if (hasGranularRight(req.user, normalizedModule, normalizedAction)) {
         return next();
       }
       return res.status(403).json({
@@ -117,11 +155,11 @@ function requirePermission(moduleName, action) {
 
     if (
       (role === 'admin' || role === 'superadmin' || role === 'administrator') &&
-      moduleName !== 'Users' &&
-      Array.isArray(req.user.rights) &&
-      req.user.rights.length > 0
+      normalizedModule !== 'Users' &&
+      Array.isArray(userRights) &&
+      userRights.length > 0
     ) {
-      if (hasGranularRight(req.user, moduleName, action)) {
+      if (hasGranularRight(req.user, normalizedModule, normalizedAction)) {
         return next();
       }
       return res.status(403).json({
@@ -131,9 +169,9 @@ function requirePermission(moduleName, action) {
     }
 
     const rolePermissions = PERMISSIONS[role];
-    const allowedActions = rolePermissions && rolePermissions[moduleName];
+    const allowedActions = rolePermissions && rolePermissions[normalizedModule];
 
-    if (!allowedActions || !allowedActions.has(action)) {
+    if (!allowedActions || !allowedActions.has(normalizedAction)) {
       return res.status(403).json({
         success: false,
         error: { message: 'Insufficient permissions', statusCode: 403 }

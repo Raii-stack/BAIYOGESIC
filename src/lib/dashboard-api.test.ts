@@ -16,6 +16,11 @@ describe("dashboard-api client and helpers", () => {
     expect(formatCurrencyStat(0)).toBe("$0")
     expect(formatCurrencyStat(500)).toBe("$500")
     expect(formatCurrencyStat(1500000)).toBe("$1.5m")
+    expect(formatCurrencyStat(999950)).toBe("$1m")
+    expect(formatCurrencyStat(999999)).toBe("$1m")
+    expect(formatCurrencyStat(-1200)).toBe("-$1.2k")
+    expect(formatCurrencyStat(-5000000)).toBe("-$5m")
+    expect(formatCurrencyStat(Number.NaN)).toBe("$0")
   })
 
   test("formatIntegerStat formats numbers with thousands separators", () => {
@@ -23,6 +28,7 @@ describe("dashboard-api client and helpers", () => {
     expect(formatIntegerStat(386)).toBe("386")
     expect(formatIntegerStat(94)).toBe("94")
     expect(formatIntegerStat(0)).toBe("0")
+    expect(formatIntegerStat(Number.NaN)).toBe("0")
   })
 
   test("getDashboardStats fetches and returns stats from API", async () => {

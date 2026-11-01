@@ -156,3 +156,26 @@ test("renders all quick actions enabled for administrator", () => {
   expect(screen.getByRole("button", { name: "+ New Product" })).not.toBeDisabled()
   expect(screen.getByRole("button", { name: "+ New Sale" })).not.toBeDisabled()
 })
+
+test("does not initiate stats fetch when user must first change password", () => {
+  const getDashboardStatsSpy = vi.spyOn(dashboardApi, "getDashboardStats")
+
+  vi.mocked(useAuth).mockReturnValue({
+    user: {
+      userId: "1",
+      empno: "00001",
+      email: "staff@example.com",
+      role: "admin",
+      status: "active",
+      mustChangePassword: true,
+      rights: [],
+    },
+    loading: false,
+    login: vi.fn(),
+    changePassword: vi.fn(),
+    logout: vi.fn(),
+  })
+
+  render(<MemoryRouter><DashboardPage /></MemoryRouter>)
+  expect(getDashboardStatsSpy).not.toHaveBeenCalled()
+})

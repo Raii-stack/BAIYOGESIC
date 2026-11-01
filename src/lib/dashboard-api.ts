@@ -51,15 +51,20 @@ export async function getDashboardStats(options?: {
 }
 
 export function formatIntegerStat(value: number): string {
-  return new Intl.NumberFormat("en-US").format(value)
+  const num = Number(value)
+  return Number.isFinite(num) ? new Intl.NumberFormat("en-US").format(num) : "0"
 }
 
 export function formatCurrencyStat(amount: number): string {
-  if (amount >= 1_000_000) {
-    return `$${(amount / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`
+  const num = Number(amount)
+  if (!Number.isFinite(num)) return "$0"
+  const sign = num < 0 ? "-" : ""
+  const abs = Math.abs(num)
+  if (abs >= 999_950) {
+    return `${sign}$${(abs / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`
   }
-  if (amount >= 1_000) {
-    return `$${(amount / 1_000).toFixed(1).replace(/\.0$/, "")}k`
+  if (abs >= 1_000) {
+    return `${sign}$${(abs / 1_000).toFixed(1).replace(/\.0$/, "")}k`
   }
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -67,6 +72,6 @@ export function formatCurrencyStat(amount: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 1,
   })
-    .format(amount)
+    .format(num)
     .toLowerCase()
 }

@@ -6,10 +6,11 @@ This pull request implements the live Dashboard metric KPI summary cards and rol
 Key highlights:
 - **Backend Metric Aggregation (`GET /api/dashboard/stats`)**: Implemented in `controllers/dashboard-controller.js` and `routes/dashboard-routes.js`. Executes a single consolidated SQL query calculating live counts and revenue sums (`customers`, `products`, `openOrders`, and `revenue`) from live tables and views (`public.customer`, `public.product`, and `public.sales_balance_view`), leveraging existing covering indexes (`customer_active_kpi_idx`, `product_active_kpi_idx`, `sales_active_kpi_idx`).
 - **In-Memory Cache TTL**: Added a 5-second in-memory cache TTL (`STATS_CACHE_TTL_MS`) to protect the database against load spikes during concurrent visits, with query-parameter bypass (`?refresh=true`) for manual refresh.
-- **Frontend Dashboard Statistics API Client (`src/lib/dashboard-api.ts`)**: Built an API client with robust error handling and formatting utilities (`formatCurrencyStat` and `formatIntegerStat`) formatting integers (e.g. `1,248`, `386`, `94`) and compact currency (e.g. `$84.2k`, `$1.5m`, `$0`).
+- **Frontend Dashboard Statistics API Client (`src/lib/dashboard-api.ts`)**: Built an API client with robust error handling and formatting utilities (`formatCurrencyStat` and `formatIntegerStat`) formatting integers (e.g. `1,248`, `386`, `94`) and compact currency (e.g. `$84.2k`, `$1.5m`, `$0`, `$1m`).
 - **Dashboard UI Header & Quick Actions (`src/components/pages/DashboardPage.tsx`)**:
   - Displays a responsive 4-card metric KPI grid with loading skeleton states (`animate-pulse`) while metrics fetch.
   - Adds Quick Action shortcuts ("+ New Customer", "+ New Product", "+ New Sale") that evaluate granular user permissions via `src/lib/rbac.ts`. Authorized actions link to `/customers`, `/inventory`, and `/sales/new`, while unauthorized actions are visibly greyed out and disabled per Guide Figure 8.
+  - Reactive `useEffect` dependencies `[user?.userId, user?.mustChangePassword]` ensure metrics fetch seamlessly when users transition from mandatory password changes to active sessions.
 
 ## Linked Issues
 Closes #167

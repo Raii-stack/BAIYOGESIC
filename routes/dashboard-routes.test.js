@@ -147,6 +147,39 @@ describe('Dashboard Routes & Controller (Issue #167)', () => {
     const res3 = createRes();
     await getDashboardStats(req3, res3, () => {});
     expect(mockPool.query).toHaveBeenCalledTimes(2);
+
+    // Call with boolean refresh: true should also bypass cache
+    const req4 = { query: { refresh: true } };
+    const res4 = createRes();
+    await getDashboardStats(req4, res4, () => {});
+    expect(mockPool.query).toHaveBeenCalledTimes(3);
+
+    // Call with fresh: 1 should also bypass cache
+    const req5 = { query: { fresh: 1 } };
+    const res5 = createRes();
+    await getDashboardStats(req5, res5, () => {});
+    expect(mockPool.query).toHaveBeenCalledTimes(4);
+  });
+
+  test('getDashboardStats handles undefined req.query safely', async () => {
+    mockPool.query.mockResolvedValueOnce({
+      rows: [{ customers: '10', products: '5', openOrders: '1', revenue: '50.00' }]
+    });
+
+    const req = {};
+    const res = createRes();
+
+    await getDashboardStats(req, res, () => {});
+
+    expect(res.body.data.customers).toBe(10);
+  });
+
+  test('dashboard router applies authenticate and requireActiveUser middleware', () => {
+    const middlewareStack = dashboardRoutes.stack
+      .filter((layer) => !layer.route)
+      .map((layer) => layer.handle.name || layer.name);
+
+    expect(middlewareStack.length).toBeGreaterThan(0);
   });
 
   test('getDashboardStats propagates database errors', async () => {

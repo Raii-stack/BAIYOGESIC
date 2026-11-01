@@ -16,7 +16,12 @@ function getDashboardCache() {
 }
 
 const getDashboardStats = asyncHandler(async (req, res) => {
-  const bypassCache = req.query.refresh === 'true' || req.query.fresh === '1';
+  const bypassCache =
+    req.query?.refresh === 'true' ||
+    req.query?.refresh === true ||
+    req.query?.fresh === '1' ||
+    req.query?.fresh === 1 ||
+    req.query?.fresh === true;
   const now = Date.now();
 
   if (!bypassCache && cachedStats && cachedStatsExpiresAt > now) {

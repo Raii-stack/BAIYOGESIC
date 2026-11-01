@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { Link } from "react-router"
 import { useAuth } from "../auth/AuthProvider"
 import ChangePasswordModal from "../auth/ChangePasswordModal"
 import { DashboardIcon, ModuleTile, modules } from "../dashboard/DashboardComponents"
@@ -156,15 +157,15 @@ export default function DashboardPage() {
             <div aria-label="Quick actions" role="toolbar" className="flex flex-wrap items-center gap-2">
               {quickActions.map((action) =>
                 action.allowed ? (
-                  <a
+                  <Link
                     key={action.label}
-                    href={action.href}
+                    to={action.href}
                     role="button"
                     className="workspace-secondary-action inline-flex items-center gap-1.5 text-xs font-semibold"
                   >
                     <AddIcon />
                     <span>{action.label}</span>
-                  </a>
+                  </Link>
                 ) : (
                   <button
                     key={action.label}

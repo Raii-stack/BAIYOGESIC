@@ -159,7 +159,7 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
               aria-label={searchPlaceholder}
               aria-controls="workspace-search-results"
               aria-expanded={Boolean(search.trim())}
-              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 pl-12 pr-12 text-[13px] text-white outline-none transition placeholder:text-neutral-400 hover:bg-white/10 focus:border-neutral-400 focus:bg-white/10 focus:ring-2 focus:ring-blue-400"
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 pl-12 pr-3 text-[13px] text-white outline-none transition placeholder:text-neutral-400 hover:bg-white/10 focus:border-neutral-400 focus:bg-white/10 focus:ring-2 focus:ring-blue-400"
             />
             {!search && <kbd aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-sans text-[10px] text-neutral-500">Ctrl K</kbd>}
           </div>

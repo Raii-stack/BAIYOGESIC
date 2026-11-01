@@ -1,11 +1,40 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { supabase, authSupabase, requirePool } = require('../db');
+const { supabase, requirePool } = require('../db');
+const { primeUserCache, invalidateUserCache } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error-handler');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 const PASSWORD_MIN_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const AUTH_SELECT = `
+  SELECT u.user_id, u.empno, u.email, u.password_hash, u.role, u.status, u.is_blocked, u.must_change_password,
+         COALESCE(e.firstname, '') AS "firstName",
+         COALESCE(e.lastname, '') AS "lastName",
+         TRIM(concat_ws(' ', e.firstname, e.lastname)) AS name,
+         j.jobdesc AS "jobTitle",
+         d.deptname AS "departmentName",
+         COALESCE(
+           ARRAY(
+             SELECT ur.right_code
+             FROM public.app_user_right ur
+             WHERE ur.user_id = u.user_id AND ur.right_code IS NOT NULL
+           ),
+           '{}'
+         ) AS rights
+  FROM public.app_user u
+  LEFT JOIN public.employee e ON e.empno = u.empno
+  LEFT JOIN LATERAL (
+    SELECT jobcode, deptcode
+    FROM public.jobhistory jh
+    WHERE jh.empno = u.empno AND jh.is_deleted = false
+    ORDER BY effdate DESC, jobcode DESC
+    LIMIT 1
+  ) lj ON true
+  LEFT JOIN public.job j ON j.jobcode = lj.jobcode
+  LEFT JOIN public.department d ON d.deptcode = lj.deptcode
+`;
 
 function requestError(message, statusCode) {
   const error = new Error(message);
@@ -27,65 +56,21 @@ function validatePassword(password) {
   }
 }
 
-async function fetchUserRights(userId) {
-  if (!authSupabase || !userId) return [];
-  const { data, error } = await authSupabase
-    .from('app_user_right')
-    .select('right_code')
-    .eq('user_id', userId);
-  if (error || !Array.isArray(data)) return [];
-  return data.map((row) => row.right_code).filter(Boolean);
-}
-
-async function fetchEmployeeProfile(userId) {
-  try {
-    const result = await requirePool().query(
-      `SELECT COALESCE(e.firstname, '') AS "firstName",
-              COALESCE(e.lastname, '') AS "lastName",
-              TRIM(concat_ws(' ', e.firstname, e.lastname)) AS name,
-              j.jobdesc AS "jobTitle",
-              d.deptname AS "departmentName"
-       FROM public.app_user u
-       LEFT JOIN public.employee e ON e.empno = u.empno
-       LEFT JOIN LATERAL (
-         SELECT jobcode, deptcode
-         FROM public.jobhistory jh
-         WHERE jh.empno = u.empno AND jh.is_deleted = false
-         ORDER BY effdate DESC, jobcode DESC
-         LIMIT 1
-       ) lj ON true
-       LEFT JOIN public.job j ON j.jobcode = lj.jobcode
-       LEFT JOIN public.department d ON d.deptcode = lj.deptcode
-       WHERE u.user_id = $1::uuid
-       LIMIT 1`,
-      [userId],
-    );
-    return result.rows[0] || {};
-  } catch {
-    return {};
-  }
-}
-
-async function buildAuthUser(user) {
-  const [rights, profile] = await Promise.all([
-    fetchUserRights(user.user_id),
-    fetchEmployeeProfile(user.user_id),
-  ]);
-
+function formatAuthUser(user) {
   return {
     userId: user.user_id,
     empno: user.empno,
-    firstName: profile.firstName || '',
-    lastName: profile.lastName || '',
-    name: profile.name || '',
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
+    name: user.name || '',
     email: user.email,
     role: user.role,
     status: user.status,
     isBlocked: Boolean(user.is_blocked),
     mustChangePassword: user.must_change_password,
-    jobTitle: profile.jobTitle || null,
-    departmentName: profile.departmentName || null,
-    rights,
+    jobTitle: user.jobTitle || null,
+    departmentName: user.departmentName || null,
+    rights: Array.isArray(user.rights) ? user.rights : [],
   };
 }
 
@@ -150,10 +135,9 @@ const setPassword = asyncHandler(async (req, res) => {
     throw requestError('Password cannot be set for this account', 400);
   }
 
+  invalidateUserCache(user.user_id);
   res.json({ success: true, data: { user } });
 });
-
-
 
 const login = asyncHandler(async (req, res) => {
   const { email, password } = req.body || {};
@@ -163,24 +147,17 @@ const login = asyncHandler(async (req, res) => {
     throw requestError('email and password are required', 400);
   }
 
-  if (!authSupabase) {
-    throw requestError('SUPABASE_SERVICE_ROLE_KEY must be configured on the server', 503);
+  let candidate = null;
+  try {
+    const result = await requirePool().query(
+      `${AUTH_SELECT} WHERE lower(u.email) = $1 AND u.status = 'active' LIMIT 1`,
+      [normalizedEmail]
+    );
+    candidate = result.rows[0] || null;
+  } catch {
+    throw requestError('Authentication service unavailable', 503);
   }
 
-  const { data: candidates, error } = await authSupabase
-    .from('app_user')
-    .select('user_id, empno, email, password_hash, role, status, is_blocked, must_change_password')
-    .eq('email', normalizedEmail)
-    .eq('status', 'active')
-    .limit(1);
-
-  if (error) {
-    const databaseError = new Error('Authentication service unavailable');
-    databaseError.statusCode = 503;
-    throw databaseError;
-  }
-
-  const candidate = candidates && candidates[0];
   const user = candidate && typeof candidate.password_hash === 'string'
     && await bcrypt.compare(password, candidate.password_hash)
     ? candidate
@@ -193,6 +170,8 @@ const login = asyncHandler(async (req, res) => {
   if (user.is_blocked) {
     throw requestError('Your account has been blocked. Contact an administrator.', 403);
   }
+
+  primeUserCache(user);
 
   const token = jwt.sign(
     { sub: String(user.user_id), empno: user.empno, email: user.email, role: user.role },
@@ -211,39 +190,39 @@ const login = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: {
-      user: await buildAuthUser(user)
+      user: formatAuthUser(user)
     }
   });
 });
 
 const session = asyncHandler(async (req, res) => {
-  if (!authSupabase) {
+  let user = null;
+  try {
+    const result = await requirePool().query(
+      `${AUTH_SELECT} WHERE u.user_id = $1::uuid AND u.status = 'active' LIMIT 1`,
+      [req.user.sub]
+    );
+    user = result.rows[0] || null;
+  } catch {
     throw requestError('Authentication service unavailable', 503);
   }
 
-  const { data: user, error } = await authSupabase
-    .from('app_user')
-    .select('user_id, empno, email, role, status, is_blocked, must_change_password')
-    .eq('user_id', req.user.sub)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (error) {
-    throw requestError('Authentication service unavailable', 503);
-  }
   if (!user || user.is_blocked) {
     throw requestError('Authentication required', 401);
   }
 
+  primeUserCache(user);
+
   res.json({
     success: true,
     data: {
-      user: await buildAuthUser(user)
+      user: formatAuthUser(user)
     }
   });
 });
 
 const logout = asyncHandler(async (req, res) => {
+  if (req.user && req.user.sub) invalidateUserCache(req.user.sub);
   res.clearCookie('access_token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -269,18 +248,18 @@ const changePassword = asyncHandler(async (req, res) => {
     throw requestError('New password must be different from the current password', 400);
   }
 
-  if (!authSupabase) {
-    throw requestError('SUPABASE_SERVICE_ROLE_KEY must be configured on the server', 503);
+  let user = null;
+  try {
+    const result = await requirePool().query(
+      `SELECT password_hash, is_blocked FROM public.app_user WHERE user_id = $1::uuid AND status = 'active' LIMIT 1`,
+      [req.user.sub]
+    );
+    user = result.rows[0] || null;
+  } catch {
+    throw requestError('Authentication service unavailable', 503);
   }
 
-  const { data: user, error: readError } = await authSupabase
-    .from('app_user')
-    .select('password_hash, is_blocked')
-    .eq('user_id', req.user.sub)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (readError || !user) {
+  if (!user) {
     throw requestError('Authentication service unavailable', 503);
   }
 
@@ -293,19 +272,20 @@ const changePassword = asyncHandler(async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
-  const { error: updateError } = await authSupabase
-    .from('app_user')
-    .update({
-      password_hash: passwordHash,
-      must_change_password: false,
-      updated_at: new Date().toISOString()
-    })
-    .eq('user_id', req.user.sub);
-
-  if (updateError) {
+  try {
+    await requirePool().query(
+      `UPDATE public.app_user
+       SET password_hash = $2,
+           must_change_password = false,
+           updated_at = now()
+       WHERE user_id = $1::uuid`,
+      [req.user.sub, passwordHash]
+    );
+  } catch {
     throw requestError('Unable to update password', 503);
   }
 
+  invalidateUserCache(req.user.sub);
   res.json({ success: true, data: { message: 'Password updated successfully' } });
 });
 

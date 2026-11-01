@@ -85,10 +85,10 @@ const listEmployees = asyncHandler(async (req, res) => {
 });
 
 const listOptions = asyncHandler(async (_req, res) => {
-  const [departments, jobs] = await Promise.all([
-    requirePool().query('SELECT deptcode AS code, deptname AS name FROM public.department WHERE is_deleted = false ORDER BY deptname'),
-    requirePool().query('SELECT jobcode AS code, jobdesc AS name FROM public.job WHERE is_deleted = false ORDER BY jobdesc')
-  ]);
+  const [departments, jobs] = await requirePool().query(
+    `SELECT deptcode AS code, deptname AS name FROM public.department WHERE is_deleted = false ORDER BY deptname;
+     SELECT jobcode AS code, jobdesc AS name FROM public.job WHERE is_deleted = false ORDER BY jobdesc;`
+  );
   res.json({ success: true, data: { departments: departments.rows, jobs: jobs.rows } });
 });
 

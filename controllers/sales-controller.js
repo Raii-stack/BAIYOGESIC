@@ -286,52 +286,45 @@ const listSales = asyncHandler(async (req, res) => {
 
 const getSalesCatalog = asyncHandler(async (_req, res) => {
   const pool = requirePool();
-  const [customersResult, employeesResult, productsResult, pricesResult] = await Promise.all([
-    pool.query(
-      `SELECT custno, custname, address, payterm, is_deleted, stamp
-       FROM public.customer
-       WHERE is_deleted = false
-       ORDER BY custname ASC, custno ASC`
-    ),
-    pool.query(
-      `SELECT e.empno, e.firstname, e.lastname, e.email, e.hiredate::text AS hiredate, e.sepdate::text AS sepdate, e.is_deleted, e.stamp,
-              jh.jobcode, j.jobdesc, jh.deptcode, d.deptname
-       FROM public.employee e
-       LEFT JOIN LATERAL (
-         SELECT jobcode, deptcode
-         FROM public.jobhistory jh
-         WHERE jh.empno = e.empno AND jh.is_deleted = false
-         ORDER BY jh.effdate DESC
-         LIMIT 1
-       ) jh ON true
-       LEFT JOIN public.job j ON j.jobcode = jh.jobcode
-       LEFT JOIN public.department d ON d.deptcode = jh.deptcode
-       WHERE e.is_deleted = false AND e.sepdate IS NULL
-       ORDER BY e.lastname ASC, e.firstname ASC, e.empno ASC`
-    ),
-    pool.query(
-      `SELECT p.prodcode, p.description, p.unit, p.is_deleted, p.stamp,
-              price.unitprice, price.effdate::text AS effdate
-       FROM public.product p
-       LEFT JOIN LATERAL (
-         SELECT unitprice, effdate
-         FROM public.pricehist ph
-         WHERE ph.prodcode = p.prodcode
-           AND ph.effdate <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
-           AND ph.is_deleted = false
-         ORDER BY ph.effdate DESC
-         LIMIT 1
-       ) price ON true
-       WHERE p.is_deleted = false
-       ORDER BY p.description ASC, p.prodcode ASC`
-    ),
-    pool.query(
-      `SELECT prodcode, effdate::text AS effdate, unitprice
-       FROM public.pricehist
-       WHERE is_deleted = false
-       ORDER BY prodcode ASC, effdate DESC`
-    )
-  ]);
+  // Single roundtrip multi-statement query prevents pool exhaustion and latency spikes
+  const [customersResult, employeesResult, productsResult, pricesResult] = await pool.query(
+    `SELECT custno, custname, address, payterm, is_deleted, stamp
+     FROM public.customer
+     WHERE is_deleted = false
+     ORDER BY custname ASC, custno ASC;
+     SELECT e.empno, e.firstname, e.lastname, e.email, e.hiredate::text AS hiredate, e.sepdate::text AS sepdate, e.is_deleted, e.stamp,
+            jh.jobcode, j.jobdesc, jh.deptcode, d.deptname
+     FROM public.employee e
+     LEFT JOIN LATERAL (
+       SELECT jobcode, deptcode
+       FROM public.jobhistory jh
+       WHERE jh.empno = e.empno AND jh.is_deleted = false
+       ORDER BY jh.effdate DESC
+       LIMIT 1
+     ) jh ON true
+     LEFT JOIN public.job j ON j.jobcode = jh.jobcode
+     LEFT JOIN public.department d ON d.deptcode = jh.deptcode
+     WHERE e.is_deleted = false AND e.sepdate IS NULL
+     ORDER BY e.lastname ASC, e.firstname ASC, e.empno ASC;
+     SELECT p.prodcode, p.description, p.unit, p.is_deleted, p.stamp,
+            price.unitprice, price.effdate::text AS effdate
+     FROM public.product p
+     LEFT JOIN LATERAL (
+       SELECT unitprice, effdate
+       FROM public.pricehist ph
+       WHERE ph.prodcode = p.prodcode
+         AND ph.effdate <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+         AND ph.is_deleted = false
+       ORDER BY ph.effdate DESC
+       LIMIT 1
+     ) price ON true
+     WHERE p.is_deleted = false
+     ORDER BY p.description ASC, p.prodcode ASC;
+     SELECT prodcode, effdate::text AS effdate, unitprice
+     FROM public.pricehist
+     WHERE is_deleted = false
+     ORDER BY prodcode ASC, effdate DESC;`
+  );
 
   const pricesByProduct = new Map();
   for (const row of pricesResult.rows) {

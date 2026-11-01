@@ -1,5 +1,6 @@
 const bcrypt = require('bcrypt');
 const { requirePool } = require('../db');
+const { invalidateUserCache } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error-handler');
 const { isSuperAdminRole } = require('../middleware/permissions');
 
@@ -137,32 +138,36 @@ const listUsers = asyncHandler(async (req, res) => {
 
   const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const baseFrom = `FROM public.app_user u ${latestJobJoin} ${whereClause}`;
+  const offset = (page - 1) * limit;
 
   const pool = requirePool();
-  const [countResult, rowsResult] = await Promise.all([
-    pool.query(`SELECT count(*)::integer AS total ${baseFrom}`, values),
-    pool.query(
-      `SELECT ${userSelectFields}
-       ${baseFrom}
-       ORDER BY
-         CASE u.role
-           WHEN 'superadmin' THEN 1
-           WHEN 'admin' THEN 2
-           ELSE 3
-         END,
-         e.lastname NULLS LAST,
-         e.firstname NULLS LAST,
-         u.email
-       LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
-      [...values, limit, (page - 1) * limit]
-    )
-  ]);
+  const rowsResult = await pool.query(
+    `SELECT ${userSelectFields}, count(*) OVER()::integer AS _total
+     ${baseFrom}
+     ORDER BY
+       CASE u.role
+         WHEN 'superadmin' THEN 1
+         WHEN 'admin' THEN 2
+         ELSE 3
+       END,
+       e.lastname NULLS LAST,
+       e.firstname NULLS LAST,
+       u.email
+     LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+    [...values, limit, offset]
+  );
 
-  const total = countResult.rows[0].total;
+  let total = rowsResult.rows[0] ? rowsResult.rows[0]._total : 0;
+  if (rowsResult.rows.length === 0 && offset > 0) {
+    const countResult = await pool.query(`SELECT count(*)::integer AS total ${baseFrom}`, values);
+    total = countResult.rows[0].total;
+  }
+  const users = rowsResult.rows.map(({ _total, ...row }) => row);
+
   res.json({
     success: true,
     data: {
-      users: rowsResult.rows,
+      users,
       pagination: {
         page,
         limit,
@@ -175,40 +180,36 @@ const listUsers = asyncHandler(async (req, res) => {
 
 const listUserOptions = asyncHandler(async (_req, res) => {
   const pool = requirePool();
-  const [employeesResult, rightsResult] = await Promise.all([
-    pool.query(
-      `SELECT e.empno,
-              e.firstname AS "firstName",
-              e.lastname AS "lastName",
-              TRIM(concat_ws(' ', e.firstname, e.lastname)) AS name,
-              e.email,
-              j.jobdesc AS "jobTitle",
-              d.deptname AS "departmentName"
-       FROM public.employee e
-       LEFT JOIN public.app_user u ON u.empno = e.empno
-       LEFT JOIN LATERAL (
-         SELECT jobcode, deptcode
-         FROM public.jobhistory jh
-         WHERE jh.empno = e.empno AND jh.is_deleted = false
-         ORDER BY effdate DESC, jobcode DESC
-         LIMIT 1
-       ) lj ON true
-       LEFT JOIN public.job j ON j.jobcode = lj.jobcode
-       LEFT JOIN public.department d ON d.deptcode = lj.deptcode
-       WHERE e.is_deleted = false
-         AND u.user_id IS NULL
-       ORDER BY e.lastname NULLS LAST, e.firstname NULLS LAST, e.empno`
-    ),
-    pool.query(
-      `SELECT right_code AS "rightCode",
-              module,
-              description,
-              sort_order AS "sortOrder",
-              is_module_access AS "isModuleAccess"
-       FROM public.app_right
-       ORDER BY sort_order, right_code`
-    )
-  ]);
+  const [employeesResult, rightsResult] = await pool.query(
+    `SELECT e.empno,
+            e.firstname AS "firstName",
+            e.lastname AS "lastName",
+            TRIM(concat_ws(' ', e.firstname, e.lastname)) AS name,
+            e.email,
+            j.jobdesc AS "jobTitle",
+            d.deptname AS "departmentName"
+     FROM public.employee e
+     LEFT JOIN public.app_user u ON u.empno = e.empno
+     LEFT JOIN LATERAL (
+       SELECT jobcode, deptcode
+       FROM public.jobhistory jh
+       WHERE jh.empno = e.empno AND jh.is_deleted = false
+       ORDER BY effdate DESC, jobcode DESC
+       LIMIT 1
+     ) lj ON true
+     LEFT JOIN public.job j ON j.jobcode = lj.jobcode
+     LEFT JOIN public.department d ON d.deptcode = lj.deptcode
+     WHERE e.is_deleted = false
+       AND u.user_id IS NULL
+     ORDER BY e.lastname NULLS LAST, e.firstname NULLS LAST, e.empno;
+     SELECT right_code AS "rightCode",
+            module,
+            description,
+            sort_order AS "sortOrder",
+            is_module_access AS "isModuleAccess"
+     FROM public.app_right
+     ORDER BY sort_order, right_code;`
+  );
 
   res.json({
     success: true,
@@ -401,12 +402,14 @@ const updateUser = asyncHandler(async (req, res) => {
       throw requestError('A valid email address is required', 400);
     }
 
-    const emailConflict = await client.query(
-      `SELECT user_id FROM public.app_user WHERE lower(email) = $1 AND user_id <> $2::uuid LIMIT 1`,
-      [nextEmail, userId]
-    );
-    if (emailConflict.rows[0]) {
-      throw requestError('Another account already uses that email address', 409);
+    if (nextEmail !== String(existing.email).toLowerCase()) {
+      const emailConflict = await client.query(
+        `SELECT user_id FROM public.app_user WHERE lower(email) = $1 AND user_id <> $2::uuid LIMIT 1`,
+        [nextEmail, userId]
+      );
+      if (emailConflict.rows[0]) {
+        throw requestError('Another account already uses that email address', 409);
+      }
     }
 
     const nextFirstName = body.firstName !== undefined ? String(body.firstName).trim() : (existing.firstname || '');
@@ -418,15 +421,21 @@ const updateUser = asyncHandler(async (req, res) => {
       if (!nextLastName || nextLastName.length > 15) {
         throw requestError('Last name is required and must be at most 15 characters', 400);
       }
-      await client.query(
-        `UPDATE public.employee
-         SET firstname = $2,
-             lastname = $3,
-             email = $4,
-             stamp = public.audit_stamp('EDIT')
-         WHERE empno = $1`,
-        [existing.empno, nextFirstName, nextLastName, nextEmail]
-      );
+      if (
+        nextFirstName !== (existing.firstname || '') ||
+        nextLastName !== (existing.lastname || '') ||
+        nextEmail !== String(existing.email).toLowerCase()
+      ) {
+        await client.query(
+          `UPDATE public.employee
+           SET firstname = $2,
+               lastname = $3,
+               email = $4,
+               stamp = public.audit_stamp('EDIT')
+           WHERE empno = $1`,
+          [existing.empno, nextFirstName, nextLastName, nextEmail]
+        );
+      }
     }
 
     const newPassword = typeof body.password === 'string' ? body.password : '';
@@ -473,6 +482,7 @@ const updateUser = asyncHandler(async (req, res) => {
     return fetchUserById(client, userId);
   });
 
+  invalidateUserCache(userId);
   res.json({ success: true, data: { user: updated } });
 });
 
@@ -512,6 +522,7 @@ const approveUser = asyncHandler(async (req, res) => {
     return fetchUserById(client, userId);
   });
 
+  invalidateUserCache(userId);
   res.json({ success: true, data: { user: updated } });
 });
 
@@ -557,6 +568,7 @@ const setBlockStatus = asyncHandler(async (req, res) => {
     return fetchUserById(client, userId);
   });
 
+  invalidateUserCache(userId);
   res.json({ success: true, data: { user: updated } });
 });
 
@@ -657,6 +669,7 @@ const updateUserRights = asyncHandler(async (req, res) => {
     return fetchUserById(client, userId);
   });
 
+  invalidateUserCache(userId);
   res.json({ success: true, data: { user: updated } });
 });
 

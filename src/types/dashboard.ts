@@ -1,4 +1,4 @@
-export type DashboardIconName = "dashboard" | "profile" | "settings" | "search" | "bell" | "menu" | "collapse" | "crm" | "inventory" | "hr" | "sales" | "reports" | "userManagement" | "close" | "plus" | "currency" | "edit" | "archive" | "restore" | "history"
+export type DashboardIconName = "dashboard" | "profile" | "settings" | "search" | "bell" | "menu" | "collapse" | "crm" | "inventory" | "hr" | "sales" | "reports" | "userManagement" | "mail" | "lock" | "briefcase" | "eye" | "eyeOff" | "close" | "plus" | "currency" | "edit" | "archive" | "restore" | "history"
 
 export type NavigationItem = {
   label: string

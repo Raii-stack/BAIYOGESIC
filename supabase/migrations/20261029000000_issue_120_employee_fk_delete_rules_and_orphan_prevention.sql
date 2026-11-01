@@ -1,5 +1,15 @@
--- Issue #120 [S3-DBA-02]: Database: Employee Foreign Key Delete Rules and Department Orphan Prevention
--- Enforces referential integrity between employee, department, and job history tables to prevent orphan records.
+-- 0. Ensure deptcode and jobcode are populated on employee from latest jobhistory entry before adding constraints
+UPDATE public.employee e
+SET deptcode = latest.deptcode,
+    jobcode  = latest.jobcode
+FROM (
+  SELECT DISTINCT ON (empno) empno, deptcode, jobcode
+  FROM public.jobhistory
+  WHERE is_deleted = false
+  ORDER BY empno, effdate DESC, jobcode DESC
+) latest
+WHERE e.empno = latest.empno
+  AND (e.deptcode IS NULL OR e.jobcode IS NULL);
 
 -- 1. Foreign Key between employee.deptcode and department.deptcode ON DELETE RESTRICT
 DO $$

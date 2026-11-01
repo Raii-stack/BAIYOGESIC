@@ -678,6 +678,142 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
     expect(capturedError.message).toBe('A job history entry with this effective date already exists for this employee');
   });
 
+  test('blocks job archiving with HTTP 409 Conflict if active employees are assigned directly', async () => {
+    mockClient.query.mockImplementation(async (sql, params) => {
+      if (typeof sql === 'string' && sql.includes('SELECT jobcode FROM public.job WHERE jobcode = $1 AND is_deleted = false FOR UPDATE')) {
+        return { rows: [{ jobcode: params?.[0] || 'PR1' }] };
+      }
+      if (typeof sql === 'string' && sql.includes('SELECT 1 FROM public.jobhistory WHERE jobcode = $1 AND is_deleted = false')) {
+        return { rows: [] };
+      }
+      if (typeof sql === 'string' && sql.includes('SELECT 1 FROM public.employee WHERE jobcode = $1 AND is_deleted = false')) {
+        return { rows: [{ 1: 1 }] };
+      }
+      return { rows: [] };
+    });
+
+    const req = { params: { jobcode: 'PR1' }, user: { email: 'admin@hope.inc' } };
+    let capturedError = null;
+    const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+
+    await archiveJob(req, res, (err) => { capturedError = err; });
+
+    expect(capturedError).not.toBeNull();
+    expect(capturedError.statusCode).toBe(409);
+    expect(capturedError.message).toBe('Cannot archive job while active job-history records exist.');
+  });
+
+  test('catches PostgreSQL 23503 foreign key violation on job archiving and returns HTTP 409 Conflict', async () => {
+    mockClient.query.mockImplementation(async (sql, params) => {
+      if (typeof sql === 'string' && sql.includes('SELECT jobcode FROM public.job WHERE jobcode = $1 AND is_deleted = false FOR UPDATE')) {
+        return { rows: [{ jobcode: params?.[0] || 'PR1' }] };
+      }
+      if (typeof sql === 'string' && sql.includes('SELECT 1 FROM public.jobhistory WHERE jobcode = $1 AND is_deleted = false')) {
+        return { rows: [] };
+      }
+      if (typeof sql === 'string' && sql.includes('SELECT 1 FROM public.employee WHERE jobcode = $1 AND is_deleted = false')) {
+        return { rows: [] };
+      }
+      if (typeof sql === 'string' && sql.includes('UPDATE public.job SET is_deleted = true')) {
+        const err = new Error('update or delete on table "job" violates foreign key constraint "employee_jobcode_fkey" on table "employee"');
+        err.code = '23503';
+        throw err;
+      }
+      return { rows: [] };
+    });
+
+    const req = { params: { jobcode: 'PR1' }, user: { email: 'admin@hope.inc' } };
+    let capturedError = null;
+    const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+
+    await archiveJob(req, res, (err) => { capturedError = err; });
+
+    expect(capturedError).not.toBeNull();
+    expect(capturedError.statusCode).toBe(409);
+    expect(capturedError.message).toBe('Cannot archive job while active job-history records exist.');
+  });
+
+  test('createEmployee and updateEmployee synchronize deptcode and jobcode on public.employee', async () => {
+    let capturedInsertSql = null;
+    let capturedInsertParams = null;
+    let capturedUpdateSql = null;
+    let capturedUpdateParams = null;
+
+    mockClient.query.mockImplementation(async (sql, params) => {
+      if (typeof sql === 'string' && sql.includes('BEGIN')) return { rows: [] };
+      if (typeof sql === 'string' && sql.includes('set_config')) return { rows: [] };
+      if (typeof sql === 'string' && sql.includes('pg_advisory_xact_lock')) return { rows: [] };
+      if (typeof sql === 'string' && sql.includes('EXISTS(SELECT 1 FROM public.job')) {
+        return { rows: [{ job: true, department: true }] };
+      }
+      if (typeof sql === 'string' && sql.includes('SELECT coalesce(max(empno::integer), 0) + 1 AS id')) {
+        return { rows: [{ id: 100 }] };
+      }
+      if (typeof sql === 'string' && sql.includes('INSERT INTO public.employee')) {
+        capturedInsertSql = sql;
+        capturedInsertParams = params;
+        return { rows: [] };
+      }
+      if (typeof sql === 'string' && sql.includes('INSERT INTO public.jobhistory')) {
+        return { rows: [] };
+      }
+      if (typeof sql === 'string' && sql.includes('SELECT empno FROM public.employee WHERE empno = $1 AND is_deleted = false FOR UPDATE')) {
+        return { rows: [{ empno: params?.[0] || '00100' }] };
+      }
+      if (typeof sql === 'string' && sql.includes('UPDATE public.employee SET')) {
+        capturedUpdateSql = sql;
+        capturedUpdateParams = params;
+        return { rows: [] };
+      }
+      if (typeof sql === 'string' && sql.includes('SELECT jobcode, deptcode, salary')) {
+        return { rows: [{ jobcode: 'PR1', deptcode: 'IT', salary: 50000, effdate: '2026-01-01' }] };
+      }
+      if (typeof sql === 'string' && sql.includes('COMMIT')) return { rows: [] };
+      return { rows: [] };
+    });
+
+    const createReq = {
+      body: {
+        firstname: 'Alice',
+        lastname: 'Wonder',
+        email: 'alice.wonder@hope.inc',
+        hiredate: '2026-02-01',
+        deptcode: 'IT',
+        jobcode: 'PR1',
+        salary: 60000
+      },
+      user: { email: 'admin@hope.inc' }
+    };
+    const createRes = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+    await createEmployee(createReq, createRes, vi.fn());
+
+    expect(capturedInsertSql).toContain('deptcode');
+    expect(capturedInsertSql).toContain('jobcode');
+    expect(capturedInsertParams).toContain('IT');
+    expect(capturedInsertParams).toContain('PR1');
+
+    const updateReq = {
+      params: { empno: '00100' },
+      body: {
+        firstname: 'Alice',
+        lastname: 'Wonder',
+        email: 'alice.wonder@hope.inc',
+        hiredate: '2026-02-01',
+        deptcode: 'HRD',
+        jobcode: 'HRS',
+        salary: 65000
+      },
+      user: { email: 'admin@hope.inc' }
+    };
+    const updateRes = { json: vi.fn(), status: vi.fn().mockReturnThis() };
+    await updateEmployee(updateReq, updateRes, vi.fn());
+
+    expect(capturedUpdateSql).toContain('deptcode=$8');
+    expect(capturedUpdateSql).toContain('jobcode=$9');
+    expect(capturedUpdateParams).toContain('HRD');
+    expect(capturedUpdateParams).toContain('HRS');
+  });
+
   test('database migration defines employee and jobhistory foreign keys with ON DELETE RESTRICT and composite unique key', () => {
     const migrationPath = path.resolve(__dirname, '../../supabase/migrations/20261029000000_issue_120_employee_fk_delete_rules_and_orphan_prevention.sql');
     expect(fs.existsSync(migrationPath)).toBe(true);

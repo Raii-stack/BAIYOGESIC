@@ -735,11 +735,16 @@ const archiveDepartment = asyncHandler(async (req, res) => {
       if (!existing.rows.length) return null;
       const inUse = await client.query('SELECT 1 FROM public.jobhistory WHERE deptcode = $1 AND is_deleted = false LIMIT 1', [deptcode]);
       if (inUse.rows.length) throw requestError('Cannot archive department while active job-history records exist.', 409);
+      const empInUse = await client.query('SELECT 1 FROM public.employee WHERE deptcode = $1 AND is_deleted = false LIMIT 1', [deptcode]);
+      if (empInUse.rows.length) throw requestError('Cannot archive department while active job-history records exist.', 409);
       const result = await client.query('UPDATE public.department SET is_deleted = true WHERE deptcode = $1 AND is_deleted = false RETURNING deptcode, deptname, is_deleted, stamp', [deptcode]);
       return result.rows[0] || null;
     });
   } catch (error) {
-    if (error.code === 'P0001' && /active related record/i.test(error.message || '')) {
+    if (
+      (error.code === 'P0001' && /active related record/i.test(error.message || '')) ||
+      error.code === '23503'
+    ) {
       throw requestError('Cannot archive department while active job-history records exist.', 409);
     }
     throw error;

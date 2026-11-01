@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { Link, Navigate, useNavigate } from "react-router"
 
 import { useAuth } from "../auth/AuthProvider"
@@ -18,6 +18,8 @@ export default function LoginPage() {
   const [errors, setErrors] = useState<Errors>({})
   const [authenticationError, setAuthenticationError] = useState("")
   const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => { document.title = "Sign in | HOPE, Inc." }, [])
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()

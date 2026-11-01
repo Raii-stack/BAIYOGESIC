@@ -15,7 +15,8 @@ const failure = (status: number, message: string) => new Response(
 )
 
 beforeEach(() => {
-  window.history.replaceState({}, "", "/")
+  window.history.replaceState({}, "", "/login")
+  window.dispatchEvent(new PopStateEvent("popstate"))
 })
 
 afterEach(() => {

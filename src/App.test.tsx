@@ -17,7 +17,7 @@ function renderGuard(role?: string, mustChangePassword = false) {
   render(<MemoryRouter initialEntries={["/users"]}><AuthProvider><Routes>
     <Route path="/users" element={<ProtectedPage roles={["administrator", "admin"]}><div>Private accounts</div></ProtectedPage>} />
     <Route path="/dashboard" element={<div>Dashboard</div>} />
-    <Route path="/" element={<div>Sign in</div>} />
+    <Route path="/login" element={<div>Sign in</div>} />
   </Routes></AuthProvider></MemoryRouter>)
 }
 

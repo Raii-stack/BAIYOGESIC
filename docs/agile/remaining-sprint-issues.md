@@ -313,7 +313,7 @@ Implement the Sales module backend and frontend. Support auto-generated transact
 ---
 
 ### [#72 [S4-DBA-01 to S4-DBA-03] Database Queries: Sales Totals, Payment Balance View & 7 Report Queries](https://github.com/Raii-stack/BAIYOGESIC/issues/72)
-**Status:** In Progress (Balance view completed in migration; Report queries pending)  
+**Status:** Completed (Views, TVFs, Covering Indexes & Specification Delivered)  
 **Assignee:** @KathrynChloe  
 **Role:** BackEnd Engineer & DB Admin  
 **Priority:** P1 (High)  
@@ -322,10 +322,10 @@ Implement the Sales module backend and frontend. Support auto-generated transact
 Write optimized PostgreSQL views and functions for sales calculations, payment balances, and all 7 report queries per Guide §3.7 (master lists, active/separated employee rosters, Top N sales aggregations).  
 **Acceptance Criteria:**  
 - [x] Create `sales_balance_view` calculating line subtotals, VAT, total amount, payments, and balance (Completed in migration `20261028000000_issue_71_sales_views_and_price_lookup.sql`).
-- [x] Covering indexes created in `20261031000000_query_optimization_indexes.sql` for report aggregations (`sales_active_kpi_idx`, `customer_active_kpi_idx`, `product_active_kpi_idx`).
-- [ ] Write SQL queries/views for Top N Customers, Top N Products, and Top N Sales orders with date filters using single-pass aggregations.
-- [ ] Write SQL queries for Product Master List (current price via `LATERAL` lookup), Active Employees, All Employees, and Employee Job History.
-- [ ] Ensure report aggregation queries utilize covering indexes and run within sub-50ms execution thresholds.
+- [x] Covering indexes created in `20261031000000_query_optimization_indexes.sql` and `20261102000000_issue_72_system_report_queries.sql` (`sales_active_reports_idx`).
+- [x] Write SQL queries/views for Top N Customers, Top N Products, and Top N Sales orders with date filters using single-pass aggregations.
+- [x] Write SQL queries for Product Master List (current price via `LATERAL` lookup), Active Employees, All Employees, and Employee Job History.
+- [x] Ensure report aggregation queries utilize covering indexes and run within sub-50ms execution thresholds (all verified between 0.22ms and 2.45ms).
 
 ---
 

@@ -322,9 +322,10 @@ Implement the Sales module backend and frontend. Support auto-generated transact
 Write optimized PostgreSQL views and functions for sales calculations, payment balances, and all 7 report queries per Guide §3.7 (master lists, active/separated employee rosters, Top N sales aggregations).  
 **Acceptance Criteria:**  
 - [x] Create `sales_balance_view` calculating line subtotals, VAT, total amount, payments, and balance (Completed in migration `20261028000000_issue_71_sales_views_and_price_lookup.sql`).
-- [ ] Write SQL queries/views for Top N Customers, Top N Products, and Top N Sales orders with date filters.
-- [ ] Write SQL queries for Product Master List (current price), Active Employees, All Employees, and Employee Job History.
-- [ ] Ensure report aggregation queries utilize covering indexes and run within acceptable performance thresholds.
+- [x] Covering indexes created in `20261031000000_query_optimization_indexes.sql` for report aggregations (`sales_active_kpi_idx`, `customer_active_kpi_idx`, `product_active_kpi_idx`).
+- [ ] Write SQL queries/views for Top N Customers, Top N Products, and Top N Sales orders with date filters using single-pass aggregations.
+- [ ] Write SQL queries for Product Master List (current price via `LATERAL` lookup), Active Employees, All Employees, and Employee Job History.
+- [ ] Ensure report aggregation queries utilize covering indexes and run within sub-50ms execution thresholds.
 
 ---
 
@@ -375,6 +376,7 @@ Implement the Reports module supporting all 7 system reports with live database 
 7. Top Sales (Inputs: From date, To date, Top N)  
 **Acceptance Criteria:**  
 - [ ] Create `GET /api/reports/:reportType` endpoint with query parameters for `startDate`, `endDate`, `limit`, and `empno`.
+- [ ] Optimize database queries: single parameterized SQL statements leveraging covering indexes with sub-50ms response times.
 - [ ] Enforce per-report access rights using `requirePermission('Reports', reportCode)`.
 - [ ] Implement Date Range pickers (`From`, `To`) and Employee selector dropdown in `ReportsPage.tsx` matching Guide §3.7.
 - [ ] Replace sample report data in `ReportsPage.tsx` with live data fetching.
@@ -383,7 +385,7 @@ Implement the Reports module supporting all 7 system reports with live database 
 ---
 
 ### [#76 [S4-DBA-04 & S4-DBA-05] Database: Audit Log Filter Queries & Sales Child Delete Integrity Rules](https://github.com/Raii-stack/BAIYOGESIC/issues/76)
-**Status:** In Progress (Sales delete rules implemented; Audit filter queries pending)  
+**Status:** In Progress (Sales delete rules & covering indexes implemented; Audit filter queries pending)  
 **Assignee:** @KathrynChloe  
 **Role:** BackEnd Engineer & DB Admin  
 **Priority:** P2 (Medium)  
@@ -392,7 +394,8 @@ Implement the Reports module supporting all 7 system reports with live database 
 Write filtered audit log query procedures, verify cascade and restrict delete constraints on sales details and payments, ensuring payments cannot be orphaned.  
 **Acceptance Criteria:**  
 - [x] Implement database checks/triggers blocking deletion of sales with active payment records (Implemented in `controllers/sales-controller.js` and `tests/integration/sales-api.test.js`).
-- [ ] Write optimized query procedure for `audit_log` filtering by table, actor, action, and timestamp.
+- [x] Create covering composite indexes for audit log querying (`audit_log_table_action_at_idx`, `audit_log_actor_action_at_idx` in `20261031000000_query_optimization_indexes.sql`).
+- [ ] Write optimized query procedure for `audit_log` filtering by table, actor, action, and timestamp using single-roundtrip window pagination (`count(*) OVER()`).
 - [ ] Document relational integrity and foreign key behavior.
 
 ---
@@ -443,6 +446,7 @@ Create tests verifying all 7 reports for accurate data filtering and permissions
 ---
 
 ### [#80 [S4-DEV-08] API & UI: Superadmin Audit Log Viewer with Multi-Filter Search](https://github.com/Raii-stack/BAIYOGESIC/issues/80)
+**Status:** Ready for Development (Sprint 4)  
 **Assignee:** @KathrynChloe, @AlainDeiniel  
 **Role:** BackEnd Engineer & Frontend Developer  
 **Priority:** P2 (Medium)  
@@ -452,6 +456,7 @@ Build the superadmin audit log viewer endpoint and interface, allowing administr
 **Acceptance Criteria:**  
 - [ ] Create `GET /api/audit-logs` endpoint accessible exclusively to Superadmin accounts.
 - [ ] Support filters: `tableName`, `action`, `user`, `from`, `to`, and pagination.
+- [ ] Optimize query using single-roundtrip window function `count(*) OVER()::integer AS _total` and composite index scans (`audit_log_table_action_at_idx`) for sub-50ms responses.
 - [ ] Build UI table in admin panel displaying audit entries, old/new diffs, and timestamps.
 
 ---
@@ -524,9 +529,27 @@ Lead the final Sprint 4 delivery, assemble the production release checklist, wri
 **Description:**  
 Implement live database aggregation query (`GET /api/dashboard/stats`) and display the 4 Dashboard metric KPI cards (Customers, Products, Open Orders, Revenue) and role-sensitive Quick Actions matching Guide §3.2 (Figures 6, 7, 8).  
 **Acceptance Criteria:**  
-- [ ] Backend endpoint `GET /api/dashboard/stats` calculates live counts and revenue sums from live tables.
+- [ ] Backend endpoint `GET /api/dashboard/stats` calculates live counts and revenue sums in a single consolidated SQL query leveraging covering indexes (`sales_active_kpi_idx`, `customer_active_kpi_idx`, `product_active_kpi_idx`).
+- [ ] Implement short in-memory cache TTL (5-10s) to prevent database load spikes under multiple simultaneous dashboard visits.
 - [ ] `DashboardPage.tsx` displays 4 KPI metric cards matching Guide Figures 6, 7, 8.
 - [ ] Quick Actions render appropriately according to user rights, with unauthorized actions greyed out.
+
+---
+
+### [#169 [S4-DBA-07] Database: Query Optimization, Covering Indexes & Fast API Response Tuning](https://github.com/Raii-stack/BAIYOGESIC/issues/169)
+**Status:** Completed (Migration & Optimization Report Merged)  
+**Assignee:** @RyanJames  
+**Role:** Scrum Master & DB Performance Lead  
+**Priority:** P2 (Performance & Latency)  
+**Deadline:** Sprint 4, Day 7 (Week 8)  
+**Description:**  
+Optimize slow database queries across Product, Customer, Sales, Employee, Dashboard, and Audit Log endpoints by converting full subquery scans to LATERAL index lookups, introducing covering B-tree/partial indexes, and consolidating paginated counts with window functions.  
+**Acceptance Criteria:**  
+- [x] Implement `20261031000000_query_optimization_indexes.sql` with covering indexes.
+- [x] Convert `listProducts` in `controllers/product-controller.js` to `LATERAL` price lookup.
+- [x] Convert `listCustomers`, `listProducts`, `listUsers`, `listEmployees`, and `listSales` to single-roundtrip window functions (`count(*) OVER()`).
+- [x] Verify `EXPLAIN ANALYZE` confirms Index Scans / Index-Only Scans across `/api/customers`, `/api/products`, `/api/sales`, and `/api/dashboard/stats`.
+- [x] Document performance benchmarks and EXPLAIN ANALYZE results in `docs/database/query-optimization-report.md`.
 
 ---
 

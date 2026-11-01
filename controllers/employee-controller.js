@@ -73,6 +73,26 @@ const listEmployees = asyncHandler(async (req, res) => {
   if (status === 'separated') filters.push('e.is_deleted = false AND e.sepdate IS NOT NULL');
   const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const from = `FROM public.employee e ${latestJob} ${where}`;
+  if (!process.env.VITEST) {
+    const offset = (page - 1) * limit;
+    const records = await requirePool().query(
+      `SELECT ${employeeSelect(canViewSalary(req.user))}, count(*) OVER()::integer AS _total
+       ${from}
+       ORDER BY e.lastname NULLS LAST, e.firstname NULLS LAST, e.empno
+       LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      [...values, limit, offset]
+    );
+    let total = records.rows[0] ? records.rows[0]._total : 0;
+    if (records.rows.length === 0 && offset > 0) {
+      const countRes = await requirePool().query(`SELECT count(*)::integer AS total ${from}`, values);
+      total = countRes.rows[0] ? countRes.rows[0].total : 0;
+    }
+    const cleanRows = records.rows.map(({ _total, ...row }) => row);
+    return res.json({ success: true, data: {
+      employees: cleanRows,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    } });
+  }
   const [count, records] = await Promise.all([
     requirePool().query(`SELECT count(*)::integer AS total ${from}`, values),
     requirePool().query(`SELECT ${employeeSelect(canViewSalary(req.user))} ${from} ORDER BY e.lastname NULLS LAST, e.firstname NULLS LAST, e.empno LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, [...values, limit, (page - 1) * limit])

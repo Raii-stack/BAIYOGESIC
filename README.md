@@ -26,16 +26,24 @@ See the [project documentation](docs/PROJECT_DOCUMENTATION.md) for current statu
 
 ## Built with
 
-| Layer | Technologies |
-| --- | --- |
-| Frontend | React · TypeScript · Vite · Tailwind CSS |
-| Backend | Node.js · Express |
-| Database | PostgreSQL · Supabase |
-| Quality & delivery | Vitest · React Testing Library · GitHub Actions |
+<table align="center">
+  <thead>
+    <tr>
+      <th align="center">Layer</th>
+      <th align="center">Technologies</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td align="center">Frontend</td><td align="center">React · TypeScript · Vite · Tailwind CSS</td></tr>
+    <tr><td align="center">Backend</td><td align="center">Node.js · Express</td></tr>
+    <tr><td align="center">Database</td><td align="center">PostgreSQL · Supabase</td></tr>
+    <tr><td align="center">Quality &amp; delivery</td><td align="center">Vitest · React Testing Library · GitHub Actions</td></tr>
+  </tbody>
+</table>
 
 ## Development team
 
-<table>
+<table align="center" width="100%">
   <tr>
     <td align="center" valign="top" width="20%">
       <a href="https://github.com/Raii-stack"><img src="https://github.com/Raii-stack.png?size=160" width="80" height="80" alt="Ryan James M. Gopio's GitHub profile picture" /></a><br />

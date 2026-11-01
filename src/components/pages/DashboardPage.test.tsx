@@ -3,6 +3,7 @@ import { MemoryRouter } from "react-router"
 import { afterEach, expect, test, vi } from "vitest"
 
 import { useAuth } from "../auth/AuthProvider"
+import * as dashboardApi from "../../lib/dashboard-api"
 import DashboardPage from "./DashboardPage"
 
 vi.mock("../auth/AuthProvider", () => ({ useAuth: vi.fn() }))
@@ -42,4 +43,116 @@ test("renders department context and the mandatory password dialog", () => {
   expect(screen.getAllByText("Sales").length).toBeGreaterThan(0)
   expect(screen.getByRole("dialog")).toHaveTextContent("Change password dialog")
   expect(screen.getByText("Available tools").parentElement).toHaveTextContent("1")
+})
+
+test("displays loading skeletons while metrics fetch", () => {
+  vi.mocked(useAuth).mockReturnValue({
+    user: { userId: "1", empno: "00001", email: "admin@example.com", role: "admin", status: "active", mustChangePassword: false, rights: [] },
+    loading: false,
+    login: vi.fn(),
+    changePassword: vi.fn(),
+    logout: vi.fn(),
+  })
+  // getDashboardStats returns a promise that never resolves during this check
+  vi.spyOn(dashboardApi, "getDashboardStats").mockReturnValue(new Promise(() => {}))
+
+  render(<MemoryRouter><DashboardPage /></MemoryRouter>)
+
+  expect(screen.getByLabelText("Loading Customers")).toBeInTheDocument()
+  expect(screen.getByLabelText("Loading Products")).toBeInTheDocument()
+  expect(screen.getByLabelText("Loading Open Orders")).toBeInTheDocument()
+  expect(screen.getByLabelText("Loading Revenue")).toBeInTheDocument()
+})
+
+test("displays the 4 KPI metric cards with live formatted values", async () => {
+  vi.mocked(useAuth).mockReturnValue({
+    user: { userId: "1", empno: "00001", email: "staff@example.com", role: "admin", status: "active", mustChangePassword: false, rights: [] },
+    loading: false,
+    login: vi.fn(),
+    changePassword: vi.fn(),
+    logout: vi.fn(),
+  })
+  vi.spyOn(dashboardApi, "getDashboardStats").mockResolvedValueOnce({
+    customers: 1248,
+    products: 386,
+    openOrders: 94,
+    revenue: 84200,
+  })
+
+  render(<MemoryRouter><DashboardPage /></MemoryRouter>)
+
+  expect(await screen.findByText("1,248")).toBeInTheDocument()
+  expect(screen.getByText("386")).toBeInTheDocument()
+  expect(screen.getByText("94")).toBeInTheDocument()
+  expect(screen.getByText("$84.2k")).toBeInTheDocument()
+})
+
+test("renders quick actions with unauthorized actions disabled and greyed out", () => {
+  vi.mocked(useAuth).mockReturnValue({
+    user: {
+      userId: "1",
+      empno: "00001",
+      email: "staff@example.com",
+      role: "employee",
+      status: "active",
+      mustChangePassword: false,
+      rights: ["customers.add"], // Only customer addition allowed
+    },
+    loading: false,
+    login: vi.fn(),
+    changePassword: vi.fn(),
+    logout: vi.fn(),
+  })
+  vi.spyOn(dashboardApi, "getDashboardStats").mockResolvedValueOnce({
+    customers: 10,
+    products: 10,
+    openOrders: 2,
+    revenue: 500,
+  })
+
+  render(<MemoryRouter><DashboardPage /></MemoryRouter>)
+
+  // + New Customer should be active (role="button" or anchor)
+  const newCustomer = screen.getByRole("button", { name: "+ New Customer" })
+  expect(newCustomer).not.toBeDisabled()
+  expect(newCustomer).toHaveAttribute("href", "/customers")
+
+  // + New Product and + New Sale should be disabled / greyed out
+  const newProduct = screen.getByRole("button", { name: "+ New Product" })
+  expect(newProduct).toBeDisabled()
+  expect(newProduct).toHaveAttribute("aria-disabled", "true")
+
+  const newSale = screen.getByRole("button", { name: "+ New Sale" })
+  expect(newSale).toBeDisabled()
+  expect(newSale).toHaveAttribute("aria-disabled", "true")
+})
+
+test("renders all quick actions enabled for administrator", () => {
+  vi.mocked(useAuth).mockReturnValue({
+    user: {
+      userId: "1",
+      empno: "00001",
+      email: "admin@example.com",
+      role: "admin",
+      status: "active",
+      mustChangePassword: false,
+      rights: [],
+    },
+    loading: false,
+    login: vi.fn(),
+    changePassword: vi.fn(),
+    logout: vi.fn(),
+  })
+  vi.spyOn(dashboardApi, "getDashboardStats").mockResolvedValueOnce({
+    customers: 100,
+    products: 50,
+    openOrders: 10,
+    revenue: 25000,
+  })
+
+  render(<MemoryRouter><DashboardPage /></MemoryRouter>)
+
+  expect(screen.getByRole("button", { name: "+ New Customer" })).not.toBeDisabled()
+  expect(screen.getByRole("button", { name: "+ New Product" })).not.toBeDisabled()
+  expect(screen.getByRole("button", { name: "+ New Sale" })).not.toBeDisabled()
 })

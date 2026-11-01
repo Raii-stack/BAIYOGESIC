@@ -1,9 +1,26 @@
 const { requirePool } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
 
-const canViewSalary = (user) =>
-  ['superadmin', 'administrator', 'admin', 'hr', 'hr_manager'].includes(String(user?.role || '').toLowerCase()) ||
-  (Array.isArray(user?.rights) && user.rights.some((r) => ['hr.employee.edit', 'hr.history.edit'].includes(r)));
+const canViewSalary = (user) => {
+  if (!user) return false;
+  const role = String(user.role || '').toLowerCase().trim();
+  if (['superadmin', 'administrator', 'admin', 'hr', 'hr_manager'].includes(role)) {
+    return true;
+  }
+  const userRights = [
+    ...(Array.isArray(user.rights) ? user.rights : []),
+    ...(Array.isArray(user.permissions) ? user.permissions : [])
+  ].map((r) => String(r).toLowerCase().trim());
+
+  return userRights.some((r) => [
+    'hr.employee.edit',
+    'hr.history.edit',
+    'hr.view_salary',
+    'hr.salary',
+    'hr:salary:view',
+    'hr:view_salary'
+  ].includes(r));
+};
 
 function requestError(message, statusCode) {
   const error = new Error(message);
@@ -97,7 +114,7 @@ const getJobHistory = asyncHandler(async (req, res) => {
   );
   if (!employeeResult.rows.length) throw requestError('Employee not found', 404);
 
-  const salaryAllowed = !req.user || canViewSalary(req.user);
+  const salaryAllowed = Boolean(req.user && canViewSalary(req.user));
   const historyResult = await requirePool().query(
     `SELECT h.empno, h.jobcode, h.deptcode, h.effdate::text AS effdate,
             j.jobdesc, d.deptname,
@@ -273,7 +290,7 @@ const recordPromotion = asyncHandler(async (req, res) => {
         deptcode,
         jobcode,
         effdate: rawEffdate,
-        salary: !req.user || canViewSalary(req.user) ? Number(historyRow.salary ?? salary) : null
+        salary: Boolean(req.user && canViewSalary(req.user)) ? Number(historyRow.salary ?? salary) : null
       };
 
       return { historyRow, employeeRow };
@@ -379,8 +396,8 @@ const createEmployee = asyncHandler(async (req, res) => {
       const next = await client.query(`SELECT coalesce(max(empno::integer), 0) + 1 AS id FROM public.employee WHERE empno ~ '^[0-9]{5}$'`);
       if (next.rows[0].id > 99999) throw requestError('Employee ID capacity reached', 409);
       const id = String(next.rows[0].id).padStart(5, '0');
-      await client.query(`INSERT INTO public.employee (empno, firstname, lastname, email, gender, birthdate, hiredate, sepdate, is_deleted)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)`, [id, values.firstname, values.lastname, values.email, values.gender, values.birthdate, values.hiredate, values.sepdate]);
+      await client.query(`INSERT INTO public.employee (empno, firstname, lastname, email, gender, birthdate, hiredate, sepdate, deptcode, jobcode, is_deleted)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false)`, [id, values.firstname, values.lastname, values.email, values.gender, values.birthdate, values.hiredate, values.sepdate, values.deptcode, values.jobcode]);
       await client.query(`INSERT INTO public.jobhistory (empno, jobcode, deptcode, effdate, salary, is_deleted)
         VALUES ($1,$2,$3,$4,$5,false)`, [id, values.jobcode, values.deptcode, values.effdate, values.salary]);
       return id;
@@ -396,8 +413,8 @@ const updateEmployee = asyncHandler(async (req, res) => {
       const existing = await client.query('SELECT empno FROM public.employee WHERE empno = $1 AND is_deleted = false FOR UPDATE', [req.params.empno]);
       if (!existing.rows[0]) throw requestError('Employee not found', 404);
       await validateReferences(client, values);
-      await client.query(`UPDATE public.employee SET firstname=$1, lastname=$2, email=$3, gender=$4, birthdate=$5, hiredate=$6, sepdate=$7 WHERE empno=$8`,
-        [values.firstname, values.lastname, values.email, values.gender, values.birthdate, values.hiredate, values.sepdate, req.params.empno]);
+      await client.query(`UPDATE public.employee SET firstname=$1, lastname=$2, email=$3, gender=$4, birthdate=$5, hiredate=$6, sepdate=$7, deptcode=$8, jobcode=$9 WHERE empno=$10`,
+        [values.firstname, values.lastname, values.email, values.gender, values.birthdate, values.hiredate, values.sepdate, values.deptcode, values.jobcode, req.params.empno]);
       const latest = await client.query(`SELECT jobcode, deptcode, salary, effdate::text AS effdate FROM public.jobhistory WHERE empno=$1 AND is_deleted=false ORDER BY effdate DESC, jobcode DESC LIMIT 1`, [req.params.empno]);
       const current = latest.rows[0];
       if (!current || current.jobcode !== values.jobcode || current.deptcode !== values.deptcode || Number(current.salary) !== values.salary) {
@@ -582,11 +599,16 @@ const archiveJob = asyncHandler(async (req, res) => {
       if (!existing.rows.length) return null;
       const inUse = await client.query('SELECT 1 FROM public.jobhistory WHERE jobcode = $1 AND is_deleted = false LIMIT 1', [jobcode]);
       if (inUse.rows.length) throw requestError('Cannot archive job while active job-history records exist.', 409);
+      const empInUse = await client.query('SELECT 1 FROM public.employee WHERE jobcode = $1 AND is_deleted = false LIMIT 1', [jobcode]);
+      if (empInUse.rows.length) throw requestError('Cannot archive job while active job-history records exist.', 409);
       const result = await client.query('UPDATE public.job SET is_deleted = true WHERE jobcode = $1 AND is_deleted = false RETURNING jobcode, jobdesc, is_deleted, stamp', [jobcode]);
       return result.rows[0] || null;
     });
   } catch (error) {
-    if (error.code === 'P0001' && /active related record/i.test(error.message || '')) {
+    if (
+      (error.code === 'P0001' && /active related record/i.test(error.message || '')) ||
+      error.code === '23503'
+    ) {
       throw requestError('Cannot archive job while active job-history records exist.', 409);
     }
     throw error;
@@ -718,11 +740,16 @@ const archiveDepartment = asyncHandler(async (req, res) => {
       if (!existing.rows.length) return null;
       const inUse = await client.query('SELECT 1 FROM public.jobhistory WHERE deptcode = $1 AND is_deleted = false LIMIT 1', [deptcode]);
       if (inUse.rows.length) throw requestError('Cannot archive department while active job-history records exist.', 409);
+      const empInUse = await client.query('SELECT 1 FROM public.employee WHERE deptcode = $1 AND is_deleted = false LIMIT 1', [deptcode]);
+      if (empInUse.rows.length) throw requestError('Cannot archive department while active job-history records exist.', 409);
       const result = await client.query('UPDATE public.department SET is_deleted = true WHERE deptcode = $1 AND is_deleted = false RETURNING deptcode, deptname, is_deleted, stamp', [deptcode]);
       return result.rows[0] || null;
     });
   } catch (error) {
-    if (error.code === 'P0001' && /active related record/i.test(error.message || '')) {
+    if (
+      (error.code === 'P0001' && /active related record/i.test(error.message || '')) ||
+      error.code === '23503'
+    ) {
       throw requestError('Cannot archive department while active job-history records exist.', 409);
     }
     throw error;

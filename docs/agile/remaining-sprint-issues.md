@@ -521,7 +521,7 @@ Lead the final Sprint 4 delivery, assemble the production release checklist, wri
 ---
 
 ### [#167 [S4-DEV-09] API & UI: Live Dashboard KPI Statistic Cards (Customers, Products, Orders, Revenue)](https://github.com/Raii-stack/BAIYOGESIC/issues/167)
-**Status:** Ready for Development (Sprint 4)  
+**Status:** Completed (Sprint 4)  
 **Assignee:** @KathrynChloe, @AlainDeiniel  
 **Role:** BackEnd Engineer & Frontend Developer  
 **Priority:** P2 (Medium)  
@@ -529,10 +529,10 @@ Lead the final Sprint 4 delivery, assemble the production release checklist, wri
 **Description:**  
 Implement live database aggregation query (`GET /api/dashboard/stats`) and display the 4 Dashboard metric KPI cards (Customers, Products, Open Orders, Revenue) and role-sensitive Quick Actions matching Guide §3.2 (Figures 6, 7, 8).  
 **Acceptance Criteria:**  
-- [ ] Backend endpoint `GET /api/dashboard/stats` calculates live counts and revenue sums in a single consolidated SQL query leveraging covering indexes (`sales_active_kpi_idx`, `customer_active_kpi_idx`, `product_active_kpi_idx`).
-- [ ] Implement short in-memory cache TTL (5-10s) to prevent database load spikes under multiple simultaneous dashboard visits.
-- [ ] `DashboardPage.tsx` displays 4 KPI metric cards matching Guide Figures 6, 7, 8.
-- [ ] Quick Actions render appropriately according to user rights, with unauthorized actions greyed out.
+- [x] Backend endpoint `GET /api/dashboard/stats` calculates live counts and revenue sums in a single consolidated SQL query leveraging covering indexes (`sales_active_kpi_idx`, `customer_active_kpi_idx`, `product_active_kpi_idx`).
+- [x] Implement short in-memory cache TTL (5-10s) to prevent database load spikes under multiple simultaneous dashboard visits.
+- [x] `DashboardPage.tsx` displays 4 KPI metric cards matching Guide Figures 6, 7, 8.
+- [x] Quick Actions render appropriately according to user rights, with unauthorized actions greyed out.
 
 ---
 

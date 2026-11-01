@@ -1,9 +1,26 @@
 const { requirePool } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
 
-const canViewSalary = (user) =>
-  ['superadmin', 'administrator', 'admin', 'hr', 'hr_manager'].includes(String(user?.role || '').toLowerCase()) ||
-  (Array.isArray(user?.rights) && user.rights.some((r) => ['hr.employee.edit', 'hr.history.edit'].includes(r)));
+const canViewSalary = (user) => {
+  if (!user) return false;
+  const role = String(user.role || '').toLowerCase().trim();
+  if (['superadmin', 'administrator', 'admin', 'hr', 'hr_manager'].includes(role)) {
+    return true;
+  }
+  const userRights = [
+    ...(Array.isArray(user.rights) ? user.rights : []),
+    ...(Array.isArray(user.permissions) ? user.permissions : [])
+  ].map((r) => String(r).toLowerCase().trim());
+
+  return userRights.some((r) => [
+    'hr.employee.edit',
+    'hr.history.edit',
+    'hr.view_salary',
+    'hr.salary',
+    'hr:salary:view',
+    'hr:view_salary'
+  ].includes(r));
+};
 
 function requestError(message, statusCode) {
   const error = new Error(message);
@@ -97,7 +114,7 @@ const getJobHistory = asyncHandler(async (req, res) => {
   );
   if (!employeeResult.rows.length) throw requestError('Employee not found', 404);
 
-  const salaryAllowed = !req.user || canViewSalary(req.user);
+  const salaryAllowed = Boolean(req.user && canViewSalary(req.user));
   const historyResult = await requirePool().query(
     `SELECT h.empno, h.jobcode, h.deptcode, h.effdate::text AS effdate,
             j.jobdesc, d.deptname,
@@ -273,7 +290,7 @@ const recordPromotion = asyncHandler(async (req, res) => {
         deptcode,
         jobcode,
         effdate: rawEffdate,
-        salary: !req.user || canViewSalary(req.user) ? Number(historyRow.salary ?? salary) : null
+        salary: Boolean(req.user && canViewSalary(req.user)) ? Number(historyRow.salary ?? salary) : null
       };
 
       return { historyRow, employeeRow };

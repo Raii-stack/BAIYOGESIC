@@ -23,7 +23,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-test("default-password login requires a successful password change before opening the dashboard", async () => {
+test("default-password users enter the dashboard and must change their password there", async () => {
   const pendingUser = {
     userId: 1,
     empno: "EMP-1",
@@ -64,14 +64,15 @@ test("default-password login requires a successful password change before openin
   await user.type(screen.getByLabelText("Password"), "default-pass")
   await user.click(screen.getByRole("button", { name: "Sign in" }))
 
-  const dialog = await screen.findByRole("dialog", { name: "Change your default password" })
+  expect(await screen.findByRole("heading", { name: "Welcome back, user@example.com" })).toBeInTheDocument()
+  const dialog = await screen.findByRole("dialog", { name: "Set a new password" })
   expect(dialog).toHaveAttribute("aria-modal", "true")
-  expect(screen.queryByText("Main Dashboard")).not.toBeInTheDocument()
+  expect(screen.queryByLabelText("Work email")).not.toBeInTheDocument()
 
   cleanup()
   render(<App />)
-  expect(await screen.findByRole("dialog", { name: "Change your default password" })).toBeInTheDocument()
-  expect(screen.queryByText("Main Dashboard")).not.toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Welcome back, user@example.com" })).toBeInTheDocument()
+  expect(screen.getByRole("dialog", { name: "Set a new password" })).toBeInTheDocument()
 
   await user.type(screen.getByLabelText("Current password"), "incorrect")
   await user.type(screen.getByLabelText("New password"), "a-new-password")
@@ -84,7 +85,7 @@ test("default-password login requires a successful password change before openin
   await user.type(screen.getByLabelText("Current password"), "default-pass")
   await user.click(screen.getByRole("button", { name: "Update password" }))
 
-  await waitFor(() => expect(screen.getByText("Welcome back, user@example.com")).toBeInTheDocument())
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Set a new password" })).not.toBeInTheDocument())
   expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
     "/api/auth/session",
     "/api/auth/login",

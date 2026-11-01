@@ -21,12 +21,12 @@ function renderGuard(role?: string, mustChangePassword = false) {
   </Routes></AuthProvider></MemoryRouter>)
 }
 
-test("redirects visitors and default-password users away from protected pages", async () => {
+test("redirects visitors away and sends default-password users to the dashboard", async () => {
   renderGuard()
   expect(await screen.findByText("Sign in")).toBeInTheDocument()
   cleanup()
   renderGuard("administrator", true)
-  expect(await screen.findByText("Sign in")).toBeInTheDocument()
+  expect(await screen.findByText("Dashboard")).toBeInTheDocument()
 })
 
 test("reserves user management for administrators", async () => {

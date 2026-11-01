@@ -1,4 +1,5 @@
 import { useAuth } from "../auth/AuthProvider"
+import ChangePasswordModal from "../auth/ChangePasswordModal"
 import { DashboardIcon, ModuleTile, modules } from "../dashboard/DashboardComponents"
 import DashboardLayout from "../../layouts/DashboardLayout"
 import { getUserDisplayName } from "../../lib/auth"
@@ -60,6 +61,7 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+      {user?.mustChangePassword && <ChangePasswordModal />}
     </DashboardLayout>
   )
 }

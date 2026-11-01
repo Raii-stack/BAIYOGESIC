@@ -2,7 +2,6 @@ import { useState, type FormEvent } from "react"
 import { Link, Navigate, useNavigate } from "react-router"
 
 import { useAuth } from "../auth/AuthProvider"
-import ChangePasswordModal from "../auth/ChangePasswordModal"
 import type { Errors } from "../../types/auth"
 import { emailOk } from "../../utils/validation"
 import {
@@ -31,9 +30,9 @@ export default function LoginPage() {
 
     setSubmitting(true)
     try {
-      const signedInUser = await login(email, password)
+      await login(email, password)
       setPassword("")
-      if (!signedInUser.mustChangePassword) navigate("/dashboard", { replace: true })
+      navigate("/dashboard", { replace: true })
     } catch (error) {
       setAuthenticationError(error instanceof Error ? error.message : "Unable to sign in.")
     } finally {
@@ -42,7 +41,7 @@ export default function LoginPage() {
   }
 
   if (loading) return <div role="status" className="grid min-h-screen place-items-center bg-[#f6f6f7] text-sm text-neutral-500">Checking your session…</div>
-  if (user && !user.mustChangePassword) return <Navigate to="/dashboard" replace />
+  if (user) return <Navigate to="/dashboard" replace />
 
   return (
     <AuthShell
@@ -94,10 +93,6 @@ export default function LoginPage() {
           Sign in
         </Submit>
       </form>
-
-      {user?.mustChangePassword && (
-        <ChangePasswordModal onComplete={() => navigate("/dashboard", { replace: true })} />
-      )}
     </AuthShell>
   )
 }

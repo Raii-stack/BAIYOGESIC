@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { createBrowserRouter, Navigate, RouterProvider } from "react-router"
+import { createBrowserRouter, Navigate, RouterProvider, useLocation } from "react-router"
 
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider"
 import ToastHost from "./components/common/ToastHost"
@@ -39,8 +39,10 @@ export function ProtectedPage({
   right?: string
 }) {
   const { user, loading } = useAuth()
+  const location = useLocation()
   if (loading) return <div role="status" className="grid min-h-screen place-items-center bg-slate-100 text-sm text-slate-600">Checking your session…</div>
-  if (!user || user.status !== "active" || user.isBlocked || user.mustChangePassword) return <Navigate to="/" replace />
+  if (!user || user.status !== "active" || user.isBlocked) return <Navigate to="/" replace />
+  if (user.mustChangePassword && location.pathname !== "/dashboard") return <Navigate to="/dashboard" replace />
   if (roles && !matchesAllowedRoles(user.role, roles)) return <Navigate to="/dashboard" replace />
   if (module && !canAccessModule(user, module)) return <Navigate to="/dashboard" replace />
   if (right && !hasRight(user, right)) return <Navigate to="/dashboard" replace />

@@ -206,6 +206,18 @@ npx vitest
 npx vitest run src/pages/CustomerManagementPage.test.tsx
 ```
 
+Live API integration tests must use a non-production Supabase project. Create an ignored `.env.test` with:
+
+```env
+API_BASE_URL=http://localhost:3000
+SUPABASE_URL=https://<test-project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=<test-project-service-role-key>
+QA_PASSWORD=<random-password-at-least-12-characters>
+ALLOW_QA_USER_SEED=true
+```
+
+Then run `npm run test:integration`. The explicit seed flag prevents the test fixture from creating QA accounts accidentally.
+
 All pull requests must pass automated linting and the test suite before merging.
 
 ---

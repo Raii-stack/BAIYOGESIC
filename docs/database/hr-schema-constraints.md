@@ -73,8 +73,12 @@ The API layer in `controllers/employee-controller.js` maps database-level constr
 | :--- | :--- | :--- | :--- | :--- |
 | `23503` | `employee_deptcode_fkey` / `jobhistory_deptcode_fkey` | Department referenced by active employees or history | `409 Conflict` | `Cannot archive department while active job-history records exist.` |
 | `P0001` | `trg_check_children()` | Active department child records during soft-delete | `409 Conflict` | `Cannot archive department while active job-history records exist.` |
+| `23503` | `employee_jobcode_fkey` / `jobhistory_jobcode_fkey` | Job title referenced by active employees or history | `409 Conflict` | `Cannot archive job while active job-history records exist.` |
+| `P0001` | `trg_check_children()` | Active job child records during soft-delete | `409 Conflict` | `Cannot archive job while active job-history records exist.` |
 | `23505` | `jobhistory_empno_effdate_key` | Duplicate promotion on identical effective date | `400 Bad Request` | `A job history entry with this effective date already exists for this employee` |
 | `23503` | `jobhistory_jobcode_fkey` / `jobhistory_deptcode_fkey` | Invalid job or department code in promotion payload | `400 Bad Request` | `The selected job or department no longer exists` |
+
+Note: `public.employee(deptcode, jobcode)` are kept in sync with the latest job timeline upon employee creation (`createEmployee`), employee updates (`updateEmployee`), and promotions (`recordPromotion`).
 
 ---
 
@@ -103,7 +107,7 @@ WHERE conrelid = 'public.jobhistory'::regclass;
 -- conname: jobhistory_empno_fkey         | contype: f | confdeltype: r
 -- conname: jobhistory_deptcode_fkey      | contype: f | confdeltype: r
 -- conname: jobhistory_jobcode_fkey       | contype: f | confdeltype: r
--- conname: jobhistory_empno_effdate_key  | contype: u | confdeltype: a
+-- conname: jobhistory_empno_effdate_key  | contype: u | confdeltype: ' ' (unique constraint)
 ```
 
 ### 4.2 Automated Test Coverage

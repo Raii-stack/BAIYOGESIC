@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 import { createBrowserRouter, Navigate, RouterProvider, useLocation } from "react-router"
+import { Analytics } from "@vercel/analytics/react"
 
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider"
 import ToastHost from "./components/common/ToastHost"
@@ -76,5 +77,5 @@ const router = createBrowserRouter([
 ])
 
 export default function App() {
-  return <AuthProvider><ToastHost /><RouterProvider router={router} /></AuthProvider>
+  return <AuthProvider><ToastHost /><RouterProvider router={router} /><Analytics /></AuthProvider>
 }

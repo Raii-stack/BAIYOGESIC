@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter } from "react-router"
 import { afterEach, expect, test, vi } from "vitest"
 
@@ -178,4 +178,44 @@ test("does not initiate stats fetch when user must first change password", () =>
 
   render(<MemoryRouter><DashboardPage /></MemoryRouter>)
   expect(getDashboardStatsSpy).not.toHaveBeenCalled()
+})
+
+
+test("displays error alert and supports retry when stats loading fails", async () => {
+  const getDashboardStatsSpy = vi
+    .spyOn(dashboardApi, "getDashboardStats")
+    .mockRejectedValueOnce(new Error("Network connection lost"))
+    .mockResolvedValueOnce({
+      customers: 50,
+      products: 25,
+      openOrders: 5,
+      revenue: 1000,
+    })
+
+  vi.mocked(useAuth).mockReturnValue({
+    user: {
+      userId: "1",
+      empno: "00001",
+      email: "admin@example.com",
+      role: "admin",
+      status: "active",
+      mustChangePassword: false,
+      rights: [],
+    },
+    loading: false,
+    login: vi.fn(),
+    changePassword: vi.fn(),
+    logout: vi.fn(),
+  })
+
+  render(<MemoryRouter><DashboardPage /></MemoryRouter>)
+
+  const alert = await screen.findByRole("alert")
+  expect(alert).toHaveTextContent("Network connection lost")
+
+  const retryButton = screen.getByRole("button", { name: "Try again" })
+  fireEvent.click(retryButton)
+
+  expect(await screen.findByText("50")).toBeInTheDocument()
+  expect(getDashboardStatsSpy).toHaveBeenCalledTimes(2)
 })

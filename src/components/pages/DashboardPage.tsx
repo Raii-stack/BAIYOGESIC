@@ -40,7 +40,8 @@ export default function DashboardPage() {
   const { user } = useAuth()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [statsLoading, setStatsLoading] = useState(true)
-  const [_statsError, setStatsError] = useState("")
+  const [statsError, setStatsError] = useState("")
+  const [refreshCount, setRefreshCount] = useState(0)
 
   useEffect(() => {
     if (user?.mustChangePassword) {
@@ -52,7 +53,10 @@ export default function DashboardPage() {
     setStatsLoading(true)
     setStatsError("")
 
-    getDashboardStats({ signal: controller.signal })
+    getDashboardStats({
+      signal: controller.signal,
+      refresh: refreshCount > 0,
+    })
       .then((data) => {
         setStats(data)
         setStatsLoading(false)
@@ -64,7 +68,7 @@ export default function DashboardPage() {
       })
 
     return () => controller.abort()
-  }, [])
+  }, [refreshCount])
 
   const canAddCustomer = getCustomerPermissions(user).canAdd
   const canAddProduct = getProductPermissions(user).canAdd
@@ -183,9 +187,25 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {statsError && (
+            <div
+              role="alert"
+              className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"
+            >
+              <span>{statsError}</span>
+              <button
+                type="button"
+                onClick={() => setRefreshCount((current) => current + 1)}
+                className="underline underline-offset-4 hover:text-red-950"
+              >
+                Try again
+              </button>
+            </div>
+          )}
+
           {kpiCards.length > 0 && (
             <section aria-label="Key performance indicators" className="mb-7">
-              <div className={`grid grid-cols-2 gap-4 ${kpiCards.length >= 4 ? "lg:grid-cols-4" : kpiCards.length === 3 ? "lg:grid-cols-3" : ""}`}>
+              <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${kpiCards.length >= 4 ? "lg:grid-cols-4" : kpiCards.length === 3 ? "lg:grid-cols-3" : ""}`}>
                 {kpiCards.map((card) => (
                   <div key={card.label} className="workspace-panel p-5">
                     <div className="flex items-center justify-between">

@@ -10,18 +10,6 @@ const PAGE_SIZE = 10
 const emptyPagination: EmployeePagination = { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 }
 const pages = (current: number, total: number) => { const count = Math.min(total, 5); const start = Math.max(1, Math.min(current - 2, total - count + 1)); return Array.from({ length: count }, (_, i) => start + i) }
 
-function EditIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m14 5 5 5M4 20l3.5-.7L20 6.8a2.1 2.1 0 0 0-3-3L4.7 16.3 4 20Z" /></svg>
-}
-
-function ArchiveIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" /></svg>
-}
-
-function RestoreIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" /></svg>
-}
-
 export default function LookupSection({ kind, canAdd = canEdit, canEdit, canDelete, canViewAudit = true, onChanged, onNotice }: {
   kind: "jobs" | "departments"
   canAdd?: boolean
@@ -164,7 +152,7 @@ export default function LookupSection({ kind, canAdd = canEdit, canEdit, canDele
       <section aria-label={`${singular} filters`} className="workspace-panel workspace-filters">
         <label className="workspace-filter-search"><span className="workspace-label">Search {kind}</span><span className="relative block"><DashboardIcon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder={isJobs ? "Job code or description" : "Dept code or department name"} className="workspace-control workspace-control--search" /></span></label>
         {canViewAudit && <label><span className="workspace-label">Status</span><select value={status} onChange={(event) => { setStatus(event.target.value as "all" | "active" | "archived"); setPage(1) }} className="workspace-control"><option value="all">All statuses</option><option value="active">Active</option><option value="archived">Archived</option></select></label>}
-        {canAdd && <button type="button" onClick={() => openModal(null)} className="workspace-primary-action">+ Add {singular.toLowerCase()}</button>}
+        {canAdd && <button type="button" onClick={() => openModal(null)} className="workspace-primary-action"><DashboardIcon name="plus" className="h-4 w-4" />Add {singular.toLowerCase()}</button>}
       </section>
 
       {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{error}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
@@ -180,9 +168,9 @@ export default function LookupSection({ kind, canAdd = canEdit, canEdit, canDele
               {canViewAudit && <td className="max-w-56  font-mono text-[11px] leading-5 text-slate-500">{item.stamp || "—"}</td>}
               {showActions && <td className={`workspace-table-actions ${item.archived ? "bg-slate-50" : "bg-white"}`}><div className="flex items-center gap-1">
                 {!item.archived ? <>
-                  {canEdit && <button type="button" onClick={() => openModal(item)} aria-label={`Edit ${item.label}`} title={`Edit ${singular.toLowerCase()}`} className="workspace-icon-action"><EditIcon /></button>}
-                  {canDelete && <button type="button" onClick={() => { setArchiveError(""); setToArchive(item) }} aria-label={`Archive ${item.label}`} title={`Archive ${singular.toLowerCase()}`} className="workspace-icon-action workspace-icon-action--danger"><ArchiveIcon /></button>}
-                </> : canDelete ? <button type="button" onClick={() => restore(item)} disabled={restoringCode === item.code} aria-label={`Restore ${item.label}`} title={`Restore ${singular.toLowerCase()}`} className="workspace-icon-action"><RestoreIcon /></button> : <span className="px-2 text-slate-400">—</span>}
+                  {canEdit && <button type="button" onClick={() => openModal(item)} aria-label={`Edit ${item.label}`} title={`Edit ${singular.toLowerCase()}`} className="workspace-icon-action"><DashboardIcon name="edit" className="h-4 w-4" /></button>}
+                  {canDelete && <button type="button" onClick={() => { setArchiveError(""); setToArchive(item) }} aria-label={`Archive ${item.label}`} title={`Archive ${singular.toLowerCase()}`} className="workspace-icon-action workspace-icon-action--danger"><DashboardIcon name="archive" className="h-4 w-4" /></button>}
+                </> : canDelete ? <button type="button" onClick={() => restore(item)} disabled={restoringCode === item.code} aria-label={`Restore ${item.label}`} title={`Restore ${singular.toLowerCase()}`} className="workspace-icon-action"><DashboardIcon name="restore" className="h-4 w-4" /></button> : <span className="px-2 text-slate-400">—</span>}
               </div></td>}
             </tr>
           ))}
@@ -191,7 +179,7 @@ export default function LookupSection({ kind, canAdd = canEdit, canEdit, canDele
       </section>
 
       {panelOpen && <div className="fixed inset-0 z-50"><button type="button" aria-label={`Close ${singular.toLowerCase()} form`} onClick={() => setPanelOpen(false)} className="absolute inset-0 bg-slate-950/50" /><aside role="dialog" aria-modal="true" aria-labelledby="lookup-panel-title" className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-neutral-200 bg-white shadow-xl workspace-drawer">
-        <header className="workspace-drawer-header"><div><h2 id="lookup-panel-title" className="mt-2 text-xl font-semibold tracking-tight text-neutral-900">{selected ? `Edit ${singular.toLowerCase()}` : `Add ${singular.toLowerCase()}`}</h2></div><button type="button" onClick={() => setPanelOpen(false)} aria-label={`Close ${singular.toLowerCase()} form`} className="workspace-icon-action text-xl">×</button></header>
+        <header className="workspace-drawer-header"><div><h2 id="lookup-panel-title" className="mt-2 text-xl font-semibold tracking-tight text-neutral-900">{selected ? `Edit ${singular.toLowerCase()}` : `Add ${singular.toLowerCase()}`}</h2></div><button type="button" onClick={() => setPanelOpen(false)} aria-label={`Close ${singular.toLowerCase()} form`} className="workspace-icon-action"><DashboardIcon name="close" className="h-5 w-5" /></button></header>
         <form onSubmit={save} className="flex min-h-0 flex-1 flex-col"><div className="workspace-drawer-body space-y-4">
           <label className="block"><span className="workspace-label">{isJobs ? "Job code" : "Department code"}</span><input required maxLength={codeMax} readOnly={Boolean(selected)} value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder={isJobs ? "e.g. DEV" : "e.g. IT"} className={`workspace-control font-mono uppercase ${selected ? "bg-slate-100 text-slate-500" : "bg-white text-slate-900 focus:border-blue-700 focus:ring-3 focus:ring-blue-100"}`} /></label>
           <label className="block"><span className="workspace-label">{isJobs ? "Description" : "Department name"}</span><input required maxLength={20} value={label} onChange={(event) => setLabel(event.target.value)} placeholder={isJobs ? "Enter job title" : "Enter department name"} className="workspace-control" /></label>

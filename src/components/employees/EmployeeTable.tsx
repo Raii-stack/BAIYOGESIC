@@ -1,26 +1,11 @@
 import { Fragment, useEffect, useState } from "react"
 import { Link } from "react-router"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 import { employeeApi, type EmployeePagination } from "../../lib/employee-api"
 import type { Employee, JobHistoryEntry } from "../../types/employee"
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
 const pages = (current: number, total: number) => { const count = Math.min(total, 5); const start = Math.max(1, Math.min(current - 2, total - count + 1)); return Array.from({ length: count }, (_, i) => start + i) }
-
-function HistoryIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2" /></svg>
-}
-
-function EditIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m14 5 5 5M4 20l3.5-.7L20 6.8a2.1 2.1 0 0 0-3-3L4.7 16.3 4 20Z" /></svg>
-}
-
-function ArchiveIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" /></svg>
-}
-
-function RestoreIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" /></svg>
-}
 
 function JobHistory({ empno, fullName }: { empno: string; fullName: string }) {
   const [entries, setEntries] = useState<JobHistoryEntry[]>([])
@@ -87,11 +72,11 @@ export default function EmployeeTable({ employees, pagination, loading, error, o
             <td className="whitespace-nowrap"><span className={`workspace-badge ${status === "Active" ? "bg-emerald-100 text-emerald-800" : status === "Separated" ? "bg-amber-100 text-amber-900" : "bg-neutral-100 text-neutral-600"}`}>{status}</span></td>
             <td className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">{employee.stamp || "—"}</td>
             <td className={`workspace-table-actions ${employee.archived ? "bg-slate-50" : "bg-white"}`}><div className="flex items-center gap-1">
-              <button type="button" aria-label={`${expanded ? "Hide" : "Show"} job history for ${employee.fullName}`} aria-expanded={expanded} aria-controls={`job-history-${employee.id}`} title="Job history" onClick={() => setExpandedEmployee(expanded ? null : employee.id)} className="workspace-icon-action"><HistoryIcon /></button>
+              <button type="button" aria-label={`${expanded ? "Hide" : "Show"} job history for ${employee.fullName}`} aria-expanded={expanded} aria-controls={`job-history-${employee.id}`} title="Job history" onClick={() => setExpandedEmployee(expanded ? null : employee.id)} className="workspace-icon-action"><DashboardIcon name="history" className="h-4 w-4" /></button>
               {!employee.archived ? <>
-                {canEdit && <button type="button" onClick={() => onEdit(employee)} aria-label={`Edit ${employee.fullName}`} title="Edit employee" className="workspace-icon-action"><EditIcon /></button>}
-                {canDelete && onArchive && <button type="button" onClick={() => onArchive(employee)} aria-label={`Archive ${employee.fullName}`} title="Archive employee" className="workspace-icon-action workspace-icon-action--danger"><ArchiveIcon /></button>}
-              </> : canDelete && onRestore ? <button type="button" onClick={() => onRestore(employee)} disabled={restoringId === employee.id} aria-label={`Restore ${employee.fullName}`} title="Restore employee" className="workspace-icon-action"><RestoreIcon /></button> : null}
+                {canEdit && <button type="button" onClick={() => onEdit(employee)} aria-label={`Edit ${employee.fullName}`} title="Edit employee" className="workspace-icon-action"><DashboardIcon name="edit" className="h-4 w-4" /></button>}
+                {canDelete && onArchive && <button type="button" onClick={() => onArchive(employee)} aria-label={`Archive ${employee.fullName}`} title="Archive employee" className="workspace-icon-action workspace-icon-action--danger"><DashboardIcon name="archive" className="h-4 w-4" /></button>}
+              </> : canDelete && onRestore ? <button type="button" onClick={() => onRestore(employee)} disabled={restoringId === employee.id} aria-label={`Restore ${employee.fullName}`} title="Restore employee" className="workspace-icon-action"><DashboardIcon name="restore" className="h-4 w-4" /></button> : null}
             </div></td>
           </tr>
           {expanded && <tr className="border-b border-slate-200"><td colSpan={headings.length} className="workspace-table-expansion"><JobHistory empno={employee.id} fullName={employee.fullName} /></td></tr>}

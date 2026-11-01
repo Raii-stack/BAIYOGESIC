@@ -17,10 +17,6 @@ import type { Customer, PaymentTerm } from "../types/customer"
 const PAGE_SIZE = 10
 const emptyPagination: CustomerPagination = { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 }
 
-function AddIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="M10 4v12M4 10h12" /></svg>
-}
-
 export default function CustomerManagementPage() {
   const { user } = useAuth()
   const [searchParams] = useSearchParams()
@@ -190,7 +186,7 @@ export default function CustomerManagementPage() {
                 </select>
               </span>
             </label>
-            {canAdd && <button type="button" onClick={openNewCustomerPanel} className="workspace-primary-action"><AddIcon />Add customer</button>}
+            {canAdd && <button type="button" onClick={openNewCustomerPanel} className="workspace-primary-action"><DashboardIcon name="plus" className="h-4 w-4" />Add customer</button>}
           </section>
 
           {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4 hover:text-red-950">Try again</button></div>}

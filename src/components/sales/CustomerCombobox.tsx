@@ -46,7 +46,7 @@ export default function CustomerCombobox({
         }}>
         <DashboardIcon
           name="search"
-          className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400"
+          className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-neutral-400"
         />
         <input
           type="search"

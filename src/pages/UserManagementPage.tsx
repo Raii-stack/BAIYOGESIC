@@ -22,22 +22,6 @@ import type { AvailableEmployee, SystemUser, UserRole } from "../types/user"
 const PAGE_SIZE = 10
 const emptyPagination: UserPagination = { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 }
 
-function AddIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 20 20"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="M10 4v12M4 10h12" />
-    </svg>
-  )
-}
-
 export default function UserManagementPage() {
   const { user: currentUser } = useAuth()
   const [searchParams] = useSearchParams()
@@ -276,7 +260,7 @@ export default function UserManagementPage() {
                 onClick={openAddPanel}
                 className="workspace-primary-action"
               >
-                <AddIcon />
+                <DashboardIcon name="plus" className="h-4 w-4" />
                 Add user
               </button>
             </section>

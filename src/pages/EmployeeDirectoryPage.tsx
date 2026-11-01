@@ -177,7 +177,7 @@ export default function EmployeeDirectoryPage() {
                 <FilterSelect label="Department" value={department} onChange={(value) => { setDepartment(value); setPage(1) }} options={departments} allLabel="All departments" />
                 <FilterSelect label="Job title" value={job} onChange={(value) => { setJob(value); setPage(1) }} options={jobs} allLabel="All job titles" />
                 {canViewAudit && <label><span className="workspace-label">Status</span><select value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }} className="workspace-control"><option value="all">All statuses</option><option value="active">Active</option><option value="separated">Separated</option><option value="archived">Archived</option></select></label>}
-                {canAddEmployee && <button type="button" onClick={() => { setSelected(null); setPanelOpen(true) }} className="workspace-primary-action">+ Add employee</button>}
+                {canAddEmployee && <button type="button" onClick={() => { setSelected(null); setPanelOpen(true) }} className="workspace-primary-action"><DashboardIcon name="plus" className="h-4 w-4" />Add employee</button>}
               </section>
 
               {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{error}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}

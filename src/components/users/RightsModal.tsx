@@ -2,22 +2,7 @@ import { useEffect, useState } from "react"
 
 import { departmentPermissionPresets, permissionGroups } from "../../lib/users"
 import type { PermissionGroup, SystemUser, UserRole } from "../../types/user"
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
-}
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 function getModulePresetValue(group: PermissionGroup, selectedRights: string[]): string {
   const actionIds = group.permissions.map((p) => p.id)
@@ -216,7 +201,7 @@ export default function RightsModal({
             aria-label="Close rights assignment"
             className="workspace-icon-action"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 

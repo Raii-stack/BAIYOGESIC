@@ -2,28 +2,13 @@ import { useEffect, useState, type FormEvent } from "react"
 
 import type { Customer, PaymentTerm } from "../../types/customer"
 import type { CustomerInput } from "../../lib/customer-api"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 type CustomerPanelProps = {
   customer: Customer | null
   open: boolean
   onClose: () => void
   onSave: (input: CustomerInput) => Promise<void>
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
 }
 
 export default function CustomerPanel({
@@ -143,7 +128,7 @@ export default function CustomerPanel({
             aria-label="Close customer details"
             className="workspace-icon-action"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 

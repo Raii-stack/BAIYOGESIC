@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { SalePayment } from "../../types/sale"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 type RecordPaymentModalProps = {
   open: boolean
@@ -8,22 +9,6 @@ type RecordPaymentModalProps = {
   balance: number
   onClose: () => void
   onSave: (payment: SalePayment) => void
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
 }
 
 export default function RecordPaymentModal({
@@ -112,7 +97,7 @@ export default function RecordPaymentModal({
             aria-label="Close payment form"
             className="workspace-icon-action"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 
@@ -149,9 +134,10 @@ export default function RecordPaymentModal({
                 </span>
               </span>
               <span className="relative block">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">
-                  $
-                </span>
+                <DashboardIcon
+                  name="currency"
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
+                />
                 <input
                   type="number"
                   min="0.01"

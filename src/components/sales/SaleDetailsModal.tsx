@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 
 import { getSaleTotal } from "../../lib/sales"
 import type { SalePayment, SaleTransaction } from "../../types/sale"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 import RecordPaymentModal from "./RecordPaymentModal"
 import { StatusBadge } from "./SalesTable"
 
@@ -9,38 +10,6 @@ const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
 })
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
-}
-
-function AddIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 20 20"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="M10 4v12M4 10h12" />
-    </svg>
-  )
-}
 
 export default function SaleDetailsModal({
   sale,
@@ -145,7 +114,7 @@ export default function SaleDetailsModal({
             aria-label="Close sale details"
             className="workspace-icon-action"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 
@@ -245,7 +214,7 @@ export default function SaleDetailsModal({
                   }}
                   className="workspace-primary-action"
                 >
-                  <AddIcon />
+                  <DashboardIcon name="plus" className="h-4 w-4" />
                   Record Payment
                 </button>
               )}

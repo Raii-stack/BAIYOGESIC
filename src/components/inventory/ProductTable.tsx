@@ -1,25 +1,10 @@
 import { Fragment, useEffect, useState } from "react"
 
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 import { productApi, type ProductPagination } from "../../lib/product-api"
 import type { PriceHistoryEntry, Product } from "../../types/product"
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
-
-function HistoryIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2" /></svg>
-}
-
-function EditIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m14 5 5 5M4 20l3.5-.7L20 6.8a2.1 2.1 0 0 0-3-3L4.7 16.3 4 20Z" /></svg>
-}
-
-function ArchiveIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" /></svg>
-}
-
-function RestoreIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" /></svg>
-}
 
 function SkeletonRows({ showActions, canViewAudit }: { showActions: boolean; canViewAudit: boolean }) {
   const widths = [
@@ -131,15 +116,15 @@ export default function ProductTable({ products, pagination, loading, error, onP
                 <td className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">{product.code}</td>
                 <td className="min-w-48 text-[13px] font-medium text-neutral-900">{product.description}</td>
                 <td><span className="workspace-badge workspace-badge--neutral" data-unit={product.unitType}>{product.unitType}</span></td>
-                <td className="whitespace-nowrap"><div className="flex items-center justify-end gap-2"><span className="text-[13px] font-semibold tabular-nums text-neutral-900">{product.currentPrice === null ? "No price" : currency.format(product.currentPrice)}</span><button type="button" aria-label={`${expanded ? "Hide" : "Show"} price history for ${product.code}`} aria-expanded={expanded} aria-controls={`price-history-${product.code}`} title="Price history" onClick={() => setExpandedProduct(expanded ? null : product.code)} className="workspace-icon-action"><HistoryIcon /></button></div></td>
+                <td className="whitespace-nowrap"><div className="flex items-center justify-end gap-2"><span className="text-[13px] font-semibold tabular-nums text-neutral-900">{product.currentPrice === null ? "No price" : currency.format(product.currentPrice)}</span><button type="button" aria-label={`${expanded ? "Hide" : "Show"} price history for ${product.code}`} aria-expanded={expanded} aria-controls={`price-history-${product.code}`} title="Price history" onClick={() => setExpandedProduct(expanded ? null : product.code)} className="workspace-icon-action"><DashboardIcon name="history" className="h-4 w-4" /></button></div></td>
                 <td className="whitespace-nowrap font-mono text-xs text-slate-600">{product.priceEffectiveDate || "—"}</td>
                 {canViewAudit && <td className="whitespace-nowrap"><span className={`workspace-badge ${product.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-600"}`}>{product.status === "Active" ? "Active" : "Archived"}</span></td>}
                 {canViewAudit && <td className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">{product.stamp || "—"}</td>}
                 {showActions && <td className={`workspace-table-actions ${product.status === "Active" ? "bg-white" : "bg-slate-50"}`}><div className="flex items-center gap-1">
                   {product.status === "Active" ? <>
-                    {canEdit && <button type="button" onClick={() => onEdit(product)} aria-label={`Edit ${product.code}`} title="Edit product" className="workspace-icon-action"><EditIcon /></button>}
-                    {canDelete && <button type="button" onClick={() => onArchive(product)} aria-label={`Archive ${product.code}`} title="Archive product" className="workspace-icon-action workspace-icon-action--danger"><ArchiveIcon /></button>}
-                  </> : canDelete && onRestore ? <button type="button" onClick={() => onRestore(product)} disabled={restoringCode === product.code} aria-label={`Restore ${product.code}`} title="Restore product" className="workspace-icon-action"><RestoreIcon /></button> : <span className="px-2 text-slate-400" aria-label="No actions for archived product">—</span>}
+                    {canEdit && <button type="button" onClick={() => onEdit(product)} aria-label={`Edit ${product.code}`} title="Edit product" className="workspace-icon-action"><DashboardIcon name="edit" className="h-4 w-4" /></button>}
+                    {canDelete && <button type="button" onClick={() => onArchive(product)} aria-label={`Archive ${product.code}`} title="Archive product" className="workspace-icon-action workspace-icon-action--danger"><DashboardIcon name="archive" className="h-4 w-4" /></button>}
+                  </> : canDelete && onRestore ? <button type="button" onClick={() => onRestore(product)} disabled={restoringCode === product.code} aria-label={`Restore ${product.code}`} title="Restore product" className="workspace-icon-action"><DashboardIcon name="restore" className="h-4 w-4" /></button> : <span className="px-2 text-slate-400" aria-label="No actions for archived product">—</span>}
                 </div></td>}
               </tr>
               {expanded && <tr className="border-b border-slate-200"><td colSpan={headings.length} className="workspace-table-expansion"><PriceHistory code={product.code} canViewAudit={canViewAudit} /></td></tr>}

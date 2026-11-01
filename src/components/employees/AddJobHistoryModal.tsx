@@ -1,27 +1,12 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { JobHistoryEntry } from "../../types/employee"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 type AddJobHistoryModalProps = {
   open: boolean
   onClose: () => void
   onSave: (entry: JobHistoryEntry) => void
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
 }
 
 export default function AddJobHistoryModal({
@@ -106,7 +91,7 @@ export default function AddJobHistoryModal({
             aria-label="Close job history form"
             className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 
@@ -123,9 +108,10 @@ export default function AddJobHistoryModal({
             </FormField>
             <FormField label="Salary">
               <span className="relative block">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">
-                  $
-                </span>
+                <DashboardIcon
+                  name="currency"
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
+                />
                 <input
                   type="number"
                   required
@@ -133,7 +119,7 @@ export default function AddJobHistoryModal({
                   value={salary}
                   onChange={(event) => setSalary(event.target.value)}
                   placeholder="0"
-                  className="h-11 w-full rounded-md border border-slate-300 bg-white pl-7 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  className="h-11 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
                 />
               </span>
             </FormField>

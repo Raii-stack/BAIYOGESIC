@@ -2,28 +2,13 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 
 import type { ProductInput } from "../../lib/product-api"
 import type { Product, UnitType } from "../../types/product"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 type ProductPanelProps = {
   product: Product | null
   open: boolean
   onClose: () => void
   onSave: (input: ProductInput) => Promise<void>
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
 }
 
 export default function ProductPanel({
@@ -135,7 +120,7 @@ export default function ProductPanel({
             aria-label="Close product form"
             className="workspace-icon-action"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 
@@ -232,9 +217,10 @@ export default function ProductPanel({
                 errorId="product-price-error"
               >
                 <span className="relative block">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">
-                    $
-                  </span>
+                  <DashboardIcon
+                    name="currency"
+                    className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
+                  />
                   <input
                     type="number"
                     min="0.01"

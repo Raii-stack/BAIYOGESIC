@@ -1,10 +1,15 @@
 name: CI & Security Scanning
 
 on:
+  push:
+    branches:
+      - main
+      - test
   pull_request:
     branches:
       - main
       - test
+  workflow_dispatch:
 
 jobs:
   # -------------------------------------------------------------
@@ -45,6 +50,12 @@ jobs:
           SUPABASE_URL: 'https://mock.supabase.co'
           SUPABASE_KEY: 'mock-supabase-key-for-ci'
 
+      - name: Run QA Unit Test Suites (Jest)
+        run: npm run test:unit
+
+      - name: Build Application
+        run: npm run build
+
       - name: Audit Dependencies for Critical CVEs
         run: npm audit --audit-level=critical
 
@@ -61,10 +72,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run TruffleHog OSS
+      - name: Run TruffleHog OSS (Pull Request)
+        if: github.event_name == 'pull_request'
         uses: trufflesecurity/trufflehog@v3.90.0
         with:
           path: ./
           base: ${{ github.event.pull_request.base.sha }}
           head: ${{ github.event.pull_request.head.sha }}
+          extra_args: --debug
+
+      - name: Run TruffleHog OSS (Push)
+        if: github.event_name != 'pull_request'
+        uses: trufflesecurity/trufflehog@v3.90.0
+        with:
+          path: ./
+          head: ${{ github.sha }}
           extra_args: --debug

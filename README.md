@@ -26,39 +26,47 @@ See the [project documentation](docs/PROJECT_DOCUMENTATION.md) for current statu
 
 ## Built with
 
-| Layer | Technologies |
-| --- | --- |
-| Frontend | React · TypeScript · Vite · Tailwind CSS |
-| Backend | Node.js · Express |
-| Database | PostgreSQL · Supabase |
-| Quality & delivery | Vitest · React Testing Library · GitHub Actions |
+<table align="center">
+  <thead>
+    <tr>
+      <th align="center">Layer</th>
+      <th align="center">Technologies</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td align="center">Frontend</td><td align="center">React · TypeScript · Vite · Tailwind CSS</td></tr>
+    <tr><td align="center">Backend</td><td align="center">Node.js · Express</td></tr>
+    <tr><td align="center">Database</td><td align="center">PostgreSQL · Supabase</td></tr>
+    <tr><td align="center">Quality &amp; delivery</td><td align="center">Vitest · React Testing Library · GitHub Actions</td></tr>
+  </tbody>
+</table>
 
 ## Development team
 
-<table>
+<table align="center" width="100%">
   <tr>
     <td align="center" valign="top" width="20%">
       <a href="https://github.com/Raii-stack"><img src="https://github.com/Raii-stack.png?size=160" width="80" height="80" alt="Ryan James M. Gopio's GitHub profile picture" /></a><br />
-      <strong>Ryan James M.<br />Gopio</strong><br />
-      <sub>Scrum Master<br />&nbsp;</sub><br />
+      <strong>Ryan<br />Gopio</strong><br />
+      <sub>Scrumm Master &amp; Fullstack Developer</sub><br />
       <a href="https://github.com/Raii-stack">@Raii-stack</a>
     </td>
     <td align="center" valign="top" width="20%">
       <a href="https://github.com/princeaguinaldo"><img src="https://github.com/princeaguinaldo.png?size=160" width="80" height="80" alt="Prince Nelson J. Aguinaldo Jr.'s GitHub profile picture" /></a><br />
-      <strong>Prince Nelson J.<br />Aguinaldo Jr.</strong><br />
+      <strong>Prince<br />Aguinaldo Jr.</strong><br />
       <sub>Test Engineer<br />&nbsp;</sub><br />
       <a href="https://github.com/princeaguinaldo">@princeaguinaldo</a>
     </td>
     <td align="center" valign="top" width="20%">
       <a href="https://github.com/alainmnts"><img src="https://github.com/alainmnts.png?size=160" width="80" height="80" alt="Alain Deiniel S. Montes's GitHub profile picture" /></a><br />
-      <strong>Alain Deiniel S.<br />Montes</strong><br />
-      <sub>UI/UX Developer<br />&nbsp;</sub><br />
+      <strong>Alain<br />Montes</strong><br />
+      <sub>UI/UX Developer &amp; Frontend Developer</sub><br />
       <a href="https://github.com/alainmnts">@alainmnts</a>
     </td>
     <td align="center" valign="top" width="20%">
       <a href="https://github.com/itsmechloe"><img src="https://github.com/itsmechloe.png?size=160" width="80" height="80" alt="Kathryn Chloe V. Silvestre's GitHub profile picture" /></a><br />
-      <strong>Kathryn Chloe V.<br />Silvestre</strong><br />
-      <sub>Backend Engineer &amp;<br />DB Admin</sub><br />
+      <strong>Kathryn<br />Silvestre</strong><br />
+      <sub>Backend Engineer &amp; DB Admin</sub><br />
       <a href="https://github.com/itsmechloe">@itsmechloe</a>
     </td>
     <td align="center" valign="top" width="20%">

@@ -1,4 +1,6 @@
-import { useEffect } from "react"
+import { useRef } from "react"
+
+import useModalFocus from "../../hooks/useModalFocus"
 
 type DeleteConfirmationModalProps = {
   customerName: string
@@ -35,16 +37,9 @@ export default function DeleteConfirmationModal({
   loading,
   error,
 }: DeleteConfirmationModalProps) {
-  useEffect(() => {
-    if (!open) return
-
-    const cancelOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !loading) onCancel()
-    }
-
-    window.addEventListener("keydown", cancelOnEscape)
-    return () => window.removeEventListener("keydown", cancelOnEscape)
-  }, [onCancel, open, loading])
+  const dialogRef = useRef<HTMLElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+  useModalFocus(open, dialogRef, cancelRef, onCancel, loading)
 
   if (!open) return null
 
@@ -53,15 +48,19 @@ export default function DeleteConfirmationModal({
       <button
         type="button"
         aria-label="Cancel archive"
+        tabIndex={-1}
         onClick={() => { if (!loading) onCancel() }}
         className="absolute inset-0 bg-black/45"
       />
 
       <section
+        ref={dialogRef}
         role="alertdialog"
+        tabIndex={-1}
         aria-modal="true"
         aria-labelledby="archive-dialog-title"
-        aria-describedby="archive-dialog-description"
+        aria-describedby={`archive-dialog-description${error ? " archive-customer-error" : ""}`}
+        aria-busy={loading}
         className="workspace-modal workspace-panel relative w-full max-w-lg shadow-xl"
       >
         <div className="workspace-drawer-body text-center">
@@ -89,13 +88,13 @@ export default function DeleteConfirmationModal({
           </p>
         </div>
 
-        {error && <p role="alert" className="px-6 pb-4 text-sm font-semibold text-red-700">{error}</p>}
+        {error && <p id="archive-customer-error" role="alert" className="px-6 pb-4 text-sm font-semibold text-red-700">{error}</p>}
         <div className="workspace-drawer-footer">
           <button
+            ref={cancelRef}
             type="button"
             onClick={onCancel}
-              disabled={loading}
-            autoFocus
+            disabled={loading}
             className="workspace-secondary-action"
           >
             Cancel
@@ -103,10 +102,10 @@ export default function DeleteConfirmationModal({
           <button
             type="button"
             onClick={onConfirm}
-              disabled={loading}
-              className="workspace-danger-action"
+            disabled={loading}
+            className="workspace-danger-action"
           >
-              {loading ? "Archiving…" : "Yes, Archive Record"}
+            {loading ? "Archiving…" : "Yes, Archive Record"}
           </button>
         </div>
       </section>

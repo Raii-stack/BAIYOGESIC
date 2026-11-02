@@ -2,6 +2,7 @@ import TableSkeleton, { TableSkeletonRows } from "../common/TableSkeleton"
 import { Fragment, useEffect, useState } from "react"
 
 import { DashboardIcon } from "../dashboard/DashboardComponents"
+import RecordEmptyState from "../common/RecordEmptyState"
 import { productApi, type ProductPagination } from "../../lib/product-api"
 import type { PriceHistoryEntry, Product } from "../../types/product"
 
@@ -52,7 +53,7 @@ function visiblePages(page: number, totalPages: number) {
   return Array.from({ length: count }, (_, index) => start + index)
 }
 
-export default function ProductTable({ products, pagination, loading, error, onPageChange, onEdit, onArchive, onRestore, restoringCode, canEdit, canDelete, canViewAudit = true }: {
+export default function ProductTable({ products, pagination, loading, error, onPageChange, onEdit, onArchive, onRestore, restoringCode, canEdit, canDelete, canAdd, canViewAudit = true, hasFilters, onClearFilters, onAdd }: {
   products: Product[]
   pagination: ProductPagination
   loading: boolean
@@ -64,7 +65,11 @@ export default function ProductTable({ products, pagination, loading, error, onP
   restoringCode?: string | null
   canEdit: boolean
   canDelete: boolean
+  canAdd: boolean
   canViewAudit?: boolean
+  hasFilters: boolean
+  onClearFilters: () => void
+  onAdd: () => void
 }) {
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
   const showActions = canEdit || canDelete
@@ -113,7 +118,7 @@ export default function ProductTable({ products, pagination, loading, error, onP
             </Fragment>
           })}</tbody>
         </table>
-        {!loading && !error && products.length === 0 && <div className="workspace-empty-state"><p className="text-sm font-semibold text-slate-800">No products found</p><p className="mt-1 text-xs text-slate-500">Try a different search, status, or unit filter.</p></div>}
+        {!loading && !error && products.length === 0 && <RecordEmptyState kind="products" filtered={hasFilters} canCreate={canAdd} onClearFilters={onClearFilters} onCreate={onAdd} />}
       </div>
       <div className="workspace-table-footer">
         <p className="text-xs font-medium text-slate-600" aria-live="polite">{loading ? "Loading product records…" : error ? "Product records unavailable" : `Showing ${start}–${end} of ${pagination.total}`}</p>

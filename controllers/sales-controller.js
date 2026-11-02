@@ -812,7 +812,10 @@ const archiveSale = asyncHandler(async (req, res) => {
       return fetchSingleSale(client, transno);
     });
   } catch (error) {
-    if (error.code === 'P0001' && /active related record/i.test(error.message || '')) {
+    if (
+      (error.code === 'P0001' && /active related record/i.test(error.message || '')) ||
+      error.code === '23503'
+    ) {
       throw requestError('Cannot archive a sales order that already has recorded payments.', 409);
     }
     throw error;

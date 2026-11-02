@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useSearchParams } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
@@ -9,12 +9,13 @@ import SalesTable from "../components/sales/SalesTable"
 import usePageQuery from "../hooks/usePageQuery"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { getSalesPermissions } from "../lib/rbac"
-import { salesTransactions } from "../lib/sales"
-import { salesApi } from "../lib/sales-api"
+import { salesApi, type SalePagination } from "../lib/sales-api"
+import useDebouncedValue from "../hooks/useDebouncedValue"
 import { notifyToast } from "../lib/toast"
 import type { RecordStatus, SalePayment, SaleTransaction } from "../types/sale"
 
 type StatusView = RecordStatus | "All"
+const emptyPagination: SalePagination = { page: 1, limit: 10, total: 0, totalPages: 0 }
 
 export default function SalesManagementPage() {
   const { user } = useAuth()
@@ -29,54 +30,49 @@ export default function SalesManagementPage() {
     canDeleteDetail,
     canViewAudit,
   } = getSalesPermissions(user)
-  const [transactions, setTransactions] =
-    useState<SaleTransaction[]>(salesTransactions)
+  const [transactions, setTransactions] = useState<SaleTransaction[]>([])
+  const [pagination, setPagination] = useState<SalePagination>(emptyPagination)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState("")
+  const [refresh, setRefresh] = useState(0)
   const [statusView, setStatusView] = useState<StatusView>("Active")
   const [query, setQuery] = useState(() => searchParams.get("search") || "")
+  const debouncedQuery = useDebouncedValue(query.trim())
+  const searchPending = query.trim() !== debouncedQuery
   const [page, setPage] = usePageQuery()
   const [selectedSale, setSelectedSale] = useState<SaleTransaction | null>(null)
   const [saleToArchive, setSaleToArchive] = useState<SaleTransaction | null>(null)
   const [archiveError, setArchiveError] = useState("")
   const [archiving, setArchiving] = useState(false)
 
-  useEffect(() => {
-    const controller = new AbortController()
-    salesApi
-      .list({ page: 1, limit: 200, status: "all" }, controller.signal)
-      .then((result) => {
-        if (!result) return
-        setTransactions(result.sales)
-      })
-      .catch(() => {})
-    return () => controller.abort()
-  }, [])
-
   const effectiveStatusView: StatusView = canViewAudit ? statusView : "Active"
 
-  const visibleSales = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase()
-
-    return transactions.filter((sale) => {
-      const matchesStatus =
-        effectiveStatusView === "All" || sale.status === effectiveStatusView
-
-      const matchesQuery =
-        !normalizedQuery ||
-        sale.transactionNo.toLowerCase().includes(normalizedQuery) ||
-        sale.customerCode.toLowerCase().includes(normalizedQuery) ||
-        sale.customerName.toLowerCase().includes(normalizedQuery) ||
-        sale.employeeCode.toLowerCase().includes(normalizedQuery) ||
-        sale.employeeName.toLowerCase().includes(normalizedQuery)
-
-      return matchesStatus && matchesQuery
-    })
-  }, [effectiveStatusView, query, transactions])
-
-  const totalPages = Math.max(1, Math.ceil(visibleSales.length / 10))
   useEffect(() => {
-    if (page > totalPages) setPage(totalPages)
-  }, [page, totalPages])
-  const paginatedSales = visibleSales.slice((page - 1) * 10, page * 10)
+    if (searchPending) { setLoading(true); return }
+    const controller = new AbortController()
+    setLoading(true)
+    setLoadError("")
+    salesApi
+      .list({ page, limit: 10, search: debouncedQuery, status: effectiveStatusView === "All" ? "all" : effectiveStatusView === "Inactive" ? "archived" : "active" }, controller.signal)
+      .then((result) => {
+        if (controller.signal.aborted) return
+        if (page > Math.max(1, result.pagination.totalPages)) {
+          setPage(Math.max(1, result.pagination.totalPages))
+          return
+        }
+        setTransactions(result.sales)
+        setPagination(result.pagination)
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          setLoadError(error instanceof Error ? error.message : "Unable to load sales.")
+          setTransactions([])
+          setPagination(emptyPagination)
+        }
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
+  }, [page, debouncedQuery, searchPending, effectiveStatusView, refresh])
 
   const confirmArchiveSale = async () => {
     if (!saleToArchive) return
@@ -85,25 +81,8 @@ export default function SalesManagementPage() {
     setArchiveError("")
     try {
       const updated = await salesApi.archive(transactionNo)
-      if (updated) {
-        setTransactions((current) =>
-          current.map((sale) =>
-            sale.transactionNo === transactionNo ? updated : sale,
-          ),
-        )
-      } else {
-        setTransactions((current) =>
-          current.map((sale) =>
-            sale.transactionNo === transactionNo
-              ? {
-                  ...sale,
-                  status: "Inactive" as const,
-                  stamp: "DELETED user2 2026-10-13 1:01 PM",
-                }
-              : sale,
-          ),
-        )
-      }
+      setTransactions((current) => current.map((sale) => sale.transactionNo === transactionNo ? updated : sale))
+      setRefresh((current) => current + 1)
       setSaleToArchive(null)
       notifyToast(`Sale ${transactionNo} archived.`, "success")
     } catch (error) {
@@ -120,25 +99,8 @@ export default function SalesManagementPage() {
   const handleRestoreSale = async (transactionNo: string) => {
     try {
       const updated = await salesApi.restore(transactionNo)
-      if (updated) {
-        setTransactions((current) =>
-          current.map((sale) =>
-            sale.transactionNo === transactionNo ? updated : sale,
-          ),
-        )
-      } else {
-        setTransactions((current) =>
-          current.map((sale) =>
-            sale.transactionNo === transactionNo
-              ? {
-                  ...sale,
-                  status: "Active" as const,
-                  stamp: "EDITED user1 2026-10-13 1:01 PM",
-                }
-              : sale,
-          ),
-        )
-      }
+      setTransactions((current) => current.map((sale) => sale.transactionNo === transactionNo ? updated : sale))
+      setRefresh((current) => current + 1)
       notifyToast(`Sale ${transactionNo} restored.`, "success")
     } catch (error) {
       const message =
@@ -195,7 +157,7 @@ export default function SalesManagementPage() {
       notice = "Payment updated."
     }
 
-    if (!updated) return previousSale
+    if (!updated) throw new Error("The server did not return the updated sale.")
 
     setTransactions((current) =>
       current.map((sale) =>
@@ -269,10 +231,13 @@ export default function SalesManagementPage() {
               )}
             </section>
 
+            {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
             <SalesTable
-              sales={paginatedSales}
-              total={visibleSales.length}
+              sales={transactions}
+              total={pagination.total}
               page={page}
+              loading={loading}
+              error={Boolean(loadError)}
               onPageChange={setPage}
               onDetails={setSelectedSale}
               onDelete={(transactionNo) => {

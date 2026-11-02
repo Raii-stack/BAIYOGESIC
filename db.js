@@ -77,7 +77,8 @@ function resolveDatabaseConfig(
 
   if (poolerHost) {
     connection.hostname = poolerHost;
-    connection.port = '5432';
+    // Transaction pooling avoids reserving a database connection per API instance.
+    connection.port = '6543';
     if (projectRef) {
       connection.username = `postgres.${projectRef}`;
     }
@@ -103,7 +104,7 @@ function resolveDatabaseConfig(
       isLocalhost && nodeEnv !== 'production'
         ? undefined
         : { rejectUnauthorized: false },
-    max: Number.parseInt(process.env.DATABASE_POOL_MAX || '10', 10),
+    max: Number.parseInt(process.env.DATABASE_POOL_MAX || '2', 10),
     idleTimeoutMillis: 30000,
     connectionTimeoutMillis: 10000,
     keepAlive: true

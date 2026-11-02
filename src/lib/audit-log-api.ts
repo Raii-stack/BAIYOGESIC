@@ -29,7 +29,7 @@ export type AuditLogFilters = {
 }
 
 export type AuditLogResult = {
-  logs: AuditLogEntry[]
+  logs: Omit<AuditLogEntry, "oldValues" | "newValues">[]
   pagination: AuditLogPagination
 }
 
@@ -41,7 +41,25 @@ type ApiResponse<T> = {
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
 
+async function request<T>(path: string, signal?: AbortSignal): Promise<T> {
+  let response: Response
+  try {
+    response = await fetch(`${apiBase}/api/audit-logs${path}`, { credentials: "include", signal })
+  } catch (error) {
+    if (signal?.aborted) throw error
+    throw apiFailure(0)
+  }
+  const result = await response.json().catch(() => null) as ApiResponse<T> | null
+  if (!response.ok || !result?.success || !result.data) throw apiFailure(response.status, result)
+  return result.data
+}
+
 export const auditLogApi = {
+  async get(id: string, signal?: AbortSignal): Promise<AuditLogEntry> {
+    const data = await request<{ log: AuditLogEntry }>(`/${encodeURIComponent(id)}`, signal)
+    if (!data.log) throw apiFailure(502)
+    return data.log
+  },
   async list(filters: AuditLogFilters = {}, signal?: AbortSignal): Promise<AuditLogResult> {
     const params = new URLSearchParams()
     if (filters.tableName) params.set("tableName", filters.tableName)
@@ -54,22 +72,6 @@ export const auditLogApi = {
 
     const query = params.toString() ? `?${params.toString()}` : ""
 
-    let response: Response
-    try {
-      response = await fetch(`${apiBase}/api/audit-logs${query}`, {
-        method: "GET",
-        credentials: "include",
-        signal,
-      })
-    } catch (error) {
-      if (signal?.aborted) throw error
-      throw apiFailure(0)
-    }
-
-    const result = (await response.json().catch(() => null)) as ApiResponse<AuditLogResult> | null
-    if (!response.ok || !result?.success || !result.data) {
-      throw apiFailure(response.status, result)
-    }
-    return result.data
+    return request<AuditLogResult>(query, signal)
   },
 }

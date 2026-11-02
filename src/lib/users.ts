@@ -2,6 +2,13 @@ import type { DepartmentPermissionPreset, PermissionGroup } from "../types/user"
 
 export const permissionGroups: PermissionGroup[] = [
   {
+    module: "Employee Activity",
+    accessRight: "activity.access",
+    employeeDefaultIds: [],
+    viewerIds: [],
+    permissions: [],
+  },
+  {
     module: "Customer Management",
     accessRight: "customers.access",
     employeeDefaultIds: ["customers.access", "customers.add", "customers.edit"],
@@ -119,6 +126,7 @@ export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
     description:
       "Full Customer and Sales management (including archive/restore), Product catalog view, and commercial reports.",
     rights: [
+      "activity.access",
       "customers.access",
       "customers.add",
       "customers.edit",
@@ -169,6 +177,7 @@ export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
     description:
       "Full Product and Price History management (including archive/restore), Sales lookup, and Product reports.",
     rights: [
+      "activity.access",
       "products.access",
       "products.add",
       "products.edit",
@@ -207,6 +216,7 @@ export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
     description:
       "Full HR access across Employees, Jobs, Departments, and Job History (including archive/restore) plus all HR reports.",
     rights: [
+      "activity.access",
       "hr.access",
       "hr.job.add",
       "hr.job.edit",
@@ -253,6 +263,7 @@ export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
     description:
       "Manage customer payment terms, product pricing, sales & payment records, and access all 7 analytical reports.",
     rights: [
+      "activity.access",
       "customers.access",
       "customers.edit",
       "products.access",

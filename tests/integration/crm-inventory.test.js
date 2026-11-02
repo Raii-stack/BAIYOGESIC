@@ -151,16 +151,17 @@ describe('[S2-DEV-07a] Price History API & Audit Logging', () => {
       expect(responseBody.data.price.price).toBe(160);
       expect(responseBody.data.price.effdate).toBe(futureDate);
 
-      // Verify audit_log query was executed with action PRICE_UPDATE
+      // Keep the database action compatible while preserving the price event in its snapshot.
       const auditCall = mockClient.query.mock.calls.find(([sql]) =>
         typeof sql === 'string' && sql.includes('INSERT INTO public.audit_log')
       );
       expect(auditCall).toBeDefined();
       const [sql, params] = auditCall;
-      expect(sql).toContain('PRICE_UPDATE');
+      expect(sql).toContain("'EDIT'");
       expect(params[0]).toBe('P1001'); // record_key
       const oldVals = JSON.parse(params[1]);
       const newVals = JSON.parse(params[2]);
+      expect(newVals.event).toBe('PRICE_UPDATE');
       expect(oldVals.price).toBe(140);
       expect(newVals.price).toBe(160);
       expect(newVals.effdate).toBe(futureDate);

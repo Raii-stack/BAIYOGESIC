@@ -12,8 +12,12 @@ const apiLimiter = rateLimit({
   },
   skip: (req) => {
     // Ensure /health and /api/health endpoints are excluded from rate limits
-    return req.path === '/health' || req.path === '/api/health';
+    return req.path === '/health' || req.path === '/api/health'
+      || req.path === '/auth/activity' || req.path === '/auth/active-employees';
   }
 });
 
-module.exports = { apiLimiter };
+// Background activity has its own budget so a shared office IP keeps its business API allowance.
+const activityLimiter = rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
+
+module.exports = { apiLimiter, activityLimiter };

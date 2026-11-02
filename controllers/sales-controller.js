@@ -258,37 +258,6 @@ const listSales = asyncHandler(async (req, res) => {
   values.push(limit, offset);
 
   const pool = requirePool();
-  if (!process.env.VITEST) {
-    const headersResult = await pool.query(
-      `SELECT s.transno, s.salesdate::text AS salesdate, s.custno, s.empno, s.is_deleted, s.stamp,
-              c.custname, e.firstname, e.lastname,
-              count(*) OVER()::integer AS _total
-       FROM public.sales s
-       LEFT JOIN public.customer c ON c.custno = s.custno
-       LEFT JOIN public.employee e ON e.empno = s.empno
-       ${whereClause}
-       ORDER BY s.salesdate DESC NULLS LAST, s.transno DESC
-       LIMIT $${values.length - 1} OFFSET $${values.length}`,
-      values
-    );
-    let total = headersResult.rows[0] ? headersResult.rows[0]._total : 0;
-    if (headersResult.rows.length === 0 && offset > 0) {
-      const countResult = await pool.query(
-        `SELECT count(*)::integer AS total FROM public.sales s ${whereClause}`,
-        countValues
-      );
-      total = countResult.rows[0]?.total || 0;
-    }
-    const cleanHeaders = headersResult.rows.map(({ _total, ...row }) => row);
-    const sales = await hydrateSales(pool, cleanHeaders);
-    return res.json({
-      success: true,
-      data: {
-        sales,
-        pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
-      }
-    });
-  }
   const [headersResult, countResult] = await Promise.all([
     pool.query(
       `SELECT s.transno, s.salesdate::text AS salesdate, s.custno, s.empno, s.is_deleted, s.stamp,

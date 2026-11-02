@@ -9,6 +9,7 @@ import DashboardPage from "./DashboardPage"
 vi.mock("../auth/AuthProvider", () => ({ useAuth: vi.fn() }))
 vi.mock("../../layouts/DashboardLayout", () => ({ default: ({ children }: { children: import("react").ReactNode }) => <>{children}</> }))
 vi.mock("../auth/ChangePasswordModal", () => ({ default: () => <div role="dialog">Change password dialog</div> }))
+vi.mock("../dashboard/ActiveEmployees", () => ({ default: () => <div aria-label="Active employees" /> }))
 
 afterEach(() => {
   cleanup()

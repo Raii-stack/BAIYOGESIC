@@ -4,13 +4,10 @@ import { Link, useNavigate } from "react-router"
 import CustomerCombobox from "../components/sales/CustomerCombobox"
 import EmployeeCombobox from "../components/sales/EmployeeCombobox"
 import DashboardLayout from "../layouts/DashboardLayout"
-import { customers as fallbackCustomers } from "../lib/customers"
-import { employees as fallbackEmployees } from "../lib/employees"
 import {
   getLineSubtotal,
   lookupPriceAsOfDate,
   roundCurrency,
-  saleCatalogProducts,
 } from "../lib/sales"
 import { salesApi } from "../lib/sales-api"
 import { notifyToast } from "../lib/toast"
@@ -47,12 +44,12 @@ function resolveProductPrice(
 
 export default function CreateSalePage() {
   const navigate = useNavigate()
-  const [customerOptions, setCustomerOptions] =
-    useState<Customer[]>(fallbackCustomers)
-  const [employeeOptions, setEmployeeOptions] =
-    useState<Employee[]>(fallbackEmployees)
-  const [productOptions, setProductOptions] =
-    useState<SaleCatalogProduct[]>(saleCatalogProducts)
+  const [customerOptions, setCustomerOptions] = useState<Customer[]>([])
+  const [employeeOptions, setEmployeeOptions] = useState<Employee[]>([])
+  const [productOptions, setProductOptions] = useState<SaleCatalogProduct[]>([])
+  const [catalogLoading, setCatalogLoading] = useState(true)
+  const [catalogError, setCatalogError] = useState("")
+  const [catalogRetry, setCatalogRetry] = useState(0)
 
   const [transactionNo, setTransactionNo] = useState("Auto-numbered on save")
   const [salesDate, setSalesDate] = useState(() =>
@@ -60,33 +57,22 @@ export default function CreateSalePage() {
   )
   const [customerId, setCustomerId] = useState("")
   const [employeeId, setEmployeeId] = useState("")
-  const [lines, setLines] = useState<DraftLineItem[]>(() => {
-    const initialProduct = saleCatalogProducts[0]
-    const initialDate = new Intl.DateTimeFormat("en-CA").format(new Date())
-    return [
-      {
-        id: "line-1",
-        productCode: initialProduct?.code ?? "",
-        quantity: "1",
-        unitPrice: initialProduct
-          ? resolveProductPrice(saleCatalogProducts, initialProduct.code, initialDate)
-          : 0,
-      },
-    ]
-  })
+  const [lines, setLines] = useState<DraftLineItem[]>([{ id: "line-1", productCode: "", quantity: "1", unitPrice: 0 }])
   const [formError, setFormError] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
+    setCatalogLoading(true)
+    setCatalogError("")
     salesApi
       .catalog(controller.signal)
       .then((catalog) => {
-        if (!catalog) return
-        if (catalog.customers.length > 0) setCustomerOptions(catalog.customers)
-        if (catalog.employees.length > 0) setEmployeeOptions(catalog.employees)
+        if (controller.signal.aborted) return
+        setCustomerOptions(catalog.customers)
+        setEmployeeOptions(catalog.employees)
+        setProductOptions(catalog.products)
         if (catalog.products.length > 0) {
-          setProductOptions(catalog.products)
           setLines((current) =>
             current.map((line, index) => {
               const targetCode =
@@ -108,9 +94,10 @@ export default function CreateSalePage() {
           )
         }
       })
-      .catch(() => {})
+      .catch((error) => { if (!controller.signal.aborted) setCatalogError(error instanceof Error ? error.message : "Unable to load the sales catalog.") })
+      .finally(() => { if (!controller.signal.aborted) setCatalogLoading(false) })
     return () => controller.abort()
-  }, [])
+  }, [catalogRetry])
 
   const handleSalesDateChange = (nextDate: string) => {
     setSalesDate(nextDate)
@@ -225,6 +212,7 @@ export default function CreateSalePage() {
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     setFormError("")
+    if (catalogLoading || catalogError) return
 
     if (!customerId || !employeeId) {
       setFormError("Select both a customer and a salesperson.")
@@ -268,13 +256,9 @@ export default function CreateSalePage() {
         })),
       })
 
-      if (created) {
-        setTransactionNo(created.transactionNo)
-        notifyToast(`Sales order ${created.transactionNo} created.`, "success")
-        navigate("/sales?view=transactions&page=1")
-      } else {
-        notifyToast("Sale recorded.", "success")
-      }
+      setTransactionNo(created.transactionNo)
+      notifyToast(`Sales order ${created.transactionNo} created.`, "success")
+      navigate("/sales?view=transactions&page=1")
     } catch (error) {
       const message =
         error instanceof Error && error.message
@@ -303,6 +287,9 @@ export default function CreateSalePage() {
             </div>
           </header>
 
+          {catalogLoading && <p role="status" className="mb-4 text-sm text-neutral-600">Loading sales catalog…</p>}
+          {catalogError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 bg-red-50 p-4 text-sm text-red-800"><span>{catalogError}</span><button type="button" onClick={() => setCatalogRetry((current) => current + 1)} className="underline">Try again</button></div>}
+          {!catalogLoading && !catalogError && (!customerOptions.length || !employeeOptions.length || !productOptions.length) && <p role="status" className="workspace-notice mb-4 text-sm">Add active customers, employees, and products before creating a sale.</p>}
           <form
             onSubmit={submit}
             noValidate
@@ -509,7 +496,7 @@ export default function CreateSalePage() {
               </Link>
               <button
                 type="submit"
-                disabled={!customerId || !employeeId || submitting}
+                disabled={catalogLoading || Boolean(catalogError) || !customerId || !employeeId || !productOptions.length || submitting}
                 className="workspace-primary-action"
               >
                 {submitting ? "Saving..." : "Save sale"}

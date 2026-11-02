@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 
@@ -14,6 +14,7 @@ vi.mock("../../lib/auth", async () => {
       login: vi.fn(),
       changePassword: vi.fn(),
       logout: vi.fn(),
+      heartbeat: vi.fn().mockResolvedValue({ message: "ok" }),
     },
   }
 })
@@ -42,6 +43,8 @@ function Harness() {
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 beforeEach(() => {
@@ -82,4 +85,22 @@ test("clears the user on logout and tolerates an already-expired session", async
   vi.mocked(authApi.logout).mockRejectedValueOnce(new AuthApiError("expired", 401))
   await userEventApi.click(screen.getByRole("button", { name: "Logout" }))
   expect(screen.getByLabelText("state")).toHaveTextContent("signed out")
+})
+
+test("heartbeats stop for idle or hidden tabs and resume after interaction", async () => {
+  vi.useFakeTimers()
+  const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
+  vi.mocked(authApi.session).mockResolvedValue({ user: { ...user, mustChangePassword: false } })
+  await act(async () => { render(<AuthProvider><Harness /></AuthProvider>) })
+  expect(authApi.heartbeat).toHaveBeenCalledTimes(1)
+  await act(async () => { vi.advanceTimersByTime(60000) })
+  expect(authApi.heartbeat).toHaveBeenLastCalledWith(60000)
+  await act(async () => { vi.advanceTimersByTime(120001) })
+  expect(authApi.heartbeat).toHaveBeenCalledTimes(3)
+  fireEvent.pointerDown(window)
+  await act(async () => { vi.advanceTimersByTime(60000) })
+  expect(authApi.heartbeat).toHaveBeenCalledTimes(4)
+  visibility.mockReturnValue("hidden")
+  await act(async () => { vi.advanceTimersByTime(60000) })
+  expect(authApi.heartbeat).toHaveBeenCalledTimes(4)
 })

@@ -50,7 +50,11 @@ test("filters dashboard tiles, sidebar links, sales actions, and report choices 
     mustChangePassword: false,
     rights: ["sales.access", "sales.details.view", "reports.access", "reports.top-sales"],
   }
-  vi.stubGlobal("fetch", vi.fn(async () => response(200, { user: scopedEmployee })))
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const path = new URL(String(input), "http://localhost").pathname
+    if (path === "/api/sales") return response(200, { sales: [{ transno: "T-001", custno: "C001", empno: "00010", lines: [], payments: [] }], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    return response(200, { user: scopedEmployee })
+  }))
 
   render(
     <MemoryRouter initialEntries={["/dashboard"]}>
@@ -109,7 +113,7 @@ test("filters dashboard tiles, sidebar links, sales actions, and report choices 
   expect(screen.queryByRole("link", { name: "Create sale" })).not.toBeInTheDocument()
   expect(screen.queryByRole("columnheader", { name: "Stamp" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
-  expect(screen.getAllByRole("button", { name: "Details" }).length).toBeGreaterThan(0)
+  expect((await screen.findAllByRole("button", { name: "Details" })).length).toBeGreaterThan(0)
 
   cleanup()
 

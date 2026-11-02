@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react"
 import { auditLogApi, type AuditLogEntry, type AuditLogPagination } from "../../lib/audit-log-api"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
+import useDebouncedValue from "../../hooks/useDebouncedValue"
+import type { AuditLogResult } from "../../lib/audit-log-api"
 
-const PAGE_SIZE = 15
+const PAGE_SIZE = 10
+
+function visiblePages(page: number, totalPages: number) {
+  const count = Math.min(totalPages, 5)
+  const start = Math.max(1, Math.min(page - 2, totalPages - count + 1))
+  return Array.from({ length: count }, (_, index) => start + index)
+}
 
 const AVAILABLE_TABLES = [
   "all",
@@ -16,13 +24,14 @@ const AVAILABLE_TABLES = [
   "jobhistory",
   "department",
   "job",
-  "users",
+  "app_user",
+  "app_user_right",
 ] as const
 
 const AVAILABLE_ACTIONS = ["all", "INSERT", "UPDATE", "DELETE"] as const
 
 export default function AuditLogViewer() {
-  const [logs, setLogs] = useState<AuditLogEntry[]>([])
+  const [logs, setLogs] = useState<AuditLogResult["logs"]>([])
   const [pagination, setPagination] = useState<AuditLogPagination>({
     page: 1,
     limit: PAGE_SIZE,
@@ -36,13 +45,18 @@ export default function AuditLogViewer() {
   const [selectedTable, setSelectedTable] = useState<string>("all")
   const [selectedAction, setSelectedAction] = useState<string>("all")
   const [actorQuery, setActorQuery] = useState<string>("")
+  const debouncedActor = useDebouncedValue(actorQuery.trim())
+  const searchPending = actorQuery.trim() !== debouncedActor
   const [startDate, setStartDate] = useState<string>("")
   const [endDate, setEndDate] = useState<string>("")
   const [page, setPage] = useState<number>(1)
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null)
+  const [inspectingId, setInspectingId] = useState<string | null>(null)
+  const [detailError, setDetailError] = useState("")
   const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   useEffect(() => {
+    if (searchPending) { setLoading(true); return }
     const controller = new AbortController()
     setLoading(true)
     setError("")
@@ -52,7 +66,7 @@ export default function AuditLogViewer() {
         {
           tableName: selectedTable !== "all" ? selectedTable : undefined,
           action: selectedAction !== "all" ? selectedAction : undefined,
-          username: actorQuery.trim() || undefined,
+          username: debouncedActor || undefined,
           startDate: startDate || undefined,
           endDate: endDate || undefined,
           page,
@@ -62,6 +76,10 @@ export default function AuditLogViewer() {
       )
       .then((data) => {
         if (!controller.signal.aborted) {
+          if (page > data.pagination.totalPages) {
+            setPage(Math.max(1, data.pagination.totalPages))
+            return
+          }
           setLogs(data.logs)
           setPagination(data.pagination)
         }
@@ -70,6 +88,7 @@ export default function AuditLogViewer() {
         if (!controller.signal.aborted) {
           setError(err instanceof Error ? err.message : "Failed to load audit logs.")
           setLogs([])
+          setPagination({ page: 1, limit: PAGE_SIZE, total: 0, totalPages: 1 })
         }
       })
       .finally(() => {
@@ -79,7 +98,18 @@ export default function AuditLogViewer() {
       })
 
     return () => controller.abort()
-  }, [selectedTable, selectedAction, actorQuery, startDate, endDate, page, refreshTrigger])
+  }, [selectedTable, selectedAction, debouncedActor, searchPending, startDate, endDate, page, refreshTrigger])
+
+  useEffect(() => {
+    if (!inspectingId) return
+    const controller = new AbortController()
+    setDetailError("")
+    auditLogApi.get(inspectingId, controller.signal)
+      .then((entry) => { if (!controller.signal.aborted) setSelectedEntry(entry) })
+      .catch((reason) => { if (!controller.signal.aborted) setDetailError(reason instanceof Error ? reason.message : "Unable to load audit details.") })
+      .finally(() => { if (!controller.signal.aborted) setInspectingId(null) })
+    return () => controller.abort()
+  }, [inspectingId])
 
   const clearFilters = () => {
     setSelectedTable("all")
@@ -171,6 +201,7 @@ export default function AuditLogViewer() {
               <option value="INSERT">INSERT (Add)</option>
               <option value="UPDATE">UPDATE (Edit)</option>
               <option value="DELETE">DELETE (Remove)</option>
+              <option value="RESTORE">RESTORE</option>
             </select>
           </span>
         </label>
@@ -180,6 +211,7 @@ export default function AuditLogViewer() {
           <input
             type="date"
             aria-label="Filter from date"
+            max={endDate || undefined}
             value={startDate}
             onChange={(e) => {
               setStartDate(e.target.value)
@@ -194,6 +226,7 @@ export default function AuditLogViewer() {
           <input
             type="date"
             aria-label="Filter to date"
+            min={startDate || undefined}
             value={endDate}
             onChange={(e) => {
               setEndDate(e.target.value)
@@ -232,6 +265,7 @@ export default function AuditLogViewer() {
       )}
 
       {/* Audit Log Table */}
+      {detailError && <p role="alert" className="text-sm text-red-700">{detailError}</p>}
       <div className="workspace-panel">
         <div className="workspace-table-header">
           <div>
@@ -299,11 +333,12 @@ export default function AuditLogViewer() {
                     <td data-label="Details" className="px-4 py-3 text-right text-xs">
                       <button
                         type="button"
-                        onClick={() => setSelectedEntry(log)}
+                        onClick={() => setInspectingId(log.auditId)}
+                        disabled={Boolean(inspectingId)}
                         aria-label={`View diff for audit entry ${log.auditId}`}
                         className="workspace-text-action font-medium text-blue-600 hover:text-blue-800"
                       >
-                        Inspect Diff
+                        {inspectingId === log.auditId ? "Loading…" : "Inspect Diff"}
                       </button>
                     </td>
                   </tr>
@@ -315,27 +350,24 @@ export default function AuditLogViewer() {
 
         {/* Table Footer with Pagination */}
         <div className="workspace-table-footer">
-          <p>
-            Showing {pagination.total ? (pagination.page - 1) * pagination.limit + 1 : 0}–
-            {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} entries
+          <p aria-live="polite">
+            {loading ? "Loading audit records…" : error ? "Audit records unavailable" : `Showing ${pagination.total ? (pagination.page - 1) * pagination.limit + 1 : 0}–${Math.min(pagination.page * pagination.limit, pagination.total)} of ${pagination.total}`}
           </p>
           <nav aria-label="Audit log pagination" className="workspace-pagination">
             <button
               type="button"
-              disabled={loading || pagination.page <= 1}
+              disabled={loading || Boolean(error) || pagination.page <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="workspace-secondary-action"
             >
               Previous
             </button>
-            <span className="text-xs text-slate-600">
-              Page {pagination.page} of {pagination.totalPages}
-            </span>
+            {visiblePages(pagination.page, pagination.totalPages).map((number) => (
+              <button key={number} type="button" onClick={() => setPage(number)} disabled={loading || Boolean(error)} aria-label={`Page ${number}`} aria-current={number === pagination.page ? "page" : undefined}>{number}</button>
+            ))}
             <button
               type="button"
-              disabled={loading || pagination.page >= pagination.totalPages}
+              disabled={loading || Boolean(error) || pagination.page >= pagination.totalPages}
               onClick={() => setPage((p) => p + 1)}
-              className="workspace-secondary-action"
             >
               Next
             </button>

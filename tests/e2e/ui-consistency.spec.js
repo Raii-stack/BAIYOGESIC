@@ -1,7 +1,7 @@
 const { test, expect } = require('@playwright/test');
 
 // Run against a local Vite server: npx playwright test tests/e2e/ui-consistency.spec.js --workers=1
-test.use({ baseURL: 'http://127.0.0.1:5173', launchOptions: { channel: 'chrome' } });
+test.use({ baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:5173', launchOptions: { channel: 'chrome' } });
 
 const user = { userId: 'admin', email: 'preview@example.com', role: 'superadmin', status: 'active', mustChangePassword: false };
 const collections = {
@@ -18,6 +18,9 @@ const collections = {
 
 async function mockApi(page) {
   await page.route('**/api/**', async route => {
+    const activityPath = new URL(route.request().url()).pathname;
+    if (activityPath === '/api/auth/activity') return route.fulfill({ json: { success: true, data: { message: 'ok' } } });
+    if (activityPath === '/api/auth/active-employees') return route.fulfill({ json: { success: true, data: { employees: [] } } });
     expect(route.request().method()).toBe('GET');
     const url = new URL(route.request().url());
     let data;
@@ -58,6 +61,8 @@ for (const width of [320, 375, 768, 1024, 1440]) {
       await page.goto(path);
       const filters = page.locator('.workspace-filters');
       await expect(filters).toBeVisible();
+      await expect(page.locator('html')).toHaveCSS('scrollbar-width', 'none');
+      await expect(page.locator('.erp-workspace > aside nav')).toHaveCSS('scrollbar-width', 'none');
       await expect(filters.locator('.workspace-control').first()).toBeEnabled();
       await expect(page.locator('table tbody tr[aria-hidden="true"]')).toHaveCount(0);
       if (path === '/sales') await expect(page.getByText('TR000001-1', { exact: true })).toBeVisible();
@@ -115,6 +120,18 @@ test('dashboard navigation and product filter/pagination actions remain usable',
 });
 
 for (const width of [375, 1440]) {
+  test(`password recovery spacing matches the form rhythm at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.route('**/api/auth/session', route => route.fulfill({ status: 401, json: { success: false } }));
+    await page.goto('/login');
+    await page.getByRole('button', { name: 'Forgot password?', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Reset password', exact: true });
+    const email = await dialog.getByRole('textbox', { name: 'Work email' }).boundingBox();
+    const submit = await dialog.getByRole('button', { name: 'Send reset link', exact: true }).boundingBox();
+    expect(submit.y - (email.y + email.height)).toBeGreaterThanOrEqual(20);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+
   test(`product price controls follow shared sizing at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     await mockApi(page);

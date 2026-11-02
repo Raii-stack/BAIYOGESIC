@@ -60,6 +60,7 @@ export default function UserManagementPage() {
   }, [])
 
   useEffect(() => {
+    if (activeView !== "users") return
     const controller = new AbortController()
     userApi
       .options(controller.signal)
@@ -72,9 +73,10 @@ export default function UserManagementPage() {
         // Optional lookup list
       })
     return () => controller.abort()
-  }, [refresh])
+  }, [refresh, activeView])
 
   useEffect(() => {
+    if (activeView !== "users") return
     if (searchPending) {
       setLoading(true)
       setLoadError("")
@@ -114,7 +116,7 @@ export default function UserManagementPage() {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [page, roleFilter, statusFilter, debouncedQuery, searchPending, refresh])
+  }, [page, roleFilter, statusFilter, debouncedQuery, searchPending, refresh, activeView])
 
   const showNotice = (message: string) => {
     setNotice((current) => ({ id: (current?.id ?? 0) + 1, message }))

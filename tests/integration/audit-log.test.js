@@ -9,12 +9,12 @@ require.cache[require.resolve('../../db')] = {
   exports: { requirePool: () => activePool }
 };
 
-const { getAuditLogs } = require('../../controllers/audit-log-controller');
+const { getAuditLogs, getAuditLog } = require('../../controllers/audit-log-controller');
 const auditLogRoutes = require('../../routes/audit-log-routes');
 
-function invokeHandler(handler, { user, query = {} } = {}) {
+function invokeHandler(handler, { user, query = {}, params = {} } = {}) {
   return new Promise((resolve) => {
-    const req = { user, query };
+    const req = { user, query, params };
     const res = {
       statusCode: 200,
       body: undefined,
@@ -43,18 +43,15 @@ function invokeHandler(handler, { user, query = {} } = {}) {
 
 beforeEach(() => {
   activePool = {
-    query: vi.fn(async () => ({
-      rows: [
+    query: vi.fn(async (sql) => ({
+      rows: sql.includes('count(*)') ? [{ total: 42 }] : [
         {
           auditId: '101',
           tableName: 'sales',
           action: 'UPDATE',
           recordKey: 'SO-1001',
-          oldValues: { status: 'Active', balance: 500 },
-          newValues: { status: 'Active', balance: 0 },
           actionBy: 'esperanza.nehemiah@hope.inc',
           actionAt: '2026-11-02T10:00:00Z',
-          total_count: 42
         }
       ]
     }))
@@ -107,7 +104,7 @@ describe('Superadmin Audit Log API (Issue #80)', () => {
   });
 
   describe('Multi-Filter Search & Pagination', () => {
-    it('passes multi-filter query parameters into database query procedure', async () => {
+    it('uses direct indexed queries and treats the end date as an inclusive calendar day', async () => {
       const response = await invokeHandler(getAuditLogs, {
         user: { role: 'superadmin' },
         query: {
@@ -123,8 +120,8 @@ describe('Superadmin Audit Log API (Issue #80)', () => {
 
       expect(response.statusCode).toBe(200);
       expect(activePool.query).toHaveBeenCalledWith(
-        expect.stringContaining('query_audit_logs'),
-        ['sales', 'UPDATE', 'esperanza', '2026-10-01', '2026-11-02', 15, 15]
+        expect.stringContaining('ORDER BY action_at DESC, audit_id DESC'),
+        ['sales', ['UPDATE', 'EDIT'], '%esperanza%', '2026-10-01', '2026-11-03T00:00:00.000Z', 15, 15]
       );
       expect(response.body.data.pagination).toEqual({
         page: 2,
@@ -134,29 +131,28 @@ describe('Superadmin Audit Log API (Issue #80)', () => {
       });
     });
 
-    it('formats audit records with diff snapshot attributes and parses stringified JSON', async () => {
+    it('loads JSON snapshots only for the requested audit entry', async () => {
       activePool.query = vi.fn(async () => ({
         rows: [
           {
-            audit_id: '55',
-            table_name: 'customer',
+            auditId: '55',
+            tableName: 'customer',
             action: 'INSERT',
-            record_key: 'CUST-001',
-            old_values: null,
-            new_values: '{"name":"Acme Corp","status":"Active"}',
-            action_by: 'system',
-            action_at: '2026-11-01T08:00:00Z',
-            total_count: 1
+            recordKey: 'CUST-001',
+            oldValues: null,
+            newValues: { name: 'Acme Corp', status: 'Active' },
+            actionBy: 'system',
+            actionAt: '2026-11-01T08:00:00Z'
           }
         ]
       }));
 
-      const response = await invokeHandler(getAuditLogs, {
-        user: { role: 'superadmin' }
+      const response = await invokeHandler(getAuditLog, {
+        user: { role: 'superadmin' }, params: { auditId: '55' }
       });
 
       expect(response.statusCode).toBe(200);
-      const log = response.body.data.logs[0];
+      const log = response.body.data.log;
       expect(log.auditId).toBe('55');
       expect(log.tableName).toBe('customer');
       expect(log.action).toBe('INSERT');
@@ -165,31 +161,30 @@ describe('Superadmin Audit Log API (Issue #80)', () => {
       expect(log.actionBy).toBe('system');
     });
 
-    it('falls back to direct SELECT on public.audit_log if stored procedure is unavailable', async () => {
+    it('keeps the total when a page is out of range and omits snapshots from list queries', async () => {
       activePool.query = vi.fn()
-        .mockRejectedValueOnce(new Error('function query_audit_logs does not exist'))
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              auditId: '1',
-              tableName: 'product',
-              action: 'DELETE',
-              recordKey: 'PROD-10',
-              oldValues: { name: 'Widget' },
-              newValues: null,
-              actionBy: 'admin',
-              actionAt: '2026-11-01T00:00:00Z',
-              total_count: 1
-            }
-          ]
-        });
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ total: 42 }] });
 
       const response = await invokeHandler(getAuditLogs, {
-        user: { role: 'superadmin' }
+        user: { role: 'superadmin' }, query: { page: '999' }
       });
 
       expect(response.statusCode).toBe(200);
-      expect(response.body.data.logs[0].tableName).toBe('product');
+      expect(response.body.data.pagination.total).toBe(42);
+      expect(response.body.data.logs).toEqual([]);
+      expect(activePool.query.mock.calls[0][0]).not.toMatch(/old_values|new_values|OVER\(|query_audit_logs/);
+      expect(activePool.query).toHaveBeenCalledTimes(2);
+    });
+    it.each([{ action: 'drop' }, { startDate: '2026-02-31' }, { startDate: '2026-02-31T00:00:00Z' }, { startDate: '2026-11-03', endDate: '2026-11-01' }])('rejects invalid filters before querying: %o', async (query) => {
+      const response = await invokeHandler(getAuditLogs, { user: { role: 'superadmin' }, query });
+      expect(response.statusCode).toBe(400);
+      expect(activePool.query).not.toHaveBeenCalled();
+    });
+    it('protects detail access and validates entry identifiers', async () => {
+      expect((await invokeHandler(getAuditLog, { user: { role: 'employee' }, params: { auditId: '1' } })).statusCode).toBe(403);
+      expect((await invokeHandler(getAuditLog, { user: { role: 'superadmin' }, params: { auditId: '1 OR 1=1' } })).statusCode).toBe(400);
+      expect(activePool.query).not.toHaveBeenCalled();
     });
   });
 });

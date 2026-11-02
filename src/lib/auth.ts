@@ -58,7 +58,7 @@ export class AuthApiError extends Error {
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
 
-async function request<T>(path: string, body?: object): Promise<T> {
+async function request<T>(path: string, body?: object, signal?: AbortSignal): Promise<T> {
   let response: Response
   try {
     response = await fetch(`${apiBase}/api/auth${path}`, {
@@ -66,8 +66,10 @@ async function request<T>(path: string, body?: object): Promise<T> {
       credentials: "include",
       headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
+      signal,
     })
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error
     throw new AuthApiError("The service is temporarily unavailable. Please try again.", 0)
   }
 
@@ -87,6 +89,8 @@ async function request<T>(path: string, body?: object): Promise<T> {
 }
 
 export const authApi = {
+  heartbeat: (idleMs = 0) => request<{ message: string }>("/activity", { idleMs }),
+  activeEmployees: (signal?: AbortSignal) => request<{ employees: ActiveEmployee[] }>("/active-employees", undefined, signal),
   login: (email: string, password: string) =>
     request<{ user: AuthUser }>("/login", { email, password }),
   session: () => request<{ user: AuthUser }>("/session"),
@@ -100,3 +104,5 @@ export const authApi = {
   resetPassword: (token: string, password: string) =>
     request<{ message?: string; user?: AuthUser }>("/reset-password", { token, password }),
 }
+
+export type ActiveEmployee = { userId: string; empno: string; name: string; lastSeenAt: string }

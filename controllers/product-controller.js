@@ -220,11 +220,11 @@ const addPriceHistory = asyncHandler(async (req, res) => {
         `INSERT INTO public.audit_log
            (table_name, action, record_key, old_values, new_values, action_by, action_at)
          VALUES
-           ('pricehist', 'PRICE_UPDATE', $1, $2::jsonb, $3::jsonb, $4, CURRENT_TIMESTAMP)`,
+           ('pricehist', 'EDIT', $1, $2::jsonb, $3::jsonb, $4, CURRENT_TIMESTAMP)`,
         [
           prodcode,
           oldPrice !== null ? JSON.stringify({ price: oldPrice, unitprice: oldPrice }) : null,
-          JSON.stringify({ prodcode, effdate: rawEffdate, price, unitprice: price }),
+          JSON.stringify({ event: 'PRICE_UPDATE', prodcode, effdate: rawEffdate, price, unitprice: price }),
           String(actorUserId)
         ]
       );
@@ -334,11 +334,11 @@ const updateProduct = asyncHandler(async (req, res) => {
         `INSERT INTO public.audit_log
            (table_name, action, record_key, old_values, new_values, action_by, action_at)
          VALUES
-           ('pricehist', 'PRICE_UPDATE', $1, $2::jsonb, $3::jsonb, $4, CURRENT_TIMESTAMP)`,
+           ('pricehist', 'EDIT', $1, $2::jsonb, $3::jsonb, $4, CURRENT_TIMESTAMP)`,
         [
           prodcode,
           oldUnitprice !== null ? JSON.stringify({ price: oldUnitprice, unitprice: oldUnitprice }) : null,
-          JSON.stringify({ prodcode, price: unitprice, unitprice }),
+          JSON.stringify({ event: 'PRICE_UPDATE', prodcode, price: unitprice, unitprice }),
           String(actorUserId)
         ]
       );

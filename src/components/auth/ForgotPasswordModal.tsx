@@ -159,7 +159,7 @@ export default function ForgotPasswordModal({ open, onClose, onSuccess }: Forgot
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-4">
+          <form onSubmit={handleSubmit} noValidate className="mt-6 flex flex-col gap-5">
             {serverError && (
               <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-600">
                 {serverError}

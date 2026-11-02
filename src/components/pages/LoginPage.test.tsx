@@ -93,6 +93,7 @@ test("default-password users enter the dashboard and must change their password 
     "/api/auth/session",
     "/api/auth/change-password",
     "/api/auth/change-password",
+    "/api/auth/activity",
   ])
 })
 

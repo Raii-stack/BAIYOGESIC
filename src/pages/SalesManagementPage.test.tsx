@@ -5,14 +5,26 @@ import { afterEach, expect, test, vi } from "vitest"
 import { AuthProvider } from "../components/auth/AuthProvider"
 import CreateSalePage from "./CreateSalePage"
 import SalesManagementPage from "./SalesManagementPage"
+import { salesApi, toSaleTransaction } from "../lib/sales-api"
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 function Location() { return <output aria-label="URL">{useLocation().search}</output> }
 function renderSales(query: string) {
-  vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ success: true, data: { user: {
+  const user = {
     userId: "1", email: "preview@hope.inc", role: "superadmin", status: "active", mustChangePassword: false,
-  } } }), { headers: { "Content-Type": "application/json" } })))
+  }
+  const records = [false, true, true].map((archived, index) => ({ transno: `T-00${index + 1}`, custno: "C-001", custname: "Acme", empno: "00001", empname: "Alex", salesdate: "2026-10-01", is_deleted: archived, lines: [], payments: [] }))
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    let data: object = { user }
+    if (url.pathname === "/api/sales") {
+      const selected = records.filter((sale) => (!url.searchParams.get("search") || sale.transno.includes(url.searchParams.get("search")!)) && (url.searchParams.get("status") === "archived" ? sale.is_deleted : !sale.is_deleted))
+      const page = Number(url.searchParams.get("page"))
+      data = { sales: selected.slice((page - 1) * 10, page * 10), pagination: { page, limit: 10, total: selected.length, totalPages: Math.ceil(selected.length / 10) } }
+    }
+    return new Response(JSON.stringify({ success: true, data }), { headers: { "Content-Type": "application/json" } })
+  }))
   render(<MemoryRouter initialEntries={["/sales?view=transactions&" + query]}><AuthProvider><SalesManagementPage /><Location /></AuthProvider></MemoryRouter>)
 }
 
@@ -32,9 +44,33 @@ test("empty sales searches and archived views show the appropriate actions", asy
   await user.clear(screen.getByRole("searchbox", { name: "Search sales" }))
   await user.selectOptions(screen.getByRole("combobox", { name: "Status" }), "Inactive")
   const table = within(screen.getByRole("table"))
-  expect(table.getAllByRole("button", { name: /Restore/ })).toHaveLength(2)
+  expect(await table.findAllByRole("button", { name: /Restore/ })).toHaveLength(2)
   expect(table.queryByRole("button", { name: /Archive/ })).not.toBeInTheDocument()
   expect(table.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
+})
+
+test("loads server pages beyond 200 records and navigates with server totals", async () => {
+  const list = vi.spyOn(salesApi, "list").mockImplementation(async (options = {}) => {
+    const page = options.page || 1
+    return { sales: Array.from({ length: 10 }, (_, index) => toSaleTransaction({ transno: `REAL-${(page - 1) * 10 + index + 1}`, lines: [], payments: [] })), pagination: { page, limit: 10, total: 235, totalPages: 24 } }
+  })
+  renderSales("page=21")
+  expect(await screen.findByText("REAL-201")).toBeInTheDocument()
+  expect(screen.getByText("Showing 201–210 of 235")).toBeInTheDocument()
+  expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ page: 21, limit: 10, status: "active" }), expect.any(AbortSignal))
+  await userEvent.setup().click(screen.getByRole("button", { name: "Next", exact: true }))
+  expect(await screen.findByText("REAL-211")).toBeInTheDocument()
+  expect(screen.getByLabelText("URL")).toHaveTextContent("page=22")
+})
+
+test("shows a failed sales request without demo records and supports retry", async () => {
+  vi.spyOn(salesApi, "list").mockRejectedValueOnce(new Error("The service is temporarily unavailable."))
+    .mockResolvedValueOnce({ sales: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } })
+  renderSales("page=1")
+  expect(await screen.findByRole("alert")).toHaveTextContent("The service is temporarily unavailable.")
+  expect(screen.queryByText("T-001")).not.toBeInTheDocument()
+  await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }))
+  expect(await screen.findByText("No sales match this view.")).toBeInTheDocument()
 })
 
 test("records the selected payment method through the API before updating the balance", async () => {

@@ -9,11 +9,15 @@ const {
   resetPassword,
   setPassword
 } = require('../controllers/auth-controller');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, requireActiveUser } = require('../middleware/auth');
+const { recordActivity, listActiveEmployees } = require('../controllers/activity-controller');
+const { activityLimiter } = require('../middleware/rate-limiter');
 
 const router = express.Router();
 
 router.post('/login', login);
+router.post('/activity', activityLimiter, authenticate, requireActiveUser, recordActivity);
+router.get('/active-employees', activityLimiter, authenticate, requireActiveUser, listActiveEmployees);
 router.get('/session', authenticate, session);
 router.post('/logout', authenticate, logout);
 router.post('/change-password', authenticate, changePassword);

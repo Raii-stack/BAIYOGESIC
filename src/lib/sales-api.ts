@@ -138,6 +138,7 @@ async function request<T>(
 
 export function toSaleTransaction(row: ApiSaleRow): SaleTransaction {
   const transactionNo = row.transactionNo || row.transno || ""
+  if (!transactionNo) throw apiFailure(502)
   const rawLines = row.lines || row.lineItems || []
   const rawPayments = row.payments || []
   const isDeleted = row.status ? row.status === "Inactive" : Boolean(row.is_deleted)
@@ -198,6 +199,12 @@ export function toSaleTransaction(row: ApiSaleRow): SaleTransaction {
   }
 }
 
+function requiredSale(data: { sale?: ApiSaleRow; transaction?: ApiSaleRow }): SaleTransaction {
+  const row = data.sale || data.transaction
+  if (!row) throw apiFailure(502)
+  return toSaleTransaction(row)
+}
+
 export const salesApi = {
   async list(
     options: {
@@ -222,18 +229,13 @@ export const salesApi = {
     }>(`?${params}`, "GET", undefined, signal)
 
     const rawSales = data.sales || data.transactions
-    if (!Array.isArray(rawSales)) {
-      return null
+    if (!Array.isArray(rawSales) || !data.pagination) {
+      throw apiFailure(502)
     }
 
     return {
       sales: rawSales.map(toSaleTransaction),
-      pagination: data.pagination || {
-        page: options.page ?? 1,
-        limit: options.limit ?? 100,
-        total: rawSales.length,
-        totalPages: 1,
-      },
+      pagination: data.pagination,
     }
   },
 
@@ -241,7 +243,7 @@ export const salesApi = {
     customers: Customer[]
     employees: Employee[]
     products: SaleCatalogProduct[]
-  } | null> {
+  }> {
     const data = await request<{
       customers?: {
         custno: string
@@ -278,9 +280,7 @@ export const salesApi = {
       }[]
     }>("/catalog", "GET", undefined, signal)
 
-    if (!Array.isArray(data.customers) || !Array.isArray(data.employees) || !Array.isArray(data.products)) {
-      return null
-    }
+    if (!Array.isArray(data.customers) || !Array.isArray(data.employees) || !Array.isArray(data.products)) throw apiFailure(502)
 
     return {
       customers: data.customers.map(toCustomer),
@@ -321,81 +321,74 @@ export const salesApi = {
     }
   },
 
-  async get(transno: string, signal?: AbortSignal): Promise<SaleTransaction | null> {
+  async get(transno: string, signal?: AbortSignal): Promise<SaleTransaction> {
     const data = await request<{ sale?: ApiSaleRow; transaction?: ApiSaleRow }>(
       `/${encodeURIComponent(transno)}`,
       "GET",
       undefined,
       signal,
     )
-    const row = data.sale || data.transaction
-    return row ? toSaleTransaction(row) : null
+    return requiredSale(data)
   },
 
-  async create(input: CreateSaleInput): Promise<SaleTransaction | null> {
+  async create(input: CreateSaleInput): Promise<SaleTransaction> {
     const data = await request<{ sale?: ApiSaleRow; transaction?: ApiSaleRow }>(
       "",
       "POST",
       input,
     )
-    const row = data.sale || data.transaction
-    return row ? toSaleTransaction(row) : null
+    return requiredSale(data)
   },
 
   async recordPayment(
     transno: string,
     input: RecordPaymentInput,
-  ): Promise<SaleTransaction | null> {
+  ): Promise<SaleTransaction> {
     const data = await request<{ sale?: ApiSaleRow; transaction?: ApiSaleRow }>(
       `/${encodeURIComponent(transno)}/payments`,
       "POST",
       input,
     )
-    const row = data.sale || data.transaction
-    return row ? toSaleTransaction(row) : null
+    return requiredSale(data)
   },
 
   async updatePayment(
     transno: string,
     orno: string,
     input: RecordPaymentInput,
-  ): Promise<SaleTransaction | null> {
+  ): Promise<SaleTransaction> {
     const data = await request<{ sale?: ApiSaleRow; transaction?: ApiSaleRow }>(
       `/${encodeURIComponent(transno)}/payments/${encodeURIComponent(orno)}`,
       "PUT",
       input,
     )
-    const row = data.sale || data.transaction
-    return row ? toSaleTransaction(row) : null
+    return requiredSale(data)
   },
 
   async deletePayment(
     transno: string,
     orno: string,
-  ): Promise<SaleTransaction | null> {
+  ): Promise<SaleTransaction> {
     const data = await request<{ sale?: ApiSaleRow; transaction?: ApiSaleRow }>(
       `/${encodeURIComponent(transno)}/payments/${encodeURIComponent(orno)}`,
       "DELETE",
     )
-    const row = data.sale || data.transaction
-    return row ? toSaleTransaction(row) : null
+    return requiredSale(data)
   },
 
-  async archive(transno: string): Promise<SaleTransaction | null> {
+  async archive(transno: string): Promise<SaleTransaction> {
     const data = await request<{ sale?: ApiSaleRow; transaction?: ApiSaleRow }>(
       `/${encodeURIComponent(transno)}`,
       "DELETE",
     )
-    const row = data.sale || data.transaction
-    return row ? toSaleTransaction(row) : null
+    return requiredSale(data)
   },
 
-  async restore(transno: string): Promise<SaleTransaction | null> {
+  async restore(transno: string): Promise<SaleTransaction> {
     const data = await request<{ sale?: ApiSaleRow; transaction?: ApiSaleRow }>(
       `/${encodeURIComponent(transno)}/restore`,
       "PATCH",
     )
-    const row = data.sale || data.transaction
-    return row ? toSaleTransaction(row) : null
+    return requiredSale(data)
   },
 }

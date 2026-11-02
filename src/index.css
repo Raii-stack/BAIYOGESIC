@@ -2,6 +2,9 @@
 
 :root { --workspace-control-height: 40px; }
 
+html:has(.erp-workspace), .erp-workspace > aside :is(nav, [role="listbox"]), .workspace-scrollbar { scrollbar-width: none; }
+html:has(.erp-workspace)::-webkit-scrollbar, .erp-workspace > aside :is(nav, [role="listbox"])::-webkit-scrollbar, .workspace-scrollbar::-webkit-scrollbar { display: none; }
+
 .workspace-page {
   flex: 1;
   padding: 28px 20px 48px;

@@ -92,6 +92,7 @@ async function requireActiveUser(req, res, next) {
       return res.status(403).json({ success: false, error: { message: 'Change your password before continuing', statusCode: 403 } });
     }
     req.user = {
+      exp: req.user.exp,
       sub: String(user.user_id),
       empno: user.empno,
       email: user.email,

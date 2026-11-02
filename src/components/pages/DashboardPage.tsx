@@ -2,8 +2,9 @@ import { useEffect, useState } from "react"
 import { useAuth } from "../auth/AuthProvider"
 import ChangePasswordModal from "../auth/ChangePasswordModal"
 import { DashboardIcon, ModuleTile, modules } from "../dashboard/DashboardComponents"
+import ActiveEmployees from "../dashboard/ActiveEmployees"
 import DashboardLayout from "../../layouts/DashboardLayout"
-import { getUserDisplayName } from "../../lib/auth"
+import { getUserDisplayName, hasUserRight } from "../../lib/auth"
 import {
   canAccessModule,
   type ErpModuleKey,
@@ -201,6 +202,7 @@ export default function DashboardPage() {
             </section>
 
             <aside aria-label="Workspace information" className="space-y-5">
+              {hasUserRight(user, "activity.access") && !user?.mustChangePassword && <ActiveEmployees />}
               <section className="workspace-panel p-5">
                 <h2 className="text-sm font-semibold">Your workspace</h2>
                 <dl className="mt-4 space-y-4 text-[13px]">

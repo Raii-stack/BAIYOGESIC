@@ -1,5 +1,12 @@
 import type { SaleTransaction } from "../../types/sale"
 import { getPaymentStatus, getSaleBalance, getSaleTotal } from "../../lib/sales"
+import { TableSkeletonRows } from "../common/TableSkeleton"
+
+function visiblePages(page: number, totalPages: number) {
+  const count = Math.min(totalPages, 5)
+  const start = Math.max(1, Math.min(page - 2, totalPages - count + 1))
+  return Array.from({ length: count }, (_, index) => start + index)
+}
 
 const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -10,6 +17,8 @@ export default function SalesTable({
   sales,
   total,
   page,
+  loading = false,
+  error = false,
   onPageChange,
   onDetails,
   onDelete,
@@ -22,6 +31,8 @@ export default function SalesTable({
   sales: SaleTransaction[]
   total: number
   page: number
+  loading?: boolean
+  error?: boolean
   onPageChange: (page: number) => void
   onDetails: (sale: SaleTransaction) => void
   onDelete: (transactionNo: string) => void
@@ -37,10 +48,10 @@ export default function SalesTable({
       <div className="workspace-table-header">
         <h2>Sales transactions</h2>
         <span className="workspace-badge workspace-badge--neutral">
-          {total} records
+          {loading ? "Loading…" : error ? "Unavailable" : `${total} records`}
         </span>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto" aria-busy={loading}>
         <table role="table" className="workspace-table min-w-[1040px]">
           <thead>
             <tr className="border-b border-slate-300 bg-slate-100">
@@ -69,7 +80,7 @@ export default function SalesTable({
             </tr>
           </thead>
           <tbody>
-            {sales.map((sale) => {
+            {loading ? <TableSkeletonRows headings={["Transaction", "Sales date", "Customer", "Employee", "Total", "Balance", ...(showAdminAudit ? ["Status", "Last change"] : []), ...(showActions ? ["Actions"] : [])]} /> : sales.map((sale) => {
               const inactive = sale.status === "Inactive"
               const paymentStatus = getPaymentStatus(sale)
 
@@ -164,7 +175,7 @@ export default function SalesTable({
         </table>
       </div>
 
-      {sales.length === 0 && (
+      {!loading && !error && sales.length === 0 && (
         <div className="workspace-empty-state">
           <p className="text-[13px] font-medium text-slate-700">
             No sales match this view.
@@ -176,27 +187,22 @@ export default function SalesTable({
       )}
 
       <div className="workspace-table-footer">
-        <p>
-          Showing {total ? (page - 1) * 10 + 1 : 0}–
-          {Math.min(page * 10, total)} of {total}
+        <p aria-live="polite">
+          {loading ? "Loading sales…" : error ? "Sales records unavailable" : `Showing ${total ? (page - 1) * 10 + 1 : 0}–${Math.min(page * 10, total)} of ${total}`}
         </p>
         <nav aria-label="Sales table pagination" className="workspace-pagination">
           <button
             type="button"
             onClick={() => onPageChange(page - 1)}
-            disabled={page <= 1}
-            className="workspace-secondary-action"
+            disabled={loading || error || page <= 1}
           >
             Previous
           </button>
-          <span className="text-xs text-slate-600">
-            Page {page} of {Math.max(1, Math.ceil(total / 10))}
-          </span>
+          {visiblePages(page, Math.ceil(total / 10)).map((number) => <button key={number} type="button" onClick={() => onPageChange(number)} disabled={loading || error} aria-label={`Page ${number}`} aria-current={number === page ? "page" : undefined}>{number}</button>)}
           <button
             type="button"
             onClick={() => onPageChange(page + 1)}
-            disabled={page >= Math.ceil(total / 10)}
-            className="workspace-secondary-action"
+            disabled={loading || error || page >= Math.ceil(total / 10)}
           >
             Next
           </button>

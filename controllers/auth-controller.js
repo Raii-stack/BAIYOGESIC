@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { supabase, requirePool } = require('../db');
 const { primeUserCache, invalidateUserCache } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error-handler');
+const { endActivity } = require('./activity-controller');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 const PASSWORD_MIN_LENGTH = 8;
@@ -349,7 +350,7 @@ const login = asyncHandler(async (req, res) => {
   const token = jwt.sign(
     { sub: String(user.user_id), empno: user.empno, email: user.email, role: user.role },
     getJwtSecret(),
-    { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256' }
+    { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256', jwtid: crypto.randomUUID() }
   );
 
   res.cookie('access_token', token, {
@@ -396,6 +397,12 @@ const session = asyncHandler(async (req, res) => {
 
 const logout = asyncHandler(async (req, res) => {
   if (req.user && req.user.sub) invalidateUserCache(req.user.sub);
+  try {
+    await endActivity(req);
+  } catch (error) {
+    // A database outage must not prevent clearing the browser's session cookie.
+    console.error('Could not close employee activity session', error.code || 'unavailable');
+  }
   res.clearCookie('access_token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

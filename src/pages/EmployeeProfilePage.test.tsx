@@ -27,7 +27,7 @@ const employee = {
 }
 
 const history = [
-  { id: "00001-DEV-2026-01-01", effectiveDate: "2026-01-01", jobTitle: "Senior Developer", department: "Information Technology", salary: 65000, canViewSalary: true, stamp: "UPDATE admin" },
+  { id: "00001-DEV-2026-01-01", effectiveDate: "2026-01-01", jobTitle: "Senior Developer", department: "Engineering", salary: 65000, canViewSalary: true, stamp: "UPDATE admin" },
   { id: "00001-DEV-2022-01-01", effectiveDate: "2022-01-01", jobTitle: "Developer", department: "Information Technology", salary: 55000, canViewSalary: true, stamp: "ADD admin" },
 ]
 
@@ -60,9 +60,17 @@ test("loads employee details, history, audit data, and salary values for adminis
   expect(screen.getByRole("list", { name: "Job history timeline" })).toBeInTheDocument()
   expect(screen.getByText("Current")).toBeInTheDocument()
   expect(screen.getByText("Senior Developer")).toBeInTheDocument()
+  expect(screen.getByText("Promotion")).toBeInTheDocument()
+  expect(screen.getByText("Transfer")).toBeInTheDocument()
   expect(screen.getByText("$65,000")).toBeInTheDocument()
   expect(screen.getByText("UPDATE admin")).toBeInTheDocument()
   expect(employeeApi.get).toHaveBeenCalledWith("00001", expect.any(AbortSignal))
+})
+
+test("shows skeleton loader while fetching profile", () => {
+  vi.mocked(employeeApi.get).mockReturnValue(new Promise(() => {}))
+  renderPage()
+  expect(screen.getByRole("status", { name: "Loading career timeline" })).toBeInTheDocument()
 })
 
 test("keeps salary redacted inside the timeline when the API withholds it", async () => {
@@ -95,4 +103,3 @@ test("shows an empty-history state and retries a failed profile request", async 
   expect(await screen.findByText("No job history recorded.")).toBeInTheDocument()
   expect(employeeApi.get).toHaveBeenCalledTimes(2)
 })
-

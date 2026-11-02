@@ -16,7 +16,7 @@ const PERMISSIONS = {
     Inventory: new Set(['view', 'edit', 'delete']),
     HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
     Sales: new Set(['view', 'edit', 'delete']),
-    Reports: new Set(['view']),
+    Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales']),
     Users: new Set(['view', 'edit', 'delete'])
   },
   administrator: {
@@ -24,7 +24,7 @@ const PERMISSIONS = {
     Inventory: new Set(['view', 'edit', 'delete']),
     HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
     Sales: new Set(['view', 'edit', 'delete']),
-    Reports: new Set(['view']),
+    Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales']),
     Users: new Set(['view', 'edit', 'delete'])
   },
   admin: {
@@ -32,7 +32,7 @@ const PERMISSIONS = {
     Inventory: new Set(['view', 'edit', 'delete']),
     HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
     Sales: new Set(['view', 'edit', 'delete']),
-    Reports: new Set(['view']),
+    Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales']),
     Users: new Set(['view', 'edit'])
   },
   user: {
@@ -40,14 +40,14 @@ const PERMISSIONS = {
     Inventory: new Set(['view']),
     HR: new Set(['view', 'view_job_history', 'View Job History']),
     Sales: new Set(['view']),
-    Reports: new Set(['view'])
+    Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales'])
   },
   employee: {
     CRM: new Set(['view']),
     Inventory: new Set(['view']),
     HR: new Set(['view', 'view_job_history', 'View Job History']),
     Sales: new Set(['view']),
-    Reports: new Set(['view'])
+    Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales'])
   }
 };
 
@@ -111,7 +111,14 @@ const EMPLOYEE_RIGHT_RULES = {
       'reports.all-employees',
       'reports.job-history',
       'reports.top-sales'
-    ]
+    ],
+    'top-customers': ['reports.top-customers'],
+    'product-master': ['reports.product-master'],
+    'top-products': ['reports.top-products'],
+    'active-employees': ['reports.active-employees'],
+    'all-employees': ['reports.all-employees'],
+    'job-history': ['reports.job-history'],
+    'top-sales': ['reports.top-sales']
   }
 };
 

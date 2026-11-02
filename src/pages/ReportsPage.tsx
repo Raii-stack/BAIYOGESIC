@@ -1,16 +1,18 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
 import ReportTable, { type ReportName } from "../components/reports/ReportTable"
 import DashboardLayout from "../layouts/DashboardLayout"
+import { safeErrorMessage } from "../lib/api-errors"
 import { getAllowedReports } from "../lib/rbac"
+import { reportsApi, type ReportEmployee, type ReportRow } from "../lib/reports-api"
 
 const reports: ReportName[] = [
   "Top Customers", "Product Master List", "Top Products", "Active Employees",
   "All Employees", "Employee Job History", "Top Sales",
 ]
-const topReports: ReportName[] = ["Top Customers", "Top Products", "Top Sales"]
+const topReports = new Set<ReportName>(["Top Customers", "Top Products", "Top Sales"])
 
 export default function ReportsPage() {
   const { user } = useAuth()
@@ -21,9 +23,50 @@ export default function ReportsPage() {
     || allowedReports.find((report) => reportQuery && report.toLowerCase().includes(reportQuery))
     || allowedReports[0]
   const [topN, setTopN] = useState(10)
-  const isTopReport = activeReport && topReports.includes(activeReport)
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
+  const [employee, setEmployee] = useState("")
+  const [employees, setEmployees] = useState<ReportEmployee[]>([])
+  const [rows, setRows] = useState<ReportRow[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [retry, setRetry] = useState(0)
+  const isTopReport = Boolean(activeReport && topReports.has(activeReport))
+
+  useEffect(() => {
+    if (!activeReport) return
+    const controller = new AbortController()
+    setLoading(true)
+    setError("")
+
+    reportsApi.get(activeReport, {
+      startDate: isTopReport ? startDate : undefined,
+      endDate: isTopReport ? endDate : undefined,
+      limit: isTopReport ? topN : undefined,
+      empno: activeReport === "Employee Job History" ? employee : undefined,
+    }, controller.signal).then((result) => {
+      setRows(result.rows)
+      if (activeReport === "Employee Job History") {
+        const options = result.employees || []
+        setEmployees(options)
+        if (!employee && options.length > 0) setEmployee(options[0].empno)
+      } else {
+        setEmployees([])
+      }
+    }).catch((requestError: unknown) => {
+      if (!controller.signal.aborted) {
+        setRows([])
+        setError(safeErrorMessage(requestError))
+      }
+    }).finally(() => {
+      if (!controller.signal.aborted) setLoading(false)
+    })
+
+    return () => controller.abort()
+  }, [activeReport, employee, endDate, isTopReport, retry, startDate, topN])
 
   const selectReport = (report: string) => {
+    setRows([])
     setSearchParams((current) => {
       const next = new URLSearchParams(current)
       next.set("view", "reports")
@@ -42,7 +85,7 @@ export default function ReportsPage() {
               <h1 className="workspace-page-title">Reports</h1>
               <p className="workspace-page-description">Review customer, product, employee, and sales reports.</p>
             </div>
-            {activeReport && <button type="button" onClick={() => window.print()} className="workspace-secondary-action workspace-report-controls">Print / save PDF</button>}
+            {activeReport ? <button type="button" onClick={() => window.print()} className="workspace-secondary-action workspace-report-controls">Print / save PDF</button> : null}
           </header>
           {!activeReport ? (
             <div className="workspace-panel workspace-empty-state">
@@ -71,20 +114,23 @@ export default function ReportsPage() {
                 ))}
               </div>
               <div role="tabpanel" id="active-report-panel" aria-labelledby={`report-tab-${allowedReports.indexOf(activeReport)}`}>
-                {isTopReport && (
-                  <label className="mb-4 flex items-center gap-3 text-[13px] text-neutral-600 workspace-report-controls">
-                    <span>Number of results</span>
-                    <span className="block w-20">
-                    <input type="number" min="1" max="100" step="1" value={topN}
-                      onChange={(event) => setTopN(Math.min(100, Math.max(1, Math.trunc(Number(event.target.value)) || 1)))}
-                      className="workspace-control" />
-                    </span>
+                {isTopReport ? (
+                  <div className="mb-4 grid gap-3 sm:grid-cols-3 workspace-report-controls">
+                    <label className="text-[13px] text-neutral-600"><span className="mb-1 block">From</span><input aria-label="From" type="date" value={startDate} max={endDate || undefined} onChange={(event) => setStartDate(event.target.value)} className="workspace-control" /></label>
+                    <label className="text-[13px] text-neutral-600"><span className="mb-1 block">To</span><input aria-label="To" type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className="workspace-control" /></label>
+                    <label className="text-[13px] text-neutral-600"><span className="mb-1 block">Number of results</span><input aria-label="Number of results" type="number" min="1" max="100" step="1" value={topN} onChange={(event) => setTopN(Math.min(100, Math.max(1, Math.trunc(Number(event.target.value)) || 1)))} className="workspace-control" /></label>
+                  </div>
+                ) : null}
+                {activeReport === "Employee Job History" ? (
+                  <label className="mb-4 block max-w-sm text-[13px] text-neutral-600 workspace-report-controls">
+                    <span className="mb-1 block">Employee</span>
+                    <select aria-label="Employee" value={employee} onChange={(event) => setEmployee(event.target.value)} className="workspace-control" disabled={loading && employees.length === 0}>
+                      {employees.length === 0 ? <option value="">No active employees</option> : null}
+                      {employees.map((option) => <option key={option.empno} value={option.empno}>{option.empno} — {option.fullname}</option>)}
+                    </select>
                   </label>
-                )}
-              <div className="workspace-notice mb-4 workspace-report-notice">
-                <p>Sample report data. Live reporting is not connected yet. To save a PDF, choose “Save as PDF” in the print dialog.</p>
-              </div>
-              <ReportTable report={activeReport} limit={isTopReport ? topN : undefined} />
+                ) : null}
+                <ReportTable report={activeReport} rows={rows} loading={loading} error={error} onRetry={() => setRetry((current) => current + 1)} />
               </div>
             </>
           )}

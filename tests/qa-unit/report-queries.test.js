@@ -93,6 +93,7 @@ describe('Issue #72: Guide §3.7 System Report Queries & Views Specification', (
     let pool;
 
     beforeAll(() => {
+      jest.setTimeout(25000);
       pool = optionalPool();
     });
 

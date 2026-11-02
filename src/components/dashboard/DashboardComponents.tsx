@@ -148,6 +148,7 @@ export const navigationItems: NavigationItem[] = [
   { label: "Products", icon: "inventory", href: "/inventory?view=products&page=1" },
   { label: "Customers", icon: "crm", href: "/customers?view=directory&page=1" },
   { label: "Employees", icon: "hr", href: "/employees?view=employees&page=1" },
+  { label: "Departments", icon: "briefcase", href: "/departments?page=1" },
   { label: "Reports", icon: "reports", href: "/reports?view=reports" },
   { label: "Users", icon: "userManagement", href: "/users?view=accounts&page=1" },
 ]

@@ -88,7 +88,8 @@ async function createBackupSnapshot(db = null, options = {}) {
 
   for (const table of tableList) {
     try {
-      const result = await activeDb.query(`SELECT * FROM public.${table}`);
+      const selectSql = `SELECT * FROM public.${table}`;
+      const result = await activeDb.query(selectSql);
       tables[table] = result.rows;
       rowCounts[table] = result.rows.length;
     } catch (err) {
@@ -299,9 +300,8 @@ async function restoreAndValidateDrill(pool = null, snapshotInput = null) {
     await client.query('BEGIN');
 
     for (const table of tablesToDrill) {
-      await client.query(
-        `CREATE TEMP TABLE dr_${table} (LIKE public.${table} INCLUDING ALL) ON COMMIT DROP`
-      );
+      const createTempSql = `CREATE TEMP TABLE dr_${table} (LIKE public.${table} INCLUDING ALL) ON COMMIT DROP`;
+      await client.query(createTempSql);
       if (isPitr && snapshot.tables[table] && snapshot.tables[table].length > 0) {
         const rows = snapshot.tables[table];
         const keys = Object.keys(rows[0]);
@@ -329,13 +329,12 @@ async function restoreAndValidateDrill(pool = null, snapshotInput = null) {
             valueClauses.push(`(${rowParams.join(', ')})`);
           }
 
-          await client.query(
-            `INSERT INTO dr_${table} (${cols}) VALUES ${valueClauses.join(', ')}`,
-            values
-          );
+          const insertChunkSql = `INSERT INTO dr_${table} (${cols}) VALUES ${valueClauses.join(', ')}`;
+          await client.query(insertChunkSql, values);
         }
       } else {
-        await client.query(`INSERT INTO dr_${table} SELECT * FROM public.${table}`);
+        const insertDrSql = `INSERT INTO dr_${table} SELECT * FROM public.${table}`;
+        await client.query(insertDrSql);
       }
     }
 
@@ -353,7 +352,8 @@ async function restoreAndValidateDrill(pool = null, snapshotInput = null) {
 
     const restoredCounts = {};
     for (const table of tablesToDrill) {
-      const countRes = await client.query(`SELECT count(*)::integer AS total FROM dr_${table}`);
+      const countSql = `SELECT count(*)::integer AS total FROM dr_${table}`;
+      const countRes = await client.query(countSql);
       restoredCounts[table] = countRes.rows[0]?.total ?? snapshot.tables[table].length;
       if (restoredCounts[table] !== snapshot.tables[table].length) {
         throw new Error(

@@ -41,10 +41,9 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
       setIsSuccess(false)
       setServerError("")
       setErrors({})
-      const timer = window.setTimeout(() => {
+      if (!dialogRef.current?.contains(document.activeElement)) {
         document.getElementById("register-first-name")?.focus()
-      }, 50)
-      return () => window.clearTimeout(timer)
+      }
     }
   }, [open])
 

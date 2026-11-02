@@ -2,6 +2,7 @@ import type { Customer, PaymentTerm } from "../types/customer"
 import type { Employee } from "../types/employee"
 import type {
   PaymentStatus,
+  PaymentMethod,
   SaleCatalogProduct,
   SaleLine,
   SalePayment,
@@ -37,6 +38,8 @@ type ApiSalePaymentRow = {
   date?: string
   payment_date?: string
   amount?: number | string
+  payment_method?: PaymentMethod
+  paymentMethod?: PaymentMethod
   is_deleted?: boolean
   status?: "Active" | "Inactive"
   stamp?: string
@@ -94,6 +97,7 @@ export type CreateSaleInput = {
 export type RecordPaymentInput = {
   amount: number
   paydate: string
+  payment_method: PaymentMethod
   orno?: string
 }
 
@@ -161,6 +165,7 @@ export function toSaleTransaction(row: ApiSaleRow): SaleTransaction {
       orNo,
       date: payment.date || payment.paydate || payment.payment_date || "",
       amount: roundCurrency(Number(payment.amount ?? 0)),
+      paymentMethod: payment.paymentMethod || payment.payment_method || "Cash",
       stamp: payment.stamp || "",
     }
   })

@@ -37,19 +37,54 @@ test("empty sales searches and archived views show the appropriate actions", asy
   expect(table.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
 })
 
-test("recording a preview payment updates the balance without render warnings", async () => {
+test("records the selected payment method through the API before updating the balance", async () => {
   const user = userEvent.setup()
   const errors = vi.spyOn(console, "error").mockImplementation(() => {})
-  renderSales("page=1&search=T-001")
+  const sale = (payments: object[]) => ({
+    transno: "T-001",
+    salesdate: "2026-10-01",
+    custno: "C-001",
+    custname: "Acme Corporation",
+    empno: "E-002",
+    empname: "Juan Reyes",
+    is_deleted: false,
+    lines: [
+      { id: "SD-001", prodcode: "P-001", description: "Industrial Widget A", quantity: 10, unitprice: 13.75, is_deleted: false },
+      { id: "SD-002", prodcode: "P-002", description: "Service Component B", quantity: 5, unitprice: 19.4, is_deleted: false },
+    ],
+    payments,
+  })
+  const existingPayments = [
+    { orno: "OR-10001", paydate: "2026-10-01", amount: 150, payment_method: "Cash" },
+    { orno: "OR-10008", paydate: "2026-10-03", amount: 50, payment_method: "Check" },
+  ]
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return new Response(JSON.stringify({ success: true, data: { user: {
+      userId: "1", email: "preview@hope.inc", role: "superadmin", status: "active", mustChangePassword: false,
+    } } }), { headers: { "Content-Type": "application/json" } })
+    if (url.pathname === "/api/sales" && init?.method === "GET") return new Response(JSON.stringify({ success: true, data: { sales: [sale(existingPayments)], pagination: { page: 1, limit: 200, total: 1, totalPages: 1 } } }), { headers: { "Content-Type": "application/json" } })
+    if (url.pathname === "/api/sales/T-001/payments" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body))
+      expect(body).toEqual(expect.objectContaining({ amount: 10, payment_method: "Bank Transfer" }))
+      return new Response(JSON.stringify({ success: true, data: { sale: sale([...existingPayments, { orno: "OR-10009", paydate: body.paydate, amount: body.amount, payment_method: body.payment_method }]) } }), { status: 201, headers: { "Content-Type": "application/json" } })
+    }
+    throw new Error(`Unexpected request ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  render(<MemoryRouter initialEntries={["/sales?view=transactions&page=1&search=T-001"]}><AuthProvider><SalesManagementPage /></AuthProvider></MemoryRouter>)
   await user.click(await screen.findByRole("button", { name: "Details", exact: true }))
   const details = within(screen.getByRole("dialog", { name: /Sale Details/ }))
   await user.click(details.getByRole("button", { name: "Record Payment", exact: true }))
   const payment = within(screen.getByRole("dialog", { name: "Record Payment", exact: true }))
   await user.clear(payment.getByRole("spinbutton"))
   await user.type(payment.getByRole("spinbutton"), "10")
+  await user.selectOptions(payment.getByRole("combobox", { name: "Payment method" }), "Bank Transfer")
   await user.click(payment.getByRole("button", { name: "Save Payment", exact: true }))
   expect(await details.findByText("$24.50", { exact: true })).toBeInTheDocument()
+  expect(details.getByText("Bank Transfer")).toBeInTheDocument()
   expect(screen.queryByRole("dialog", { name: "Record Payment", exact: true })).not.toBeInTheDocument()
+  expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith("/api/sales/T-001/payments") && init?.method === "POST")).toBe(true)
   expect(errors).not.toHaveBeenCalled()
 })
 

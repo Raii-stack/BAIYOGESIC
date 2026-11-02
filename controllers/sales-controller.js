@@ -11,6 +11,7 @@ const { asyncHandler } = require('../middleware/error-handler');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 200;
+const PAYMENT_METHODS = ['Cash', 'Bank Transfer', 'Check', 'Card', 'E-wallet'];
 
 function requestError(message, statusCode, details) {
   const error = new Error(message);
@@ -22,6 +23,17 @@ function requestError(message, statusCode, details) {
 function positiveInteger(value, fallback, maximum) {
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, maximum) : fallback;
+}
+
+function normalizePaymentMethod(value) {
+  const requested = String(value ?? 'Cash').trim();
+  const method = PAYMENT_METHODS.find((option) => option.toLowerCase() === requested.toLowerCase());
+  if (!method) {
+    throw requestError('Payment method is invalid', 400, {
+      payment_method: `Payment method must be one of: ${PAYMENT_METHODS.join(', ')}`
+    });
+  }
+  return method;
 }
 
 async function withAuditContext(username, callback) {
@@ -79,6 +91,8 @@ function formatSaleEntity(header, lineRows = [], paymentRows = [], taxRate = 0) 
       date: dateStr,
       payment_date: dateStr,
       amount,
+      payment_method: row.payment_method || 'Cash',
+      paymentMethod: row.payment_method || 'Cash',
       transno: row.transno,
       is_deleted: isDeleted,
       status: isDeleted ? 'Inactive' : 'Active',
@@ -154,7 +168,7 @@ async function hydrateSales(executor, headers, taxRate = 0) {
       [transnos]
     ),
     executor.query(
-      `SELECT orno, paydate::text AS paydate, amount, transno, is_deleted, stamp
+      `SELECT orno, paydate::text AS paydate, amount, payment_method, transno, is_deleted, stamp
        FROM public.payment
        WHERE transno = ANY($1::varchar[])
          AND is_deleted = false
@@ -576,6 +590,7 @@ const recordPayment = asyncHandler(async (req, res) => {
     });
   }
   const roundedAmount = roundCurrency(amount);
+  const paymentMethod = normalizePaymentMethod(req.body?.payment_method ?? req.body?.paymentMethod ?? req.body?.method);
 
   const rawPaydate = String(
     req.body?.paydate ?? req.body?.payment_date ?? req.body?.date ?? new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })
@@ -607,10 +622,10 @@ const recordPayment = asyncHandler(async (req, res) => {
       : await nextOfficialReceiptNo(client);
 
     const insertedPayment = await client.query(
-      `INSERT INTO public.payment (orno, paydate, amount, transno, is_deleted)
-       VALUES ($1, $2::date, $3, $4, false)
-       RETURNING orno, paydate::text AS paydate, amount, transno, is_deleted, stamp`,
-      [orno, rawPaydate, roundedAmount, transno]
+      `INSERT INTO public.payment (orno, paydate, amount, payment_method, transno, is_deleted)
+       VALUES ($1, $2::date, $3, $4, $5, false)
+       RETURNING orno, paydate::text AS paydate, amount, payment_method, transno, is_deleted, stamp`,
+      [orno, rawPaydate, roundedAmount, paymentMethod, transno]
     );
 
     const updatedSale = await fetchSingleSale(client, transno);
@@ -626,6 +641,8 @@ const recordPayment = asyncHandler(async (req, res) => {
         date: dateStr,
         payment_date: dateStr,
         amount: roundCurrency(Number(paymentRow.amount)),
+        payment_method: paymentRow.payment_method,
+        paymentMethod: paymentRow.payment_method,
         transno: paymentRow.transno,
         is_deleted: Boolean(paymentRow.is_deleted),
         status: paymentRow.is_deleted ? 'Inactive' : 'Active',
@@ -658,6 +675,7 @@ const updatePayment = asyncHandler(async (req, res) => {
     });
   }
   const roundedAmount = roundCurrency(amount);
+  const paymentMethod = normalizePaymentMethod(req.body?.payment_method ?? req.body?.paymentMethod ?? req.body?.method);
 
   const rawPaydate = String(
     req.body?.paydate ?? req.body?.payment_date ?? req.body?.date ?? new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' })
@@ -686,10 +704,10 @@ const updatePayment = asyncHandler(async (req, res) => {
 
     const updatedPayment = await client.query(
       `UPDATE public.payment
-       SET paydate = $1::date, amount = $2
-       WHERE orno = $3 AND transno = $4 AND is_deleted = false
-       RETURNING orno, paydate::text AS paydate, amount, transno, is_deleted, stamp`,
-      [rawPaydate, roundedAmount, orno, transno]
+       SET paydate = $1::date, amount = $2, payment_method = $3
+       WHERE orno = $4 AND transno = $5 AND is_deleted = false
+       RETURNING orno, paydate::text AS paydate, amount, payment_method, transno, is_deleted, stamp`,
+      [rawPaydate, roundedAmount, paymentMethod, orno, transno]
     );
     if (!updatedPayment.rows.length) {
       throw requestError('Payment record not found', 404);
@@ -708,6 +726,8 @@ const updatePayment = asyncHandler(async (req, res) => {
         date: dateStr,
         payment_date: dateStr,
         amount: roundCurrency(Number(paymentRow.amount)),
+        payment_method: paymentRow.payment_method,
+        paymentMethod: paymentRow.payment_method,
         transno: paymentRow.transno,
         is_deleted: Boolean(paymentRow.is_deleted),
         status: paymentRow.is_deleted ? 'Inactive' : 'Active',

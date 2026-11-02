@@ -1,5 +1,14 @@
 const fs = require('fs');
 const path = require('path');
+
+jest.mock('../../db', () => ({
+  requirePool: jest.fn(),
+  pool: {},
+  supabase: {
+    from: () => ({ select: () => ({ limit: () => Promise.resolve({ error: null }) }) })
+  }
+}));
+
 const { MIGRATION_REGEX, verifyMigrations } = require('../../scripts/verify-migrations');
 const {
   ORDERED_TABLES,

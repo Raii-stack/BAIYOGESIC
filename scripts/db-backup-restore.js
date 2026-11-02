@@ -16,7 +16,11 @@ require('dotenv').config({ quiet: true });
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
-const { requirePool } = require('../db');
+
+function getPool() {
+  const { requirePool } = require('../db');
+  return requirePool();
+}
 
 // Core 10 ERP relational tables maintained for backward-compatibility with S3 suites
 const ORDERED_TABLES = [
@@ -76,14 +80,15 @@ function computeChecksum(tablesPayload) {
   return crypto.createHash('sha256').update(canonical, 'utf8').digest('hex');
 }
 
-async function createBackupSnapshot(db = requirePool(), options = {}) {
+async function createBackupSnapshot(db = null, options = {}) {
+  const activeDb = db || getPool();
   const tableList = options.full ? FULL_ERP_TABLES : ORDERED_TABLES;
   const tables = {};
   const rowCounts = {};
 
   for (const table of tableList) {
     try {
-      const result = await db.query(`SELECT * FROM public.${table}`);
+      const result = await activeDb.query(`SELECT * FROM public.${table}`);
       tables[table] = result.rows;
       rowCounts[table] = result.rows.length;
     } catch (err) {
@@ -172,8 +177,9 @@ function verifyBackupManifest(snapshot, options = {}) {
   };
 }
 
-async function verifyDatabaseState(db = requirePool()) {
-  const indexRes = await db.query(
+async function verifyDatabaseState(db = null) {
+  const activeDb = db || getPool();
+  const indexRes = await activeDb.query(
     `SELECT tablename, indexname, indexdef
      FROM pg_indexes
      WHERE schemaname = 'public'
@@ -281,11 +287,12 @@ function filterSnapshotToPointInTime(snapshot, targetTime) {
   };
 }
 
-async function restoreAndValidateDrill(pool = requirePool(), snapshotInput = null) {
+async function restoreAndValidateDrill(pool = null, snapshotInput = null) {
+  const activePool = pool || getPool();
   const isPitr = Boolean(snapshotInput && snapshotInput.metadata?.pitrTargetTime);
-  const snapshot = snapshotInput || (await createBackupSnapshot(pool));
+  const snapshot = snapshotInput || (await createBackupSnapshot(activePool));
   const manifestCheck = verifyBackupManifest(snapshot);
-  const client = await pool.connect();
+  const client = await activePool.connect();
   const tablesToDrill = snapshot.metadata?.orderedTables || ORDERED_TABLES;
 
   try {

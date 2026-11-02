@@ -52,6 +52,9 @@ jobs:
 
       - name: Run QA Unit Test Suites (Jest)
         run: npm run test:unit
+        env:
+          SUPABASE_URL: 'https://mock.supabase.co'
+          SUPABASE_KEY: 'mock-supabase-key-for-ci'
 
       - name: Build Application
         run: npm run build

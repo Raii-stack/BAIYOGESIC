@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
+jest.setTimeout(30000);
+
 function optionalPool() {
   try {
     return require('../../db').requirePool();

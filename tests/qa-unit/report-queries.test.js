@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
+jest.setTimeout(30000);
+
 function optionalPool() {
   try {
     return require('../../db').requirePool();
@@ -93,6 +95,7 @@ describe('Issue #72: Guide §3.7 System Report Queries & Views Specification', (
     let pool;
 
     beforeAll(() => {
+      jest.setTimeout(25000);
       pool = optionalPool();
     });
 

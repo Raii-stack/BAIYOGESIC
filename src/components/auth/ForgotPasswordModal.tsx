@@ -28,10 +28,9 @@ export default function ForgotPasswordModal({ open, onClose, onSuccess }: Forgot
       setServerError("")
       setIsSuccess(false)
       setResetToken(null)
-      const timer = window.setTimeout(() => {
+      if (!dialogRef.current?.contains(document.activeElement)) {
         document.getElementById("forgot-email")?.focus()
-      }, 50)
-      return () => window.clearTimeout(timer)
+      }
     }
   }, [open])
 

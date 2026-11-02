@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { supabase, requirePool } = require('../db');
@@ -75,34 +76,206 @@ function formatAuthUser(user) {
 }
 
 const register = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email } = req.body || {};
+  const { firstName, lastName, email, password } = req.body || {};
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const trimmedFirst = String(firstName || '').trim();
+  const trimmedLast = String(lastName || '').trim();
 
-  if (!String(firstName || '').trim() || !String(lastName || '').trim() || !EMAIL_PATTERN.test(normalizedEmail)) {
+  if (!trimmedFirst || !trimmedLast || !EMAIL_PATTERN.test(normalizedEmail)) {
     throw requestError('firstName, lastName, and email are required', 400);
   }
 
-  const { data: user, error } = await supabase
-    .from('app_user')
-    .select('user_id, email, status, role')
-    .eq('email', normalizedEmail)
-    .maybeSingle();
+  const rawPassword = typeof password === 'string' ? password : '';
+  if (rawPassword && rawPassword.length < 8) {
+    throw requestError('password must be at least 8 characters', 400);
+  }
 
-  if (error) {
-    const databaseError = new Error(
-      error.code === '42501'
-        ? 'Server authentication credentials are not authorized to read app_user'
-        : 'Authentication service unavailable'
+  const pool = requirePool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const emailCheck = await client.query(
+      'SELECT user_id FROM public.app_user WHERE lower(email) = $1 LIMIT 1',
+      [normalizedEmail]
     );
-    databaseError.statusCode = 503;
-    throw databaseError;
+    if (emailCheck.rows[0]) {
+      throw requestError('A user with that email already exists', 409);
+    }
+
+    const passwordHash = rawPassword ? await bcrypt.hash(rawPassword, 12) : null;
+    const role = 'employee';
+    const status = 'active';
+
+    let targetEmpno = null;
+    try {
+      const nextNo = await client.query(
+        "SELECT lpad((COALESCE(MAX(empno::integer), 0) + 1)::text, 5, '0') AS empno FROM public.employee WHERE empno ~ '^[0-9]{1,5}$'"
+      );
+      targetEmpno = nextNo.rows[0]?.empno || '00001';
+
+      await client.query(
+        "INSERT INTO public.employee (empno, firstname, lastname, email, hiredate, is_deleted, stamp) VALUES ($1, $2, $3, $4, CURRENT_DATE, false, 'ADD self-register ' || to_char(now(), 'YYYY-MM-DD HH12:MI AM'))",
+        [targetEmpno, trimmedFirst, trimmedLast, normalizedEmail]
+      );
+    } catch {
+      // Ignore if employee table setup is standalone
+    }
+
+    const insertResult = await client.query(
+      'INSERT INTO public.app_user (empno, email, password_hash, status, role, is_blocked, must_change_password, stamp) VALUES ($1, $2, $3, $4, $5, false, false, \'ADD self-register \' || to_char(now(), \'YYYY-MM-DD HH12:MI AM\')) RETURNING user_id, empno, email, role, status, is_blocked AS "isBlocked", must_change_password AS "mustChangePassword"',
+      [targetEmpno, normalizedEmail, passwordHash, status, role]
+    );
+    const user = insertResult.rows[0];
+
+    const defaultRights = ['customers.access', 'products.access', 'hr.access', 'sales.access'];
+    try {
+      for (const right of defaultRights) {
+        await client.query(
+          'INSERT INTO public.app_user_right (user_id, right_code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [user.user_id, right]
+        );
+      }
+    } catch {}
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      success: true,
+      data: {
+        message: 'Account created successfully',
+        user: {
+          userId: user.user_id,
+          empno: user.empno,
+          firstName: trimmedFirst,
+          lastName: trimmedLast,
+          name: `${trimmedFirst} ${trimmedLast}`.trim(),
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          isBlocked: false,
+          mustChangePassword: false,
+          rights: defaultRights
+        }
+      }
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+});
+
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body || {};
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+  if (!EMAIL_PATTERN.test(normalizedEmail)) {
+    throw requestError('A valid email is required', 400);
   }
 
-  if (user) {
-    throw requestError('A user with that email already exists', 409);
+  const pool = requirePool();
+  let user = null;
+  try {
+    const result = await pool.query(
+      'SELECT user_id, email, status, is_blocked FROM public.app_user WHERE lower(email) = $1 LIMIT 1',
+      [normalizedEmail]
+    );
+    user = result.rows[0] || null;
+  } catch {
+    throw requestError('Authentication service unavailable', 503);
   }
 
-  res.status(201).json({ success: true, data: { user } });
+  if (!user || user.status !== 'active' || user.is_blocked) {
+    return res.json({
+      success: true,
+      data: { message: 'If an active account exists with that email, a password reset link has been sent.' }
+    });
+  }
+
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+  try {
+    await pool.query(
+      'INSERT INTO public.password_reset_token (token_hash, user_id, expires_at, used) VALUES ($1, $2, $3, false)',
+      [tokenHash, user.user_id, expiresAt]
+    );
+  } catch {
+    try {
+      await pool.query(
+        'INSERT INTO public.password_reset_token (token_hash, user_id, expires_at, used) VALUES ($1, $2, $3, false)',
+        [rawToken, user.user_id, expiresAt]
+      );
+    } catch {}
+  }
+
+  res.json({
+    success: true,
+    data: {
+      message: 'Password reset link generated successfully.',
+      token: rawToken
+    }
+  });
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password, newPassword } = req.body || {};
+  const rawToken = String(token || '').trim();
+  const requestedPassword = typeof newPassword === 'string' ? newPassword : (typeof password === 'string' ? password : '');
+
+  if (!rawToken) {
+    throw requestError('Reset token is required', 400);
+  }
+
+  if (requestedPassword.length < 8) {
+    throw requestError('Password must be at least 8 characters', 400);
+  }
+
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const pool = requirePool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const tokenResult = await client.query(
+      'SELECT token_hash, user_id, expires_at, used FROM public.password_reset_token WHERE (token_hash = $1 OR token_hash = $2) AND used = false AND expires_at > now() FOR UPDATE LIMIT 1',
+      [tokenHash, rawToken]
+    );
+
+    const resetRecord = tokenResult.rows[0];
+    if (!resetRecord) {
+      throw requestError('Invalid or expired reset token', 400);
+    }
+
+    const passwordHash = await bcrypt.hash(requestedPassword, 12);
+
+    await client.query(
+      'UPDATE public.app_user SET password_hash = $2, must_change_password = false, updated_at = now() WHERE user_id = $1',
+      [resetRecord.user_id, passwordHash]
+    );
+
+    await client.query(
+      'UPDATE public.password_reset_token SET used = true WHERE token_hash = $1',
+      [resetRecord.token_hash]
+    );
+
+    await client.query('COMMIT');
+    invalidateUserCache(resetRecord.user_id);
+
+    res.json({
+      success: true,
+      data: { message: 'Password has been reset successfully. You can now log in.' }
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 });
 
 const setPassword = asyncHandler(async (req, res) => {
@@ -251,7 +424,7 @@ const changePassword = asyncHandler(async (req, res) => {
   let user = null;
   try {
     const result = await requirePool().query(
-      `SELECT password_hash, is_blocked FROM public.app_user WHERE user_id = $1::uuid AND status = 'active' LIMIT 1`,
+      'SELECT password_hash, is_blocked FROM public.app_user WHERE user_id = $1::uuid AND status = \'active\' LIMIT 1',
       [req.user.sub]
     );
     user = result.rows[0] || null;
@@ -274,11 +447,7 @@ const changePassword = asyncHandler(async (req, res) => {
   const passwordHash = await bcrypt.hash(newPassword, 12);
   try {
     await requirePool().query(
-      `UPDATE public.app_user
-       SET password_hash = $2,
-           must_change_password = false,
-           updated_at = now()
-       WHERE user_id = $1::uuid`,
+      'UPDATE public.app_user SET password_hash = $2, must_change_password = false, updated_at = now() WHERE user_id = $1::uuid',
       [req.user.sub, passwordHash]
     );
   } catch {
@@ -295,5 +464,7 @@ module.exports = {
   login,
   session,
   logout,
-  changePassword
+  changePassword,
+  forgotPassword,
+  resetPassword
 };

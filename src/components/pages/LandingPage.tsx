@@ -1,8 +1,9 @@
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { Link, Navigate } from "react-router"
 
 import { Logo } from "../auth/AuthComponents"
 import { useAuth } from "../auth/AuthProvider"
+import RegisterModal from "../auth/RegisterModal"
 import "./LandingPage.css"
 
 const modules = [
@@ -13,6 +14,7 @@ const modules = [
 
 export default function LandingPage() {
   const { user, loading } = useAuth()
+  const [registerOpen, setRegisterOpen] = useState(false)
 
   useEffect(() => { document.title = "HOPE, Inc. | ERP Workspace" }, [])
 
@@ -30,12 +32,19 @@ export default function LandingPage() {
             <nav aria-label="Main navigation" className="hope-navigation">
               <a href="#workspace" className="hope-nav-detail">The workspace</a>
               <a href="#access" className="hope-nav-detail">Team access</a>
+              <button
+                type="button"
+                onClick={() => setRegisterOpen(true)}
+                className="hope-button hope-button-outline hope-header-register"
+              >
+                Register
+              </button>
               <Link to="/login" className="hope-button hope-button-light hope-header-signin">Sign in<span aria-hidden="true">↗</span></Link>
             </nav>
           </header>
 
           <div className="hope-hero-content hope-container">
-            <p className="hope-eyebrow">HOPE enterprise resource planning</p>
+            <p className="hope-eyebrow">Run your entire business with confidence</p>
             <h1 id="landing-heading">
               <span>Your business,</span>{" "}
               <span>connected in one</span>{" "}
@@ -44,6 +53,13 @@ export default function LandingPage() {
             <p className="hope-hero-description">Bring your people, products, and everyday operations together. One place to keep work moving.</p>
             <div className="hope-hero-actions">
               <Link to="/login" className="hope-button hope-button-light">Sign in to your workspace<span aria-hidden="true">↗</span></Link>
+              <button
+                type="button"
+                onClick={() => setRegisterOpen(true)}
+                className="hope-button hope-button-outline"
+              >
+                Register for an account<span aria-hidden="true">→</span>
+              </button>
               <a href="#workspace" className="hope-button hope-button-outline">Explore the workspace<span aria-hidden="true">↓</span></a>
             </div>
           </div>
@@ -73,7 +89,20 @@ export default function LandingPage() {
         <section id="access" aria-labelledby="access-heading" className="hope-access">
           <div className="hope-container hope-access-content">
             <div><p className="hope-eyebrow">Your next step</p><h2 id="access-heading">A place for<br />your team to work.</h2></div>
-            <div className="hope-access-action"><p>Already part of HOPE? Your workspace is ready when you are.</p><Link to="/login" className="hope-button hope-button-dark">Open your workspace<span aria-hidden="true">↗</span></Link><p className="hope-access-note">Need access? Contact your administrator.</p></div>
+            <div className="hope-access-action">
+              <p>Already part of HOPE? Your workspace is ready when you are.</p>
+              <div className="flex flex-wrap gap-2.5">
+                <Link to="/login" className="hope-button hope-button-dark">Open your workspace<span aria-hidden="true">↗</span></Link>
+                <button
+                  type="button"
+                  onClick={() => setRegisterOpen(true)}
+                  className="hope-button hope-button-outline"
+                >
+                  Register
+                </button>
+              </div>
+              <p className="hope-access-note">Need elevated access? Contact your administrator.</p>
+            </div>
           </div>
         </section>
       </main>
@@ -83,6 +112,8 @@ export default function LandingPage() {
         <p>© {new Date().getFullYear()} HOPE, Inc. All rights reserved.</p>
         <a href="#main-content">Back to top<span aria-hidden="true">↑</span></a>
       </footer>
+
+      <RegisterModal open={registerOpen} onClose={() => setRegisterOpen(false)} />
     </div>
   )
 }

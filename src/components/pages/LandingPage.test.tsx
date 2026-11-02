@@ -32,6 +32,23 @@ test("visitors see the landing page and can continue to sign in", async () => {
   expect(window.location.pathname).toBe("/login")
 })
 
+test("allows visitor to open and close registration modal from landing page", async () => {
+  const user = userEvent.setup()
+  openPage("/")
+  expect(await screen.findByRole("heading", { name: "Your business, connected in one ERP workspace." })).toBeInTheDocument()
+  expect(screen.getByText("Run your entire business with confidence")).toBeInTheDocument()
+
+  const registerButtons = screen.getAllByRole("button", { name: /^Register/i })
+  expect(registerButtons.length).toBeGreaterThan(0)
+  await user.click(registerButtons[0])
+
+  expect(await screen.findByRole("dialog", { name: "Create your account" })).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Close registration dialog" }))
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog", { name: "Create your account" })).not.toBeInTheDocument()
+  })
+})
+
 test("active sessions skip the landing page", async () => {
   openPage("/", true)
   expect(await screen.findByRole("heading", { name: "Welcome back, staff@hope.inc" })).toBeInTheDocument()

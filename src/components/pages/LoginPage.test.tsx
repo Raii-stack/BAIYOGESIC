@@ -115,3 +115,27 @@ test("shows a failed login as inline error text", async () => {
   expect(error).not.toHaveClass("bg-red-50")
   expect(screen.getByLabelText("Password").parentElement?.parentElement).toHaveClass("mb-0")
 })
+
+test("allows user to open Forgot password and Register modals from login page", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path.endsWith("/session")) return failure(401, "Authentication required")
+    throw new Error(`Unexpected request: ${path}`)
+  }))
+  const user = userEvent.setup()
+  render(<App />)
+
+  await user.click(await screen.findByRole("button", { name: "Forgot password?" }))
+  expect(await screen.findByRole("dialog", { name: "Reset password" })).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Close recovery dialog" }))
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog", { name: "Reset password" })).not.toBeInTheDocument()
+  })
+
+  await user.click(screen.getByRole("button", { name: "Register" }))
+  expect(await screen.findByRole("dialog", { name: "Create your account" })).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Close registration dialog" }))
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog", { name: "Create your account" })).not.toBeInTheDocument()
+  })
+})

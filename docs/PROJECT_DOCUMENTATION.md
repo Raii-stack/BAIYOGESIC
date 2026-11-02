@@ -7,19 +7,19 @@ Last reviewed: **November 2, 2026**
 The live schedule, assignments, and task status are maintained in the **[HOPE ERP project tracker](https://docs.google.com/spreadsheets/d/1Ba4jr0MFxR92Dk7cSUoAcRFTePHkvwe8A-8e2kn9YvE/edit?usp=sharing)**.
 
 <!-- issue-progress:start -->
-> **Active development · Sprint 4 · Issue completion: 54.0% · Not yet release-ready**
+> **Active development · Sprint 4 · Issue completion: 73.6% · Not yet release-ready**
 
 ### Issue progress
 
 <div align="center">
-  <img src="images/issue-progress.svg" alt="Project issue completion: 54.0% (47 of 87 issues closed)" width="900" />
+  <img src="images/issue-progress.svg" alt="Project issue completion: 73.6% (64 of 87 issues closed)" width="900" />
 </div>
 
 | Closed | Open | Total | Completion |
 | ---: | ---: | ---: | ---: |
-| [47](https://github.com/Raii-stack/BAIYOGESIC/issues?q=is%3Aissue%20state%3Aclosed) | [40](https://github.com/Raii-stack/BAIYOGESIC/issues?q=is%3Aissue%20state%3Aopen) | 87 | **54.0%** |
+| [64](https://github.com/Raii-stack/BAIYOGESIC/issues?q=is%3Aissue%20state%3Aclosed) | [23](https://github.com/Raii-stack/BAIYOGESIC/issues?q=is%3Aissue%20state%3Aopen) | 87 | **73.6%** |
 
-Calculation: 47 closed ÷ (47 closed + 40 open) × 100 = 54.0%.
+Calculation: 64 closed ÷ (64 closed + 23 open) × 100 = 73.6%.
 
 Automatically updated from GitHub issue states on **November 2, 2026**. Pull requests are excluded. The percentage includes every repository issue regardless of sprint, priority, or label, so it measures issue closure rather than release readiness.
 <!-- issue-progress:end -->
@@ -28,22 +28,20 @@ Automatically updated from GitHub issue states on **November 2, 2026**. Pull req
 
 | Feature area | Status | What works now | Main work remaining |
 | --- | --- | --- | --- |
-| Authentication & access | Ready | Login, session, logout, password changes, user management, role/module rights | Reconcile the visible reset-password page with the currently unavailable reset API |
-| Customer management | Ready | Search, pagination, create, edit, archive, and restore | Final regression testing |
-| Inventory & pricing | Ready | Product CRUD, archive/restore, effective-dated price history | Final regression testing |
-| Human resources | Ready | Employees, departments, jobs, job history, salary permission checks | Final regression testing |
-| Sales & payments | Ready | Sales entry, historical price lookup, totals, payments, balances, archive/restore | Full workflow and live-database verification |
-| Dashboard | Partial | Role-aware module navigation and workspace details | Live customer, product, order, and revenue KPIs |
-| Reports | Partial | Seven report views, permission filtering, sample tables, browser print/PDF | Live report API, database queries, date/employee filters, accuracy tests |
-| Audit log viewer | Planned | Audit context and database indexes exist | Filtered API and superadmin interface |
+| Authentication & access | Ready | Login, session, logout, password changes, user management, role/module rights, self-registration, and token-based password reset | Final regression testing |
+| Customer management | Ready | Search, server pagination, sortable columns, create, edit, archive, restore, and 60-day payment term support | Final regression testing |
+| Inventory & pricing | Ready | Product CRUD, archive/restore, price history modal, active indicator, and tier management | Final regression testing |
+| Human resources | Ready | Employees, departments, jobs, job history career timeline, salary masking, and sensitive data redaction | Final regression testing |
+| Sales & payments | Ready | Sales entry, price lookup as of transaction date, multi-method payments, balances, child delete rules, and archive/restore | Full workflow and live-database verification |
+| Dashboard | Ready | Role-aware module navigation, workspace details, and live customer, product, order, and revenue KPI cards | Final regression testing |
+| Reports | Ready | Seven system report queries/views, stored functions, parameter filtering, and export/browser print | Final performance verification |
+| Audit log viewer | Ready | Superadmin audit log viewer with multi-filter search, diff inspector, and append-only immutability | Production monitoring |
 
 ## Current priorities
 
-1. Connect all seven reports to live, permission-protected database queries.
-2. Build the superadmin audit-log API and viewer.
-3. Add live dashboard KPI statistics.
-4. Run the complete integration/E2E regression and publish the final QA sign-off.
-5. Resolve the reset-password route mismatch and remaining open QA findings.
+1. Final regression testing and end-to-end verification across authenticated modules.
+2. Complete full database disaster recovery drill validation on staging.
+3. Promote verified `test` branch to `main` for Sprint 4 release.
 
 See the [remaining sprint issues](agile/remaining-sprint-issues.md) and [QA bug log](qa/bug-log.md) for the detailed backlog. Some older planning notes describe earlier code states; the table above reflects the repository as reviewed on November 2, 2026.
 
@@ -85,18 +83,19 @@ Express API (authentication, validation, permissions, rate limits)
 | --- | --- |
 | `/` | Public landing page |
 | `/login` | Sign in |
-| `/dashboard` | Role-aware workspace home |
+| `/reset-password` | Password reset redemption |
+| `/dashboard` | Role-aware workspace home with live KPIs |
 | `/customers` | Customer management |
 | `/inventory` | Products and price history |
 | `/employees` | Employee, department, and job management |
-| `/employees/:employeeId` | Employee profile and job history |
+| `/employees/:employeeId` | Employee profile and career history timeline |
 | `/sales` | Sales and payment management |
 | `/sales/new` | Create a sale |
-| `/reports` | Report selection and printing; currently sample data |
-| `/users` | Admin user and rights management |
+| `/reports` | Report selection, parameter filtering, and printing |
+| `/users` | User management, permissions, and audit log viewer |
 | `/profile` | Signed-in user profile |
 
-The API exposes matching groups under `/api/auth`, `/api/customers`, `/api/products`, `/api/employees`, `/api/departments`, `/api/jobs`, `/api/users`, and `/api/sales`. Health checks are available at `/health` and `/api/health`.
+The API exposes matching groups under `/api/auth`, `/api/customers`, `/api/products`, `/api/employees`, `/api/departments`, `/api/jobs`, `/api/users`, `/api/sales`, `/api/reports`, and `/api/audit-logs`. Health checks are available at `/health` and `/api/health`.
 
 ## Technology
 
@@ -193,10 +192,10 @@ Verified locally on November 2, 2026:
 
 | Check | Result |
 | --- | --- |
-| Frontend/component tests | 44 files, 238 tests passed |
-| Node/Jest unit tests | 2 suites, 74 tests passed |
-| JavaScript lint/syntax check | Passed |
-| Migration verification | All 15 migrations passed |
+| Frontend/component tests (Vitest) | 59 files, 346 tests passed |
+| Node/Jest unit and QA tests | 6 suites, 129 tests passed |
+| JavaScript lint/syntax check | 38 JavaScript files verified |
+| Migration verification | All 22 migrations passed |
 | Production build | Passed |
 
 Database-backed integration tests and a complete browser E2E workflow were not run for this snapshot because they require a dedicated test database. The build currently warns that the main JavaScript bundle is larger than 500 kB.

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import useModalFocus from "../../hooks/useModalFocus"
 
 export default function ArchiveEmployeeModal({ employeeName, open, onCancel, onConfirm, loading, error }: {
   employeeName: string
@@ -9,6 +10,10 @@ export default function ArchiveEmployeeModal({ employeeName, open, onCancel, onC
   error: string
 }) {
   const [separationDate, setSeparationDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const dialogRef = useRef<HTMLElement>(null)
+  const cancelRef = useRef<HTMLButtonElement>(null)
+
+  useModalFocus(open, dialogRef, cancelRef, onCancel, loading)
 
   useEffect(() => {
     if (open) {
@@ -16,18 +21,11 @@ export default function ArchiveEmployeeModal({ employeeName, open, onCancel, onC
     }
   }, [open])
 
-  useEffect(() => {
-    if (!open) return
-    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === "Escape" && !loading) onCancel() }
-    window.addEventListener("keydown", closeOnEscape)
-    return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [open, loading, onCancel])
-
   if (!open) return null
   return (
     <div className="workspace-modal-overlay z-[60]">
       <button type="button" aria-label="Cancel archive" onClick={() => { if (!loading) onCancel() }} className="absolute inset-0 bg-black/45" />
-      <section role="alertdialog" aria-modal="true" aria-labelledby="archive-employee-title" aria-describedby="archive-employee-description" className="workspace-modal workspace-panel relative w-full max-w-lg shadow-xl">
+      <section ref={dialogRef} role="alertdialog" aria-modal="true" aria-labelledby="archive-employee-title" aria-describedby={`archive-employee-description${error ? " archive-employee-error" : ""}`} className="workspace-modal workspace-panel relative w-full max-w-lg shadow-xl">
         <div className="workspace-drawer-body text-center">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-red-200 bg-red-50 text-red-700"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3 2.8 19a1.3 1.3 0 0 0 1.1 2h16.2a1.3 1.3 0 0 0 1.1-2L12 3Z" /><path d="M12 9v5M12 18h.01" /></svg></div>
           <p className="mt-5 text-[10px] font-bold uppercase tracking-[0.18em] text-red-700">Destructive action</p>
@@ -47,9 +45,9 @@ export default function ArchiveEmployeeModal({ employeeName, open, onCancel, onC
             />
           </div>
         </div>
-        {error && <p role="alert" className="px-6 pb-4 text-sm font-semibold text-red-700">{error}</p>}
+        {error && <p id="archive-employee-error" role="alert" className="px-6 pb-4 text-sm font-semibold text-red-700">{error}</p>}
         <div className="workspace-drawer-footer">
-          <button type="button" onClick={onCancel} disabled={loading} autoFocus className="workspace-secondary-action">Cancel</button>
+          <button ref={cancelRef} type="button" onClick={onCancel} disabled={loading} className="workspace-secondary-action">Cancel</button>
           <button type="button" onClick={() => onConfirm(separationDate)} disabled={loading} className="workspace-danger-action">{loading ? "Archiving…" : "Archive employee"}</button>
         </div>
       </section>

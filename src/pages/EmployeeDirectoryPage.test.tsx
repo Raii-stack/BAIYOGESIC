@@ -45,7 +45,7 @@ test("loads employees with skeletons, filters, and working server pagination", a
 test("debounces searches and keeps salary and editing hidden from ordinary users", async () => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), "http://localhost")
-    if (url.pathname === "/api/auth/session") return response({ user: auth("user") })
+    if (url.pathname === "/api/auth/session") return response({ user: { ...auth("user"), rights: ["hr.access"] } })
     if (url.pathname === "/api/employees/options") return response({ departments: [], jobs: [] })
     if (url.pathname === "/api/employees") return response({ employees: [row(1, null)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
     throw new Error(`Unexpected request ${url.pathname}`)
@@ -56,6 +56,7 @@ test("debounces searches and keeps salary and editing hidden from ordinary users
   expect(within(screen.getByRole("row", { name: /Person1 Example/ })).getByLabelText("Salary hidden due to permissions")).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: /Add employee/ })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: /Edit Person1/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: /job history for Person1/ })).not.toBeInTheDocument()
   const input = screen.getByRole("searchbox", { name: "Search employees" })
   fireEvent.change(input, { target: { value: "Per" } })
   fireEvent.change(input, { target: { value: "Person" } })
@@ -216,6 +217,43 @@ test("switches between Employees, Jobs, and Departments tabs and manages lookup 
 
   await user.click(screen.getByRole("tab", { name: "Departments" }))
   expect(await screen.findByText("Information Tech")).toBeInTheDocument()
+})
+
+test("supports keyboard tab navigation and contains focus in the job drawer", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return response({ user: auth("administrator") })
+    if (url.pathname === "/api/employees/options") return response({ departments: [], jobs: [] })
+    if (url.pathname === "/api/employees" && init?.method === "GET") return response({ employees: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } })
+    if (url.pathname === "/api/employees/jobs" && init?.method === "GET") return response({ jobs: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } })
+    if (url.pathname === "/api/employees/departments" && init?.method === "GET") return response({ departments: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } })
+    throw new Error(`Unexpected request ${url.pathname}`)
+  }))
+  const user = userEvent.setup()
+  render(<MemoryRouter><AuthProvider><EmployeeDirectoryPage /></AuthProvider></MemoryRouter>)
+  const employeesTab = await screen.findByRole("tab", { name: "Employees" })
+  employeesTab.focus()
+
+  fireEvent.keyDown(employeesTab, { key: "ArrowRight" })
+  const jobsTab = await screen.findByRole("tab", { name: "Jobs" })
+  expect(jobsTab).toHaveFocus()
+  expect(jobsTab).toHaveAttribute("aria-selected", "true")
+  expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", jobsTab.id)
+
+  const addJob = await screen.findByRole("button", { name: "Add job" })
+  await user.click(addJob)
+  const dialog = screen.getByRole("dialog", { name: "Add job" })
+  const codeInput = within(dialog).getByRole("textbox", { name: "Job code" })
+  await waitFor(() => expect(codeInput).toHaveFocus())
+
+  const submit = within(dialog).getByRole("button", { name: "Create job" })
+  submit.focus()
+  await user.tab()
+  expect(within(dialog).getByRole("button", { name: "Close job form" })).toHaveFocus()
+
+  fireEvent.keyDown(window, { key: "Escape" })
+  expect(screen.queryByRole("dialog", { name: "Add job" })).not.toBeInTheDocument()
+  expect(addJob).toHaveFocus()
 })
 
 

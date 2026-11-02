@@ -57,10 +57,23 @@ function renderPage(user = admin) {
 test("loads employee details, history, audit data, and salary values for administrators", async () => {
   renderPage()
   expect(await screen.findByRole("heading", { name: "Ana User" })).toBeInTheDocument()
+  expect(screen.getByRole("list", { name: "Job history timeline" })).toBeInTheDocument()
+  expect(screen.getByText("Current")).toBeInTheDocument()
   expect(screen.getByText("Senior Developer")).toBeInTheDocument()
   expect(screen.getByText("$65,000")).toBeInTheDocument()
   expect(screen.getByText("UPDATE admin")).toBeInTheDocument()
   expect(employeeApi.get).toHaveBeenCalledWith("00001", expect.any(AbortSignal))
+})
+
+test("keeps salary redacted inside the timeline when the API withholds it", async () => {
+  vi.mocked(employeeApi.get).mockResolvedValue({
+    employee: { ...employee, salary: 0, canViewSalary: false },
+    history: history.map((entry) => ({ ...entry, salary: 0, canViewSalary: false })),
+  })
+  renderPage()
+  expect(await screen.findByRole("list", { name: "Job history timeline" })).toBeInTheDocument()
+  expect(screen.getAllByLabelText("Salary hidden due to permissions")).toHaveLength(2)
+  expect(screen.queryByText("$65,000")).not.toBeInTheDocument()
 })
 
 test("hides job history when the user lacks history rights", async () => {

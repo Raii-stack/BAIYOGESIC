@@ -4,11 +4,11 @@ import { Link } from "react-router"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
 import { employeeApi, type EmployeePagination } from "../../lib/employee-api"
 import type { Employee, JobHistoryEntry } from "../../types/employee"
+import JobTimeline from "./JobTimeline"
 
-const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
 const pages = (current: number, total: number) => { const count = Math.min(total, 5); const start = Math.max(1, Math.min(current - 2, total - count + 1)); return Array.from({ length: count }, (_, i) => start + i) }
 
-function JobHistory({ empno, fullName }: { empno: string; fullName: string }) {
+function JobHistory({ empno, fullName, showAudit }: { empno: string; fullName: string; showAudit: boolean }) {
   const [entries, setEntries] = useState<JobHistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -34,22 +34,18 @@ function JobHistory({ empno, fullName }: { empno: string; fullName: string }) {
           <p className="mt-1 text-xs leading-5 text-slate-500">Recorded positions, departments, and compensation for {fullName}.</p>
         </div>
         <div className="workspace-panel" aria-busy={loading}>
-          {loading ? <TableSkeleton label="Loading job history" headings={["Effective date", "Job title", "Department", "Salary", "Last change"]} />
+          {loading ? <TableSkeleton label="Loading job history" headings={["Effective date", "Job title", "Department", "Salary", ...(showAudit ? ["Last change"] : [])]} />
             : error ? <div role="alert" className="flex items-center justify-between gap-3 p-4 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => setRetry((value) => value + 1)} className="font-semibold underline">Retry</button></div>
-              : entries.length === 0 ? <p className="p-4 text-sm text-slate-500">No job history recorded.</p>
-                : <table role="table" className="workspace-table">
-                  <thead><tr className="border-b border-slate-200 bg-white text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500"><th className="px-4 py-3">Effective date</th><th className="px-4 py-3">Job title</th><th className="px-4 py-3">Department</th><th className="px-4 py-3 text-right">Salary</th><th className="px-4 py-3 sm:table-cell">Last change</th></tr></thead>
-                  <tbody>{entries.map((entry) => <tr key={entry.id} className="border-b border-slate-100 last:border-0"><td data-label="Effective date" className="px-4 py-3 font-mono text-xs text-slate-600">{entry.effectiveDate}</td><td data-label="Job title" className="px-4 py-3 text-xs font-semibold text-slate-900">{entry.jobTitle}</td><td data-label="Department" className="px-4 py-3 text-xs text-slate-700">{entry.department}</td><td data-label="Salary" className="px-4 py-3 text-right text-sm font-bold tabular-nums text-slate-900">{entry.canViewSalary ? money.format(entry.salary) : <span className="text-slate-400">••••••</span>}</td><td data-label="Last change" className="px-4 py-3 font-mono text-[11px] text-slate-500 sm:table-cell">{entry.stamp || "—"}</td></tr>)}</tbody>
-                </table>}
+              : <JobTimeline entries={entries} showAudit={showAudit} />}
         </div>
       </div>
     </div>
   )
 }
 
-export default function EmployeeTable({ employees, pagination, loading, error, onPageChange, onEdit, onArchive, onRestore, restoringId, canEdit, canDelete = false }: {
+export default function EmployeeTable({ employees, pagination, loading, error, onPageChange, onEdit, onArchive, onRestore, restoringId, canEdit, canDelete = false, canViewHistory = false, canViewAudit = false }: {
   employees: Employee[]; pagination: EmployeePagination; loading: boolean; error: boolean
-  onPageChange: (page: number) => void; onEdit: (employee: Employee) => void; onArchive?: (employee: Employee) => void; onRestore?: (employee: Employee) => void; restoringId?: string | null; canEdit: boolean; canDelete?: boolean
+  onPageChange: (page: number) => void; onEdit: (employee: Employee) => void; onArchive?: (employee: Employee) => void; onRestore?: (employee: Employee) => void; restoringId?: string | null; canEdit: boolean; canDelete?: boolean; canViewHistory?: boolean; canViewAudit?: boolean
 }) {
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
   const start = pagination.total ? (pagination.page - 1) * pagination.limit + 1 : 0
@@ -73,14 +69,14 @@ export default function EmployeeTable({ employees, pagination, loading, error, o
             <td data-label="Status" className="whitespace-nowrap"><span className={`workspace-badge ${status === "Active" ? "bg-emerald-100 text-emerald-800" : status === "Separated" ? "bg-amber-100 text-amber-900" : "bg-neutral-100 text-neutral-600"}`}>{status}</span></td>
             <td data-label="Last change" className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">{employee.stamp || "—"}</td>
             <td data-label="Actions" className={`workspace-table-actions ${employee.archived ? "bg-slate-50" : "bg-white"}`}><div className="flex items-center gap-1">
-              <button type="button" aria-label={`${expanded ? "Hide" : "Show"} job history for ${employee.fullName}`} aria-expanded={expanded} aria-controls={`job-history-${employee.id}`} title="Job history" onClick={() => setExpandedEmployee(expanded ? null : employee.id)} className="workspace-icon-action"><DashboardIcon name="history" className="h-4 w-4" /></button>
+              {canViewHistory && <button type="button" aria-label={`${expanded ? "Hide" : "Show"} job history for ${employee.fullName}`} aria-expanded={expanded} aria-controls={`job-history-${employee.id}`} title="Job history" onClick={() => setExpandedEmployee(expanded ? null : employee.id)} className="workspace-icon-action"><DashboardIcon name="history" className="h-4 w-4" /></button>}
               {!employee.archived ? <>
                 {canEdit && <button type="button" onClick={() => onEdit(employee)} aria-label={`Edit ${employee.fullName}`} title="Edit employee" className="workspace-icon-action"><DashboardIcon name="edit" className="h-4 w-4" /></button>}
                 {canDelete && onArchive && <button type="button" onClick={() => onArchive(employee)} aria-label={`Archive ${employee.fullName}`} title="Archive employee" className="workspace-icon-action workspace-icon-action--danger"><DashboardIcon name="archive" className="h-4 w-4" /></button>}
               </> : canDelete && onRestore ? <button type="button" onClick={() => onRestore(employee)} disabled={restoringId === employee.id} aria-label={`Restore ${employee.fullName}`} title="Restore employee" className="workspace-icon-action"><DashboardIcon name="restore" className="h-4 w-4" /></button> : null}
             </div></td>
           </tr>
-          {expanded && <tr className="border-b border-slate-200"><td colSpan={headings.length} className="workspace-table-expansion"><JobHistory empno={employee.id} fullName={employee.fullName} /></td></tr>}
+          {expanded && canViewHistory && <tr className="border-b border-slate-200"><td colSpan={headings.length} className="workspace-table-expansion"><JobHistory empno={employee.id} fullName={employee.fullName} showAudit={canViewAudit} /></td></tr>}
         </Fragment>
       })}
     </tbody></table>{!loading && !error && employees.length === 0 && <div className="workspace-empty-state"><p className="text-sm font-semibold text-slate-800">No employees found</p><p className="mt-1 text-xs text-slate-500">Try a different search or filter.</p></div>}</div>

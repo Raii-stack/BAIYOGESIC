@@ -51,6 +51,8 @@ export default function ProductPanel({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (saving) return
+
     const normalizedPrice = unitPrice.trim()
     const price = Number(normalizedPrice)
     const nextErrors = {
@@ -105,7 +107,6 @@ export default function ProductPanel({
       >
         <header className="workspace-drawer-header">
           <div>
-
             <h2
               id="product-panel-title"
               className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
@@ -116,9 +117,10 @@ export default function ProductPanel({
           </div>
           <button
             type="button"
+            disabled={saving}
             onClick={() => { if (!saving) onClose() }}
             aria-label="Close product form"
-            className="workspace-icon-action"
+            className="workspace-icon-action disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <DashboardIcon name="close" className="h-5 w-5" />
           </button>
@@ -148,6 +150,7 @@ export default function ProductPanel({
                 <input
                   type="text"
                   readOnly
+                  disabled={saving}
                   value={product?.code ?? "Auto-generated on save"}
                   className="workspace-control"
                 />
@@ -162,6 +165,7 @@ export default function ProductPanel({
                   type="text"
                   value={description}
                   maxLength={30}
+                  disabled={saving}
                   onChange={(event) => {
                     setDescription(event.target.value)
                     if (errors.description) {
@@ -174,7 +178,7 @@ export default function ProductPanel({
                   placeholder="Enter product description"
                   aria-invalid={Boolean(errors.description)}
                   aria-describedby="product-description-error"
-                  className={inputClass(Boolean(errors.description))}
+                  className={`${inputClass(Boolean(errors.description))} disabled:bg-slate-100 disabled:cursor-not-allowed`}
                 />
               </ValidatedField>
 
@@ -186,6 +190,7 @@ export default function ProductPanel({
                 <span className="relative block">
                   <select
                     value={unitType}
+                    disabled={saving}
                     onChange={(event) => {
                       setUnitType(event.target.value as UnitType | "")
                       if (errors.unitType) {
@@ -197,7 +202,7 @@ export default function ProductPanel({
                     }}
                     aria-invalid={Boolean(errors.unitType)}
                     aria-describedby="product-unit-error"
-                    className={`${inputClass(Boolean(errors.unitType))} bg-slate-50 pr-9 ${
+                    className={`${inputClass(Boolean(errors.unitType))} bg-slate-50 pr-9 disabled:bg-slate-100 disabled:cursor-not-allowed ${
                       unitType ? "text-slate-800" : "text-slate-400"
                     }`}
                   >
@@ -226,6 +231,7 @@ export default function ProductPanel({
                     min="0.01"
                     step="0.01"
                     value={unitPrice}
+                    disabled={saving}
                     onChange={(event) => {
                       setUnitPrice(event.target.value)
                       if (errors.unitPrice) {
@@ -238,7 +244,7 @@ export default function ProductPanel({
                     placeholder="0.00"
                     aria-invalid={Boolean(errors.unitPrice)}
                     aria-describedby="product-price-error"
-                    className={`${inputClass(Boolean(errors.unitPrice))} workspace-control--currency`}
+                    className={`${inputClass(Boolean(errors.unitPrice))} workspace-control--currency disabled:bg-slate-100 disabled:cursor-not-allowed`}
                   />
                 </span>
               </ValidatedField>
@@ -259,8 +265,14 @@ export default function ProductPanel({
             <button
               type="submit"
               disabled={saving}
-              className="workspace-primary-action"
+              className="workspace-primary-action inline-flex items-center justify-center"
             >
+              {saving && (
+                <svg className="mr-2 h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true" data-testid="product-saving-spinner">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+              )}
               {saving ? "Saving…" : product ? "Save changes" : "Create product"}
             </button>
           </footer>
@@ -290,6 +302,7 @@ function ValidatedField({
       {children}
       <p
         id={errorId}
+        role={error ? "alert" : undefined}
         aria-live="polite"
         className={error ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
       >

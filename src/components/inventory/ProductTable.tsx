@@ -55,7 +55,7 @@ function visiblePages(page: number, totalPages: number) {
   return Array.from({ length: count }, (_, index) => start + index)
 }
 
-export default function ProductTable({ products, pagination, loading, error, onPageChange, pageSize, onLimitChange, sortBy, sortOrder, onSortChange, onEdit, onArchive, onRestore, restoringCode, canEdit, canDelete, canAdd, canViewAudit = true, hasFilters, onClearFilters, onAdd }: {
+export default function ProductTable({ products, pagination, loading, error, onPageChange, pageSize, onLimitChange, sortBy, sortOrder, onSortChange, onEdit, onArchive, onRestore, restoringCode, canEdit, canDelete, canAdd, canViewAudit = true, hasFilters, onClearFilters, onAdd, onViewPrices }: {
   products: Product[]
   pagination: ProductPagination
   loading: boolean
@@ -77,6 +77,7 @@ export default function ProductTable({ products, pagination, loading, error, onP
   hasFilters: boolean
   onClearFilters: () => void
   onAdd: () => void
+  onViewPrices?: (product: Product) => void
 }) {
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
   const showActions = canEdit || canDelete
@@ -115,7 +116,25 @@ export default function ProductTable({ products, pagination, loading, error, onP
                 <td data-label="Product code" className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">{product.code}</td>
                 <td data-label="Description" className="min-w-48 text-[13px] font-medium text-neutral-900">{product.description}</td>
                 <td data-label="Unit"><span className="workspace-badge workspace-badge--neutral" data-unit={product.unitType}>{product.unitType}</span></td>
-                <td data-label="Unit price" className="whitespace-nowrap"><div className="flex items-center justify-end gap-2"><span className="text-[13px] font-semibold tabular-nums text-neutral-900">{product.currentPrice === null ? "No price" : currency.format(product.currentPrice)}</span><button type="button" aria-label={`${expanded ? "Hide" : "Show"} price history for ${product.code}`} aria-expanded={expanded} aria-controls={`price-history-${product.code}`} title="Price history" onClick={() => setExpandedProduct(expanded ? null : product.code)} className="workspace-icon-action"><DashboardIcon name="history" className="h-4 w-4" /></button></div></td>
+                <td data-label="Unit price" className="whitespace-nowrap">
+                  <div className="flex items-center justify-end gap-2">
+                    <span className="text-[13px] font-semibold tabular-nums text-neutral-900">{product.currentPrice === null ? "No price" : currency.format(product.currentPrice)}</span>
+                    {onViewPrices && (
+                      <button
+                        type="button"
+                        onClick={() => onViewPrices(product)}
+                        aria-label={`Prices for ${product.code}`}
+                        title="Price history modal"
+                        className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      >
+                        Prices
+                      </button>
+                    )}
+                    <button type="button" aria-label={`${expanded ? "Hide" : "Show"} price history for ${product.code}`} aria-expanded={expanded} aria-controls={`price-history-${product.code}`} title="Price history" onClick={() => setExpandedProduct(expanded ? null : product.code)} className="workspace-icon-action">
+                      <DashboardIcon name="history" className="h-4 w-4" />
+                    </button>
+                  </div>
+                </td>
                 <td data-label="Effective" className="whitespace-nowrap font-mono text-xs text-slate-600">{product.priceEffectiveDate || "—"}</td>
                 {canViewAudit && <td data-label="Status" className="whitespace-nowrap"><span className={`workspace-badge ${product.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-600"}`}>{product.status === "Active" ? "Active" : "Archived"}</span></td>}
                 {canViewAudit && <td data-label="Last change" className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">{product.stamp || "—"}</td>}

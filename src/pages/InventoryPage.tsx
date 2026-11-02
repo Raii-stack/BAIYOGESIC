@@ -4,6 +4,7 @@ import SuccessToast from "../components/common/SuccessToast"
 import { useAuth } from "../components/auth/AuthProvider"
 import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import ArchiveProductModal from "../components/inventory/ArchiveProductModal"
+import PriceHistoryModal from "../components/inventory/PriceHistoryModal"
 import ProductPanel from "../components/inventory/ProductPanel"
 import ProductTable from "../components/inventory/ProductTable"
 import DashboardLayout from "../layouts/DashboardLayout"
@@ -33,6 +34,7 @@ export default function InventoryPage() {
   const [refresh, setRefresh] = useState(0)
   const [panelOpen, setPanelOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [priceModalProduct, setPriceModalProduct] = useState<Product | null>(null)
   const [productToArchive, setProductToArchive] = useState<Product | null>(null)
   const [archiveError, setArchiveError] = useState("")
   const [archiving, setArchiving] = useState(false)
@@ -176,11 +178,12 @@ export default function InventoryPage() {
           </section>
 
           {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4 hover:text-red-950">Try again</button></div>}
-          <ProductTable key={`${page}-${limit}-${sortBy}-${sortOrder}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} pageSize={limit} onLimitChange={setLimit} sortBy={sortBy} sortOrder={sortOrder} onSortChange={toggleSort} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} onRestore={restoreProduct} restoringCode={restoringCode} canEdit={canEdit} canDelete={canDelete} canAdd={canAdd} canViewAudit={canViewAudit} hasFilters={Boolean(query.trim() || unit || status !== "all")} onClearFilters={clearFilters} onAdd={openNewProductPanel} />
+          <ProductTable key={`${page}-${limit}-${sortBy}-${sortOrder}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} pageSize={limit} onLimitChange={setLimit} sortBy={sortBy} sortOrder={sortOrder} onSortChange={toggleSort} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} onRestore={restoreProduct} restoringCode={restoringCode} canEdit={canEdit} canDelete={canDelete} canAdd={canAdd} canViewAudit={canViewAudit} hasFilters={Boolean(query.trim() || unit || status !== "all")} onClearFilters={clearFilters} onAdd={openNewProductPanel} onViewPrices={(product) => setPriceModalProduct(product)} />
         </div>
       </main>
 
       {(canAdd || canEdit) && <ProductPanel product={selectedProduct} open={panelOpen} onClose={() => setPanelOpen(false)} onSave={saveProduct} />}
+      <PriceHistoryModal product={priceModalProduct} open={Boolean(priceModalProduct)} onClose={() => setPriceModalProduct(null)} canAddPrice={canEdit} canViewAudit={canViewAudit} onPriceAdded={() => setRefresh((current) => current + 1)} />
       {canDelete && <ArchiveProductModal productName={productToArchive?.description ?? ""} open={Boolean(productToArchive)} onCancel={() => setProductToArchive(null)} onConfirm={archiveProduct} loading={archiving} error={archiveError} />}
       {notice && <SuccessToast key={notice.id} message={notice.message} onClose={() => setNotice((current) => current?.id === notice.id ? null : current)} />}
     </DashboardLayout>

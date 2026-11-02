@@ -267,3 +267,99 @@ test("allows an employee to review products without edit or archive controls", a
   await user.click(screen.getByRole("button", { name: "Show price history for PX0001" }))
   expect(await screen.findByText("PX0001", { selector: "p" })).toBeInTheDocument()
 })
+
+
+test("opens PriceHistoryModal on clicking Prices button, displays history with active indicator, and allows adding price", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: admin })
+    if (url.pathname === "/api/products" && init?.method === "GET") {
+      return success({ products: [product(1)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    }
+    if (url.pathname === "/api/products/PX0001/prices" && init?.method === "GET") {
+      return success({
+        prices: [
+          { effdate: "2026-10-01", unitprice: "12.50", stamp: "ADD admin 2026-10-01" },
+          { effdate: "2026-01-01", unitprice: "10.00", stamp: "ADD admin 2026-01-01" },
+        ],
+      })
+    }
+    if (url.pathname === "/api/products/PX0001/price-history" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body))
+      expect(body.effdate).toBeDefined()
+      expect(body.price).toBe(15)
+      return success({ price: { effdate: body.effdate, unitprice: 15 } })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><InventoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Product 1")
+
+  // Click "Prices" button
+  await user.click(screen.getByRole("button", { name: "Prices for PX0001" }))
+
+  // Modal appears with header
+  const modal = await screen.findByRole("dialog", { name: /Price History/i })
+  expect(within(modal).getByText("Price History — PX0001")).toBeInTheDocument()
+  expect(within(modal).getByText(/Unit:/)).toHaveTextContent("Unit: pc")
+  expect(within(modal).getByText("$12.50")).toBeInTheDocument()
+  expect(within(modal).getByText("$10.00")).toBeInTheDocument()
+  expect(within(modal).getByText("Current")).toBeInTheDocument()
+
+  // Admin view shows Status and Stamp headers
+  expect(within(modal).getByRole("columnheader", { name: "Status" })).toBeInTheDocument()
+  expect(within(modal).getByRole("columnheader", { name: "Stamp" })).toBeInTheDocument()
+
+  // Authorized user clicks "+ Add Price"
+  await user.click(within(modal).getByRole("button", { name: "+ Add Price" }))
+  expect(within(modal).getByText("New Price Tier")).toBeInTheDocument()
+
+  // Enter price and submit
+  const priceInput = within(modal).getByPlaceholderText("0.00")
+  await user.type(priceInput, "15.00")
+  await user.click(within(modal).getByRole("button", { name: "Save Price" }))
+
+  // Verify modal made POST request
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/products/PX0001/price-history"),
+      expect.objectContaining({ method: "POST" })
+    )
+  })
+
+  // Close modal with Escape
+  await user.keyboard("{Escape}")
+  await waitFor(() => {
+    expect(screen.queryByText("Price History — PX0001")).not.toBeInTheDocument()
+  })
+})
+
+test("hides Status and Stamp in PriceHistoryModal for standard user", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: { ...admin, role: "employee" } })
+    if (url.pathname === "/api/products" && init?.method === "GET") {
+      return success({ products: [product(1)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    }
+    if (url.pathname === "/api/products/PX0001/prices" && init?.method === "GET") {
+      return success({
+        prices: [{ effdate: "2026-10-01", unitprice: "12.50", stamp: "ADD admin" }],
+      })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><InventoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Product 1")
+
+  await user.click(screen.getByRole("button", { name: "Prices for PX0001" }))
+  expect(await screen.findByText("Price History — PX0001")).toBeInTheDocument()
+  expect(screen.queryByRole("columnheader", { name: "Status" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("columnheader", { name: "Stamp" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "+ Add Price" })).not.toBeInTheDocument()
+})

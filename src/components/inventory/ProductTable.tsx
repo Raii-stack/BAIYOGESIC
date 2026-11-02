@@ -3,7 +3,9 @@ import { Fragment, useEffect, useState } from "react"
 
 import { DashboardIcon } from "../dashboard/DashboardComponents"
 import RecordEmptyState from "../common/RecordEmptyState"
-import { productApi, type ProductPagination } from "../../lib/product-api"
+import SortableColumnHeader from "../common/SortableColumnHeader"
+import { productApi, type ProductPagination, type ProductSortBy } from "../../lib/product-api"
+import { PAGE_SIZE_OPTIONS, type PageSize, type SortOrder } from "../../lib/table-sorting"
 import type { PriceHistoryEntry, Product } from "../../types/product"
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
@@ -53,12 +55,17 @@ function visiblePages(page: number, totalPages: number) {
   return Array.from({ length: count }, (_, index) => start + index)
 }
 
-export default function ProductTable({ products, pagination, loading, error, onPageChange, onEdit, onArchive, onRestore, restoringCode, canEdit, canDelete, canAdd, canViewAudit = true, hasFilters, onClearFilters, onAdd }: {
+export default function ProductTable({ products, pagination, loading, error, onPageChange, pageSize, onLimitChange, sortBy, sortOrder, onSortChange, onEdit, onArchive, onRestore, restoringCode, canEdit, canDelete, canAdd, canViewAudit = true, hasFilters, onClearFilters, onAdd }: {
   products: Product[]
   pagination: ProductPagination
   loading: boolean
   error: boolean
   onPageChange: (page: number) => void
+  pageSize: PageSize
+  onLimitChange: (limit: PageSize) => void
+  sortBy: ProductSortBy
+  sortOrder: SortOrder
+  onSortChange: (sortBy: ProductSortBy) => void
   onEdit: (product: Product) => void
   onArchive: (product: Product) => void
   onRestore?: (product: Product) => void
@@ -94,7 +101,12 @@ export default function ProductTable({ products, pagination, loading, error, onP
       <div className="overflow-x-auto" aria-busy={loading}>
         <table role="table" className="workspace-table min-w-[820px]">
           <thead><tr className="border-b border-slate-200 bg-slate-50">
-            {headings.map((heading) => <th key={heading} scope="col" className={`workspace-table-heading ${heading === "Unit price" ? "text-right" : ""} ${heading === "Actions" ? "workspace-table-actions" : ""}`}>{heading}</th>)}
+            {headings.map((heading) => {
+              if (heading === "Product code") return <SortableColumnHeader key={heading} label={heading} active={sortBy === "productCode"} order={sortOrder} onSort={() => onSortChange("productCode")} />
+              if (heading === "Description") return <SortableColumnHeader key={heading} label={heading} active={sortBy === "description"} order={sortOrder} onSort={() => onSortChange("description")} />
+              if (heading === "Unit price") return <SortableColumnHeader key={heading} label={heading} active={sortBy === "unitPrice"} order={sortOrder} onSort={() => onSortChange("unitPrice")} align="right" />
+              return <th key={heading} scope="col" className={`workspace-table-heading ${heading === "Actions" ? "workspace-table-actions" : ""}`}>{heading}</th>
+            })}
           </tr></thead>
           <tbody>{loading ? <TableSkeletonRows headings={headings} /> : products.map((product) => {
             const expanded = expandedProduct === product.code
@@ -122,11 +134,19 @@ export default function ProductTable({ products, pagination, loading, error, onP
       </div>
       <div className="workspace-table-footer">
         <p className="text-xs font-medium text-slate-600" aria-live="polite">{loading ? "Loading product records…" : error ? "Product records unavailable" : `Showing ${start}–${end} of ${pagination.total}`}</p>
-        <nav aria-label="Product table pagination" className="workspace-pagination">
-          <button type="button" onClick={() => onPageChange(pagination.page - 1)} disabled={loading || pagination.page <= 1}>Previous</button>
-          {visiblePages(pagination.page, pagination.totalPages).map((page) => <button key={page} type="button" onClick={() => onPageChange(page)} disabled={loading} aria-label={`Page ${page}`} aria-current={page === pagination.page ? "page" : undefined}>{page}</button>)}
-          <button type="button" onClick={() => onPageChange(pagination.page + 1)} disabled={loading || pagination.page >= pagination.totalPages}>Next</button>
-        </nav>
+        <div className="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+            <span>Rows per page</span>
+            <select aria-label="Product rows per page" value={pageSize} onChange={(event) => onLimitChange(Number(event.target.value) as PageSize)} disabled={loading} className="workspace-control h-8 min-h-8 w-16 py-1">
+              {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </label>
+          <nav aria-label="Product table pagination" className="workspace-pagination">
+            <button type="button" onClick={() => onPageChange(pagination.page - 1)} disabled={loading || pagination.page <= 1}>Previous</button>
+            {visiblePages(pagination.page, pagination.totalPages).map((page) => <button key={page} type="button" onClick={() => onPageChange(page)} disabled={loading} aria-label={`Page ${page}`} aria-current={page === pagination.page ? "page" : undefined}>{page}</button>)}
+            <button type="button" onClick={() => onPageChange(pagination.page + 1)} disabled={loading || pagination.page >= pagination.totalPages}>Next</button>
+          </nav>
+        </div>
       </div>
     </section>
   )

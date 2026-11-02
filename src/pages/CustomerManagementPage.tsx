@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router"
 
 import CustomerPanel from "../components/customers/CustomerPanel"
 import CustomerTable from "../components/customers/CustomerTable"
@@ -9,26 +8,25 @@ import { useAuth } from "../components/auth/AuthProvider"
 import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import DashboardLayout from "../layouts/DashboardLayout"
 import useDebouncedValue from "../hooks/useDebouncedValue"
-import usePageQuery from "../hooks/usePageQuery"
-import { customerApi, type CustomerInput, type CustomerPagination } from "../lib/customer-api"
+import useDirectoryTableQuery from "../hooks/useDirectoryTableQuery"
+import { customerApi, type CustomerInput, type CustomerPagination, type CustomerSortBy } from "../lib/customer-api"
 import { getCustomerPermissions } from "../lib/rbac"
 import type { Customer, PaymentTerm } from "../types/customer"
 
-const PAGE_SIZE = 10
-const emptyPagination: CustomerPagination = { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 }
+const CUSTOMER_SORTS: CustomerSortBy[] = ["customerId", "customer"]
+const emptyPagination = (limit: number): CustomerPagination => ({ page: 1, limit, total: 0, totalPages: 0 })
 
 export default function CustomerManagementPage() {
   const { user } = useAuth()
-  const [searchParams] = useSearchParams()
+  const { searchParams, page, limit, sortBy, sortOrder, setPage, setLimit, toggleSort } = useDirectoryTableQuery(CUSTOMER_SORTS, "customer")
   const { canAdd, canEdit, canDelete, canViewAudit } = getCustomerPermissions(user)
   const [query, setQuery] = useState(() => searchParams.get("search") || "")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
   const [paymentTerm, setPaymentTerm] = useState<PaymentTerm | "">("")
   const [status, setStatus] = useState<"all" | "active" | "archived">("all")
-  const [page, setPage] = usePageQuery()
   const [customers, setCustomers] = useState<Customer[]>([])
-  const [pagination, setPagination] = useState<CustomerPagination>(emptyPagination)
+  const [pagination, setPagination] = useState<CustomerPagination>(() => emptyPagination(limit))
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null)
@@ -58,10 +56,12 @@ export default function CustomerManagementPage() {
       try {
         const result = await customerApi.list({
           page,
-          limit: PAGE_SIZE,
+          limit,
           search: debouncedQuery,
           payterm: paymentTerm,
           status,
+          sortBy,
+          sortOrder,
         }, controller.signal)
         if (controller.signal.aborted) return
         if (page > Math.max(1, result.pagination.totalPages)) {
@@ -74,7 +74,7 @@ export default function CustomerManagementPage() {
         if (!controller.signal.aborted) {
           setLoadError(error instanceof Error ? error.message : "Unable to load customers.")
           setCustomers([])
-          setPagination(emptyPagination)
+          setPagination(emptyPagination(limit))
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false)
@@ -84,7 +84,7 @@ export default function CustomerManagementPage() {
     return () => {
       controller.abort()
     }
-  }, [page, paymentTerm, status, debouncedQuery, searchPending, refresh])
+  }, [page, limit, sortBy, sortOrder, paymentTerm, status, debouncedQuery, searchPending, refresh, setPage])
 
   const openNewCustomerPanel = () => {
     setSelectedCustomer(null)
@@ -198,7 +198,7 @@ export default function CustomerManagementPage() {
 
           {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4 hover:text-red-950">Try again</button></div>}
 
-          <CustomerTable customers={customers} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={openEditCustomerPanel} onArchive={(customer) => { setArchiveError(""); setCustomerToArchive(customer) }} onRestore={restoreCustomer} restoringId={restoringId} canEdit={canEdit} canDelete={canDelete} canAdd={canAdd} canViewAudit={canViewAudit} hasFilters={Boolean(query.trim() || paymentTerm || status !== "all")} onClearFilters={clearFilters} onAdd={openNewCustomerPanel} />
+          <CustomerTable customers={customers} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} pageSize={limit} onLimitChange={setLimit} sortBy={sortBy} sortOrder={sortOrder} onSortChange={toggleSort} onEdit={openEditCustomerPanel} onArchive={(customer) => { setArchiveError(""); setCustomerToArchive(customer) }} onRestore={restoreCustomer} restoringId={restoringId} canEdit={canEdit} canDelete={canDelete} canAdd={canAdd} canViewAudit={canViewAudit} hasFilters={Boolean(query.trim() || paymentTerm || status !== "all")} onClearFilters={clearFilters} onAdd={openNewCustomerPanel} />
         </div>
       </main>
 

@@ -1,8 +1,10 @@
 import { TableSkeletonRows } from "../common/TableSkeleton"
 import type { Customer } from "../../types/customer"
-import type { CustomerPagination } from "../../lib/customer-api"
+import type { CustomerPagination, CustomerSortBy } from "../../lib/customer-api"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
 import RecordEmptyState from "../common/RecordEmptyState"
+import SortableColumnHeader from "../common/SortableColumnHeader"
+import { PAGE_SIZE_OPTIONS, type PageSize, type SortOrder } from "../../lib/table-sorting"
 
 const termLabels: Record<Customer["paymentTerm"], string> = {
   "30D": "Net 30",
@@ -23,6 +25,11 @@ export default function CustomerTable({
   loading,
   error,
   onPageChange,
+  pageSize,
+  onLimitChange,
+  sortBy,
+  sortOrder,
+  onSortChange,
   onEdit,
   onArchive,
   onRestore,
@@ -40,6 +47,11 @@ export default function CustomerTable({
   loading: boolean
   error: boolean
   onPageChange: (page: number) => void
+  pageSize: PageSize
+  onLimitChange: (limit: PageSize) => void
+  sortBy: CustomerSortBy
+  sortOrder: SortOrder
+  onSortChange: (sortBy: CustomerSortBy) => void
   onEdit: (customer: Customer) => void
   onArchive: (customer: Customer) => void
   onRestore?: (customer: Customer) => void
@@ -80,9 +92,11 @@ export default function CustomerTable({
         <table role="table" className="workspace-table min-w-[820px]">
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
-              {headings.map((heading) => (
-                <th key={heading} scope="col" className={`workspace-table-heading ${heading === "Actions" ? "workspace-table-actions" : ""}`}>{heading}</th>
-              ))}
+              {headings.map((heading) => {
+                if (heading === "Customer ID") return <SortableColumnHeader key={heading} label={heading} active={sortBy === "customerId"} order={sortOrder} onSort={() => onSortChange("customerId")} />
+                if (heading === "Customer") return <SortableColumnHeader key={heading} label={heading} active={sortBy === "customer"} order={sortOrder} onSort={() => onSortChange("customer")} />
+                return <th key={heading} scope="col" className={`workspace-table-heading ${heading === "Actions" ? "workspace-table-actions" : ""}`}>{heading}</th>
+              })}
             </tr>
           </thead>
           <tbody>
@@ -111,13 +125,21 @@ export default function CustomerTable({
         <p className="text-xs font-medium text-slate-600" aria-live="polite">
           {loading ? "Loading customer records…" : error ? "Customer records unavailable" : `Showing ${start}–${end} of ${pagination.total}`}
         </p>
-        <nav aria-label="Customer table pagination" className="workspace-pagination">
-          <button type="button" onClick={() => onPageChange(pagination.page - 1)} disabled={loading || pagination.page <= 1}>Previous</button>
-          {visiblePages(pagination.page, pagination.totalPages).map((page) => (
-            <button key={page} type="button" onClick={() => onPageChange(page)} disabled={loading} aria-label={`Page ${page}`} aria-current={page === pagination.page ? "page" : undefined}>{page}</button>
-          ))}
-          <button type="button" onClick={() => onPageChange(pagination.page + 1)} disabled={loading || pagination.page >= pagination.totalPages}>Next</button>
-        </nav>
+        <div className="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
+          <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
+            <span>Rows per page</span>
+            <select aria-label="Customer rows per page" value={pageSize} onChange={(event) => onLimitChange(Number(event.target.value) as PageSize)} disabled={loading} className="workspace-control h-8 min-h-8 w-16 py-1">
+              {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
+            </select>
+          </label>
+          <nav aria-label="Customer table pagination" className="workspace-pagination">
+            <button type="button" onClick={() => onPageChange(pagination.page - 1)} disabled={loading || pagination.page <= 1}>Previous</button>
+            {visiblePages(pagination.page, pagination.totalPages).map((page) => (
+              <button key={page} type="button" onClick={() => onPageChange(page)} disabled={loading} aria-label={`Page ${page}`} aria-current={page === pagination.page ? "page" : undefined}>{page}</button>
+            ))}
+            <button type="button" onClick={() => onPageChange(pagination.page + 1)} disabled={loading || pagination.page >= pagination.totalPages}>Next</button>
+          </nav>
+        </div>
       </div>
     </section>
   )

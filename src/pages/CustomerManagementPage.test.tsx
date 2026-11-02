@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter } from "react-router"
+import { MemoryRouter, useLocation } from "react-router"
 import { afterEach, expect, test, vi } from "vitest"
 
 import { AuthProvider } from "../components/auth/AuthProvider"
@@ -35,6 +35,8 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
 })
+
+function Location() { return <output aria-label="URL">{useLocation().search}</output> }
 
 test("loads customer pages, shows skeletons, and applies server-side payment term filters", async () => {
   let releaseFirstPage: (() => void) | undefined
@@ -92,6 +94,44 @@ test("loads customer pages, shows skeletons, and applies server-side payment ter
   await waitFor(() => expect(screen.getByText("Showing 1–3 of 3")).toBeInTheDocument())
   expect(within(screen.getByRole("table")).getAllByText("Archived")).toHaveLength(3)
   expect(fetchMock.mock.calls.some(([input]) => String(input).includes("status=archived"))).toBe(true)
+})
+
+test("syncs customer sorting and page size with the URL and API", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: admin })
+    if (url.pathname === "/api/customers") {
+      const page = Number(url.searchParams.get("page"))
+      const limit = Number(url.searchParams.get("limit"))
+      return success({
+        customers: [customer((page - 1) * limit + 1)],
+        pagination: { page, limit, total: 80, totalPages: Math.ceil(80 / limit) },
+      })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter initialEntries={["/customers?page=3&limit=25&sortBy=customerId&sortOrder=desc"]}><AuthProvider><CustomerManagementPage /><Location /></AuthProvider></MemoryRouter>)
+  expect(await screen.findByText("Customer 51")).toBeInTheDocument()
+  expect(screen.getByRole("columnheader", { name: /Customer ID/ })).toHaveAttribute("aria-sort", "descending")
+  expect(screen.getByRole("combobox", { name: "Customer rows per page" })).toHaveValue("25")
+
+  await user.click(screen.getByRole("button", { name: /Sort by Customer ID/ }))
+  await waitFor(() => expect(screen.getByLabelText("URL")).toHaveTextContent("page=1&limit=25&sortBy=customerId&sortOrder=asc"))
+  expect(screen.getByRole("columnheader", { name: /Customer ID/ })).toHaveAttribute("aria-sort", "ascending")
+
+  const pageSize = screen.getByRole("combobox", { name: "Customer rows per page" })
+  await waitFor(() => expect(pageSize).toBeEnabled())
+  await user.selectOptions(pageSize, "50")
+  await waitFor(() => expect(screen.getByLabelText("URL")).toHaveTextContent("page=1&limit=50&sortBy=customerId&sortOrder=asc"))
+  await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => {
+    const url = new URL(String(input), "http://localhost")
+    return url.pathname === "/api/customers" && url.searchParams.get("page") === "1"
+      && url.searchParams.get("limit") === "50" && url.searchParams.get("sortBy") === "customerId"
+      && url.searchParams.get("sortOrder") === "asc"
+  })).toBe(true))
 })
 
 test("waits for a pause in typing before searching customers", async () => {

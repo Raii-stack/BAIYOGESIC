@@ -127,11 +127,41 @@ export default function EmployeeDirectoryPage() {
   }
 
   const save = async (input: EmployeeInput) => {
-    if (selected) await employeeApi.update(selected.id, input)
-    else await employeeApi.create(input)
-    showNotice(selected ? "Employee updated successfully." : "Employee added successfully.")
-    if (!selected) { setPage(1); setStatus("all") }
-    setRefresh((current) => current + 1)
+    if (selected) {
+      await employeeApi.update(selected.id, input)
+      const deptName = departments.find((d) => d.code === input.deptcode)?.name || selected.department
+      const jobDesc = jobs.find((j) => j.code === input.jobcode)?.name || selected.jobTitle
+      setEmployees((prev) =>
+        prev.map((item) =>
+          item.id === selected.id
+            ? {
+                ...item,
+                firstName: input.firstname,
+                lastName: input.lastname,
+                fullName: [input.firstname, input.lastname].filter(Boolean).join(" ") || item.id,
+                email: input.email,
+                gender: input.gender || null,
+                birthDate: input.birthdate,
+                hireDate: input.hiredate,
+                separationDate: input.sepdate || null,
+                departmentCode: input.deptcode,
+                department: deptName,
+                jobCode: input.jobcode,
+                jobTitle: jobDesc,
+                salary: input.salary,
+                effectiveDate: input.effdate,
+              }
+            : item
+        )
+      )
+      showNotice("Employee updated successfully.")
+    } else {
+      await employeeApi.create(input)
+      showNotice("Employee added successfully.")
+      setPage(1)
+      setStatus("all")
+      setRefresh((current) => current + 1)
+    }
   }
 
   const archiveEmployee = async (separationDate?: string) => {
@@ -140,10 +170,20 @@ export default function EmployeeDirectoryPage() {
     setArchiveError("")
     try {
       await employeeApi.archive(employeeToArchive.id, separationDate)
+      setEmployees((prev) =>
+        status === "active" || status === "separated"
+          ? prev.filter((item) => item.id !== employeeToArchive.id)
+          : prev.map((item) =>
+              item.id === employeeToArchive.id
+                ? { ...item, archived: true, separationDate: separationDate || item.separationDate }
+                : item
+            )
+      )
       setEmployeeToArchive(null)
       showNotice("Employee archived successfully.")
-      if ((status === "active" || status === "separated") && employees.length === 1 && page > 1) setPage(page - 1)
-      else setRefresh((current) => current + 1)
+      if ((status === "active" || status === "separated") && employees.length === 1 && page > 1) {
+        setPage(page - 1)
+      }
     } catch (cause) {
       setArchiveError(cause instanceof Error ? cause.message : "Unable to archive employee.")
     } finally {
@@ -155,9 +195,19 @@ export default function EmployeeDirectoryPage() {
     setRestoringId(employee.id)
     try {
       await employeeApi.restore(employee.id)
+      setEmployees((prev) =>
+        status === "archived"
+          ? prev.filter((item) => item.id !== employee.id)
+          : prev.map((item) =>
+              item.id === employee.id
+                ? { ...item, archived: false, separationDate: null }
+                : item
+            )
+      )
       showNotice("Employee restored successfully.")
-      if (status === "archived" && employees.length === 1 && page > 1) setPage(page - 1)
-      else setRefresh((current) => current + 1)
+      if (status === "archived" && employees.length === 1 && page > 1) {
+        setPage(page - 1)
+      }
     } catch {
       // Shared error toast is emitted by apiFailure
     } finally {

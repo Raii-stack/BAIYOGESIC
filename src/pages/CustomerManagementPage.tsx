@@ -9,7 +9,7 @@ import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import DashboardLayout from "../layouts/DashboardLayout"
 import useDebouncedValue from "../hooks/useDebouncedValue"
 import useDirectoryTableQuery from "../hooks/useDirectoryTableQuery"
-import { customerApi, type CustomerInput, type CustomerPagination, type CustomerSortBy } from "../lib/customer-api"
+import { customerApi, toCustomer, type CustomerInput, type CustomerPagination, type CustomerSortBy } from "../lib/customer-api"
 import { getCustomerPermissions } from "../lib/rbac"
 import type { Customer, PaymentTerm } from "../types/customer"
 
@@ -109,9 +109,12 @@ export default function CustomerManagementPage() {
 
   const saveCustomer = async (input: CustomerInput) => {
     if (selectedCustomer) {
-      await customerApi.update(selectedCustomer.id, input)
+      const result = await customerApi.update(selectedCustomer.id, input)
+      const updated = toCustomer(result.customer)
+      setCustomers((prev) =>
+        prev.map((item) => (item.id === selectedCustomer.id ? updated : item))
+      )
       showNotice("Customer updated successfully.")
-      setRefresh((current) => current + 1)
     } else {
       await customerApi.create(input)
       showNotice("Customer created successfully.")
@@ -126,11 +129,19 @@ export default function CustomerManagementPage() {
     setArchiving(true)
     setArchiveError("")
     try {
-      await customerApi.archive(customerToArchive.id)
+      const result = await customerApi.archive(customerToArchive.id)
+      setCustomers((prev) =>
+        status === "active"
+          ? prev.filter((c) => c.id !== customerToArchive.id)
+          : prev.map((c) =>
+              c.id === customerToArchive.id
+                ? { ...c, status: "Inactive" as const, stamp: result?.customer?.stamp || c.stamp }
+                : c
+            )
+      )
       setCustomerToArchive(null)
       showNotice("Customer archived successfully.")
       if (status === "active" && customers.length === 1 && page > 1) setPage(page - 1)
-      else setRefresh((current) => current + 1)
     } catch (error) {
       setArchiveError(error instanceof Error ? error.message : "Unable to archive customer.")
     } finally {
@@ -141,10 +152,18 @@ export default function CustomerManagementPage() {
   const restoreCustomer = async (customer: Customer) => {
     setRestoringId(customer.id)
     try {
-      await customerApi.restore(customer.id)
+      const result = await customerApi.restore(customer.id)
+      setCustomers((prev) =>
+        status === "archived"
+          ? prev.filter((c) => c.id !== customer.id)
+          : prev.map((c) =>
+              c.id === customer.id
+                ? { ...c, status: "Active" as const, stamp: result?.customer?.stamp || c.stamp }
+                : c
+            )
+      )
       showNotice("Customer restored successfully.")
       if (status === "archived" && customers.length === 1 && page > 1) setPage(page - 1)
-      else setRefresh((current) => current + 1)
     } catch {
       // Shared error toast is emitted by apiFailure
     } finally {

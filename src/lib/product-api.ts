@@ -42,7 +42,7 @@ async function request<T>(path: string, method = "GET", body?: object, signal?: 
   return result.data
 }
 
-function toProduct(row: ProductRow): Product {
+export function toProduct(row: ProductRow): Product {
   return {
     code: row.prodcode,
     description: row.description,

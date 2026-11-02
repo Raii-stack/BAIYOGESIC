@@ -346,6 +346,11 @@ test("allows superadmin to edit rights of admin and other superadmin accounts an
     expect(within(screen.getByRole("row", { name: /User2 Account/ })).getByText("Active")).toBeInTheDocument(),
   )
   expect(screen.getByRole("status")).toHaveTextContent("User2 Account has been accepted and activated.")
+  const getUserCallsAfterApprove = fetchMock.mock.calls.filter(([input, init]) => {
+    const url = new URL(String(input), "http://localhost")
+    return url.pathname === "/api/users" && (!init?.method || init?.method === "GET")
+  })
+  expect(getUserCallsAfterApprove).toHaveLength(1)
 
   const adminRow = await screen.findByRole("row", { name: /User3 Account/ })
   await user.click(within(adminRow).getByRole("button", { name: "Rights for User3 Account" }))

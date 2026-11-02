@@ -76,7 +76,7 @@ export default function EmployeeTable({ employees, pagination, loading, error, o
               </> : canDelete && onRestore ? <button type="button" onClick={() => onRestore(employee)} disabled={restoringId === employee.id} aria-label={`Restore ${employee.fullName}`} title="Restore employee" className="workspace-icon-action"><DashboardIcon name="restore" className="h-4 w-4" /></button> : null}
             </div></td>
           </tr>
-          {expanded && canViewHistory && <tr className="border-b border-slate-200"><td colSpan={headings.length} className="workspace-table-expansion"><JobHistory empno={employee.id} fullName={employee.fullName} showAudit={canViewAudit} /></td></tr>}
+          {expanded && canViewHistory && <tr aria-label="Job history" className="border-b border-slate-200"><td colSpan={headings.length} className="workspace-table-expansion"><JobHistory empno={employee.id} fullName={employee.fullName} showAudit={canViewAudit} /></td></tr>}
         </Fragment>
       })}
     </tbody></table>{!loading && !error && employees.length === 0 && <div className="workspace-empty-state"><p className="text-sm font-semibold text-slate-800">No employees found</p><p className="mt-1 text-xs text-slate-500">Try a different search or filter.</p></div>}</div>

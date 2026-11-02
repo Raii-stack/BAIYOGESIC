@@ -10,7 +10,7 @@ import ProductTable from "../components/inventory/ProductTable"
 import DashboardLayout from "../layouts/DashboardLayout"
 import useDebouncedValue from "../hooks/useDebouncedValue"
 import useDirectoryTableQuery from "../hooks/useDirectoryTableQuery"
-import { productApi, type ProductInput, type ProductPagination, type ProductSortBy } from "../lib/product-api"
+import { productApi, toProduct, type ProductInput, type ProductPagination, type ProductSortBy } from "../lib/product-api"
 import { getProductPermissions } from "../lib/rbac"
 import type { Product, UnitType } from "../types/product"
 
@@ -94,9 +94,12 @@ export default function InventoryPage() {
 
   const saveProduct = async (input: ProductInput) => {
     if (selectedProduct) {
-      await productApi.update(selectedProduct.code, input)
+      const result = await productApi.update(selectedProduct.code, input)
+      const updated = toProduct(result.product)
+      setProducts((prev) =>
+        prev.map((item) => (item.code === selectedProduct.code ? updated : item))
+      )
       showNotice("Product updated successfully.")
-      setRefresh((current) => current + 1)
     } else {
       await productApi.create(input)
       showNotice("Product created successfully.")
@@ -111,11 +114,19 @@ export default function InventoryPage() {
     setArchiving(true)
     setArchiveError("")
     try {
-      await productApi.archive(productToArchive.code)
+      const result = await productApi.archive(productToArchive.code)
+      setProducts((prev) =>
+        status === "active"
+          ? prev.filter((p) => p.code !== productToArchive.code)
+          : prev.map((p) =>
+              p.code === productToArchive.code
+                ? { ...p, status: "Inactive" as const, stamp: result?.product?.stamp || p.stamp }
+                : p
+            )
+      )
       setProductToArchive(null)
       showNotice("Product archived successfully.")
       if (status === "active" && products.length === 1 && page > 1) setPage(page - 1)
-      else setRefresh((current) => current + 1)
     } catch (error) {
       setArchiveError(error instanceof Error ? error.message : "Unable to archive product.")
     } finally {
@@ -126,10 +137,18 @@ export default function InventoryPage() {
   const restoreProduct = async (product: Product) => {
     setRestoringCode(product.code)
     try {
-      await productApi.restore(product.code)
+      const result = await productApi.restore(product.code)
+      setProducts((prev) =>
+        status === "archived"
+          ? prev.filter((p) => p.code !== product.code)
+          : prev.map((p) =>
+              p.code === product.code
+                ? { ...p, status: "Active" as const, stamp: result?.product?.stamp || p.stamp }
+                : p
+            )
+      )
       showNotice("Product restored successfully.")
       if (status === "archived" && products.length === 1 && page > 1) setPage(page - 1)
-      else setRefresh((current) => current + 1)
     } catch {
       // Shared error toast is emitted by apiFailure
     } finally {

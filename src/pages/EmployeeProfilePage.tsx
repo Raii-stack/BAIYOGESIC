@@ -123,7 +123,7 @@ export default function EmployeeProfilePage() {
                           onClick={() => setSalaryRevealed((prev) => !prev)}
                           aria-label={salaryRevealed ? "Hide salary" : "Show salary"}
                           title={salaryRevealed ? "Hide salary" : "Show salary"}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-xs hover:bg-slate-50"
+                          className="workspace-secondary-action"
                         >
                           <DashboardIcon
                             name={salaryRevealed ? "eyeOff" : "eye"}

@@ -213,7 +213,7 @@ export default function UserManagementPage() {
                   aria-selected={activeView === "users"}
                   aria-controls="panel-user-accounts"
                   onClick={() => setActiveView("users")}
-                  className={`workspace-tab ${activeView === "users" ? "workspace-tab--active font-semibold text-blue-600 border-b-2 border-blue-600" : "text-slate-600"}`}
+                  className="workspace-tab"
                 >
                   User Accounts
                 </button>
@@ -224,7 +224,7 @@ export default function UserManagementPage() {
                   aria-selected={activeView === "audit"}
                   aria-controls="panel-audit-logs"
                   onClick={() => setActiveView("audit")}
-                  className={`workspace-tab ${activeView === "audit" ? "workspace-tab--active font-semibold text-blue-600 border-b-2 border-blue-600" : "text-slate-600"}`}
+                  className="workspace-tab"
                 >
                   Audit Logs
                 </button>

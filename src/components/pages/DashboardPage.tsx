@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-import { Link } from "react-router"
 import { useAuth } from "../auth/AuthProvider"
 import ChangePasswordModal from "../auth/ChangePasswordModal"
 import { DashboardIcon, ModuleTile, modules } from "../dashboard/DashboardComponents"
@@ -7,9 +6,6 @@ import DashboardLayout from "../../layouts/DashboardLayout"
 import { getUserDisplayName } from "../../lib/auth"
 import {
   canAccessModule,
-  getCustomerPermissions,
-  getProductPermissions,
-  getSalesPermissions,
   type ErpModuleKey,
 } from "../../lib/rbac"
 import {
@@ -26,14 +22,6 @@ const MODULE_KEY_MAP: Record<string, ErpModuleKey> = {
   sales: "sales",
   reports: "reports",
   users: "users",
-}
-
-function AddIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <path d="M10 4v12M4 10h12" />
-    </svg>
-  )
 }
 
 export default function DashboardPage() {
@@ -69,28 +57,6 @@ export default function DashboardPage() {
 
     return () => controller.abort()
   }, [refreshCount])
-
-  const canAddCustomer = getCustomerPermissions(user).canAdd
-  const canAddProduct = getProductPermissions(user).canAdd
-  const canAddSale = getSalesPermissions(user).canAddSale
-
-  const quickActions = [
-    {
-      label: "+ New Customer",
-      href: "/customers",
-      allowed: canAddCustomer,
-    },
-    {
-      label: "+ New Product",
-      href: "/inventory",
-      allowed: canAddProduct,
-    },
-    {
-      label: "+ New Sale",
-      href: "/sales/new",
-      allowed: canAddSale,
-    },
-  ]
 
   const kpiCards = [
     {
@@ -148,7 +114,7 @@ export default function DashboardPage() {
             <span className="text-xs text-neutral-500">HOPE, Inc.</span>
           </header>
 
-          <div className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mb-7">
             <div>
               <h2 className="text-xl font-semibold tracking-[-0.4px] text-neutral-900 [overflow-wrap:anywhere] sm:text-2xl">
                 Welcome back, {getUserDisplayName(user)}
@@ -156,34 +122,6 @@ export default function DashboardPage() {
               <p className="mt-2 text-[13px] leading-5 text-neutral-500">
                 Everything you need to keep your work moving.
               </p>
-            </div>
-
-            <div aria-label="Quick actions" role="toolbar" className="flex flex-wrap items-center gap-2">
-              {quickActions.map((action) =>
-                action.allowed ? (
-                  <Link
-                    key={action.label}
-                    to={action.href}
-                    role="button"
-                    className="workspace-secondary-action inline-flex items-center gap-1.5 text-xs font-semibold"
-                  >
-                    <AddIcon />
-                    <span>{action.label}</span>
-                  </Link>
-                ) : (
-                  <button
-                    key={action.label}
-                    type="button"
-                    disabled
-                    aria-disabled="true"
-                    title="You do not have permission to perform this action"
-                    className="workspace-secondary-action inline-flex items-center gap-1.5 text-xs font-semibold opacity-50 cursor-not-allowed"
-                  >
-                    <AddIcon />
-                    <span>{action.label}</span>
-                  </button>
-                ),
-              )}
             </div>
           </div>
 

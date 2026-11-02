@@ -221,7 +221,7 @@ export default function SalesManagementPage() {
               </div>
             </div>
 
-            <section className="workspace-filter-bar">
+            <section aria-label="Sales filters" className="workspace-panel workspace-filters">
               <label className="workspace-filter-search">
                 <span className="workspace-label">Search sales</span>
                 <span className="relative block">
@@ -263,6 +263,7 @@ export default function SalesManagementPage() {
                   to="/sales/new?view=create"
                   className="workspace-primary-action"
                 >
+                  <DashboardIcon name="plus" className="h-4 w-4" />
                   Create sale
                 </Link>
               )}

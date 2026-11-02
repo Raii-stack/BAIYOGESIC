@@ -318,8 +318,8 @@ test("opens PriceHistoryModal on clicking Prices button, displays history with a
   expect(within(modal).getByRole("columnheader", { name: "Status" })).toBeInTheDocument()
   expect(within(modal).getByRole("columnheader", { name: "Stamp" })).toBeInTheDocument()
 
-  // Authorized user clicks "+ Add Price"
-  await user.click(within(modal).getByRole("button", { name: "+ Add Price" }))
+  // Authorized user opens the add-price form.
+  await user.click(within(modal).getByRole("button", { name: "Add Price" }))
   expect(within(modal).getByText("New Price Tier")).toBeInTheDocument()
 
   // Enter price and submit

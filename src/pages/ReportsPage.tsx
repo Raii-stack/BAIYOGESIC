@@ -132,20 +132,22 @@ export default function ReportsPage() {
               </div>
               <div role="tabpanel" id="active-report-panel" aria-labelledby={`report-tab-${allowedReports.indexOf(activeReport)}`}>
                 {isTopReport ? (
-                  <div className="mb-4 grid gap-3 sm:grid-cols-3 workspace-report-controls">
-                    <label className="text-[13px] text-neutral-600"><span className="mb-1 block">From</span><input aria-label="From" type="date" value={startDate} max={endDate || undefined} onChange={(event) => setStartDate(event.target.value)} className="workspace-control" /></label>
-                    <label className="text-[13px] text-neutral-600"><span className="mb-1 block">To</span><input aria-label="To" type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className="workspace-control" /></label>
-                    <label className="text-[13px] text-neutral-600"><span className="mb-1 block">Number of results</span><input aria-label="Number of results" type="number" min="1" max="100" step="1" value={topN} onChange={(event) => setTopN(Math.min(100, Math.max(1, Math.trunc(Number(event.target.value)) || 1)))} className="workspace-control" /></label>
-                  </div>
+                  <section aria-label="Report filters" className="workspace-panel workspace-filters workspace-report-controls">
+                    <label><span className="workspace-label">From</span><input aria-label="From" type="date" value={startDate} max={endDate || undefined} onChange={(event) => setStartDate(event.target.value)} className="workspace-control" /></label>
+                    <label><span className="workspace-label">To</span><input aria-label="To" type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className="workspace-control" /></label>
+                    <label><span className="workspace-label">Number of results</span><input aria-label="Number of results" type="number" min="1" max="100" step="1" value={topN} onChange={(event) => setTopN(Math.min(100, Math.max(1, Math.trunc(Number(event.target.value)) || 1)))} className="workspace-control" /></label>
+                  </section>
                 ) : null}
                 {activeReport === "Employee Job History" ? (
-                  <label className="mb-4 block max-w-sm text-[13px] text-neutral-600 workspace-report-controls">
-                    <span className="mb-1 block">Employee</span>
-                    <select aria-label="Employee" value={employee} onChange={(event) => setEmployee(event.target.value)} className="workspace-control" disabled={loading && employees.length === 0}>
-                      {employees.length === 0 ? <option value="">No active employees</option> : null}
-                      {employees.map((option) => <option key={option.empno} value={option.empno}>{option.empno} — {option.fullname}</option>)}
-                    </select>
-                  </label>
+                  <section aria-label="Report filters" className="workspace-panel workspace-filters workspace-report-controls">
+                    <label>
+                      <span className="workspace-label">Employee</span>
+                      <select aria-label="Employee" value={employee} onChange={(event) => setEmployee(event.target.value)} className="workspace-control" disabled={loading && employees.length === 0}>
+                        {employees.length === 0 ? <option value="">No active employees</option> : null}
+                        {employees.map((option) => <option key={option.empno} value={option.empno}>{option.empno} — {option.fullname}</option>)}
+                      </select>
+                    </label>
+                  </section>
                 ) : null}
                 <ReportTable report={activeReport} rows={rows} loading={loading} error={error} onRetry={() => setRetry((current) => current + 1)} />
               </div>

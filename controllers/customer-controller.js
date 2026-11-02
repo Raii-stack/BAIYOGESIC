@@ -6,6 +6,8 @@ const PAYMENT_TERMS = new Set(['COD', '30D', '45D', '60D']);
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
+const CUSTOMER_SORT_COLUMNS = { customerId: 'custno', customer: 'custname' };
+const SORT_ORDERS = new Set(['asc', 'desc']);
 
 function requestError(message, statusCode, details) {
   const error = new Error(message);
@@ -79,6 +81,16 @@ const listCustomers = asyncHandler(async (req, res) => {
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
   const payterm = typeof req.query.payterm === 'string' ? req.query.payterm.trim().toUpperCase() : '';
   const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
+  const sortBy = req.query.sortBy === undefined ? 'customer' : req.query.sortBy;
+  const sortOrder = req.query.sortOrder === undefined
+    ? 'asc'
+    : typeof req.query.sortOrder === 'string' ? req.query.sortOrder.toLowerCase() : '';
+  if (typeof sortBy !== 'string' || !Object.hasOwn(CUSTOMER_SORT_COLUMNS, sortBy)) {
+    throw requestError('sortBy must be customerId or customer', 400);
+  }
+  if (!SORT_ORDERS.has(sortOrder)) {
+    throw requestError('sortOrder must be asc or desc', 400);
+  }
   if (payterm && !PAYMENT_TERMS.has(payterm)) {
     throw requestError('payterm must be COD, 30D, 45D, or 60D', 400);
   }
@@ -107,13 +119,14 @@ const listCustomers = asyncHandler(async (req, res) => {
   const limitParameter = values.length - 1;
   const offsetParameter = values.length;
   const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
+  const secondarySort = sortBy === 'customer' ? ', custno ASC' : '';
   const pool = requirePool();
   const result = await pool.query(
     `SELECT custno, custname, address, payterm, is_deleted, stamp,
             count(*) OVER()::integer AS _total
      FROM public.customer
      ${whereClause}
-     ORDER BY custname ASC, custno ASC
+     ORDER BY ${CUSTOMER_SORT_COLUMNS[sortBy]} ${sortOrder.toUpperCase()}${secondarySort}
      LIMIT $${limitParameter} OFFSET $${offsetParameter}`,
     values
   );

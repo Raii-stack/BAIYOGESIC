@@ -281,7 +281,7 @@ body:has([aria-modal="true"]:not([inert] [aria-modal="true"])) { overflow: hidde
   .workspace-table > tbody > tr[aria-hidden="true"] > td::before { content: ""; width: 64px; max-width: 100%; height: 10px; margin-block: 4px 8px; border-radius: 4px; background: #ededed; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
   .workspace-table .workspace-history { padding: 12px; }
   .workspace-table-footer { padding: 16px; }
-  .workspace-table-footer > .workspace-pagination { width: 100%; justify-content: center; }
+  .workspace-table-footer .workspace-pagination { width: 100%; justify-content: center; }
   .workspace-pagination button { min-height: 40px; min-width: 36px; }
 }
 

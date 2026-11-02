@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router"
 
 import SuccessToast from "../components/common/SuccessToast"
 import { useAuth } from "../components/auth/AuthProvider"
@@ -9,26 +8,25 @@ import ProductPanel from "../components/inventory/ProductPanel"
 import ProductTable from "../components/inventory/ProductTable"
 import DashboardLayout from "../layouts/DashboardLayout"
 import useDebouncedValue from "../hooks/useDebouncedValue"
-import usePageQuery from "../hooks/usePageQuery"
-import { productApi, type ProductInput, type ProductPagination } from "../lib/product-api"
+import useDirectoryTableQuery from "../hooks/useDirectoryTableQuery"
+import { productApi, type ProductInput, type ProductPagination, type ProductSortBy } from "../lib/product-api"
 import { getProductPermissions } from "../lib/rbac"
 import type { Product, UnitType } from "../types/product"
 
-const PAGE_SIZE = 10
-const emptyPagination: ProductPagination = { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 }
+const PRODUCT_SORTS: ProductSortBy[] = ["productCode", "description", "unitPrice"]
+const emptyPagination = (limit: number): ProductPagination => ({ page: 1, limit, total: 0, totalPages: 0 })
 
 export default function InventoryPage() {
   const { user } = useAuth()
-  const [searchParams] = useSearchParams()
+  const { searchParams, page, limit, sortBy, sortOrder, setPage, setLimit, toggleSort } = useDirectoryTableQuery(PRODUCT_SORTS, "description")
   const { canAdd, canEdit, canDelete, canViewAudit } = getProductPermissions(user)
   const [query, setQuery] = useState(() => searchParams.get("search") || "")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
   const [unit, setUnit] = useState<UnitType | "">("")
   const [status, setStatus] = useState<"all" | "active" | "archived">("all")
-  const [page, setPage] = usePageQuery()
   const [products, setProducts] = useState<Product[]>([])
-  const [pagination, setPagination] = useState<ProductPagination>(emptyPagination)
+  const [pagination, setPagination] = useState<ProductPagination>(() => emptyPagination(limit))
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null)
@@ -56,7 +54,7 @@ export default function InventoryPage() {
     setLoadError("")
     const load = async () => {
       try {
-        const result = await productApi.list({ page, limit: PAGE_SIZE, search: debouncedQuery, unit, status }, controller.signal)
+        const result = await productApi.list({ page, limit, search: debouncedQuery, unit, status, sortBy, sortOrder }, controller.signal)
         if (controller.signal.aborted) return
         if (page > Math.max(1, result.pagination.totalPages)) {
           setPage(Math.max(1, result.pagination.totalPages))
@@ -68,7 +66,7 @@ export default function InventoryPage() {
         if (!controller.signal.aborted) {
           setLoadError(error instanceof Error ? error.message : "Unable to load products.")
           setProducts([])
-          setPagination(emptyPagination)
+          setPagination(emptyPagination(limit))
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false)
@@ -76,7 +74,7 @@ export default function InventoryPage() {
     }
     void load()
     return () => controller.abort()
-  }, [page, unit, status, debouncedQuery, searchPending, refresh])
+  }, [page, limit, sortBy, sortOrder, unit, status, debouncedQuery, searchPending, refresh, setPage])
 
   const showNotice = (message: string) => setNotice((current) => ({ id: (current?.id ?? 0) + 1, message }))
 
@@ -178,7 +176,7 @@ export default function InventoryPage() {
           </section>
 
           {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4 hover:text-red-950">Try again</button></div>}
-          <ProductTable key={`${page}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} onRestore={restoreProduct} restoringCode={restoringCode} canEdit={canEdit} canDelete={canDelete} canAdd={canAdd} canViewAudit={canViewAudit} hasFilters={Boolean(query.trim() || unit || status !== "all")} onClearFilters={clearFilters} onAdd={openNewProductPanel} />
+          <ProductTable key={`${page}-${limit}-${sortBy}-${sortOrder}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} pageSize={limit} onLimitChange={setLimit} sortBy={sortBy} sortOrder={sortOrder} onSortChange={toggleSort} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} onRestore={restoreProduct} restoringCode={restoringCode} canEdit={canEdit} canDelete={canDelete} canAdd={canAdd} canViewAudit={canViewAudit} hasFilters={Boolean(query.trim() || unit || status !== "all")} onClearFilters={clearFilters} onAdd={openNewProductPanel} />
         </div>
       </main>
 

@@ -17,6 +17,8 @@ export type CustomerPagination = {
   totalPages: number
 }
 
+export type CustomerSortBy = "customerId" | "customer"
+
 export type CustomerInput = {
   custname: string
   address: string
@@ -66,11 +68,13 @@ export function toCustomer(row: CustomerRow): Customer {
 }
 
 export const customerApi = {
-  async list(options: { page: number; limit: number; search: string; payterm: PaymentTerm | ""; status: "all" | "active" | "archived" }, signal?: AbortSignal) {
+  async list(options: { page: number; limit: number; search: string; payterm: PaymentTerm | ""; status: "all" | "active" | "archived"; sortBy: CustomerSortBy; sortOrder: "asc" | "desc" }, signal?: AbortSignal) {
     const params = new URLSearchParams({ page: String(options.page), limit: String(options.limit) })
     if (options.search) params.set("search", options.search)
     if (options.payterm) params.set("payterm", options.payterm)
     if (options.status !== "all") params.set("status", options.status)
+    params.set("sortBy", options.sortBy)
+    params.set("sortOrder", options.sortOrder)
     const data = await request<{ customers: CustomerRow[]; pagination: CustomerPagination }>(`?${params}`, "GET", undefined, signal)
     return { customers: data.customers.map(toCustomer), pagination: data.pagination }
   },

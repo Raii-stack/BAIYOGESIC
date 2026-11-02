@@ -292,6 +292,7 @@ export function getSalesPermissions(user: AuthUser | null | undefined) {
   const canAddSale = hasRight(user, "sales.add")
   const canEditSale = hasRight(user, "sales.edit")
   const canDeleteSale = hasRight(user, "sales.delete")
+  const canRestoreSale = hasAnyRight(user, ["sales.restore", "sales.delete"]) || isAdminRole(user?.role)
   const canViewDetails = hasAnyRight(user, [
     "sales.details.view",
     "sales.details.add",
@@ -307,6 +308,7 @@ export function getSalesPermissions(user: AuthUser | null | undefined) {
     canAddSale,
     canEditSale,
     canDeleteSale,
+    canRestoreSale,
     canViewDetails,
     canAddDetail,
     canEditDetail,

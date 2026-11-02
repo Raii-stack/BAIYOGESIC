@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
 import { DashboardIcon } from "../components/dashboard/DashboardComponents"
+import ArchiveSaleModal from "../components/sales/ArchiveSaleModal"
 import SaleDetailsModal from "../components/sales/SaleDetailsModal"
 import SalesTable from "../components/sales/SalesTable"
 import usePageQuery from "../hooks/usePageQuery"
@@ -21,6 +22,7 @@ export default function SalesManagementPage() {
   const {
     canAddSale,
     canDeleteSale,
+    canRestoreSale,
     canViewDetails,
     canAddDetail,
     canEditDetail,
@@ -33,6 +35,9 @@ export default function SalesManagementPage() {
   const [query, setQuery] = useState(() => searchParams.get("search") || "")
   const [page, setPage] = usePageQuery()
   const [selectedSale, setSelectedSale] = useState<SaleTransaction | null>(null)
+  const [saleToArchive, setSaleToArchive] = useState<SaleTransaction | null>(null)
+  const [archiveError, setArchiveError] = useState("")
+  const [archiving, setArchiving] = useState(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -54,6 +59,7 @@ export default function SalesManagementPage() {
     return transactions.filter((sale) => {
       const matchesStatus =
         effectiveStatusView === "All" || sale.status === effectiveStatusView
+
       const matchesQuery =
         !normalizedQuery ||
         sale.transactionNo.toLowerCase().includes(normalizedQuery) ||
@@ -72,73 +78,75 @@ export default function SalesManagementPage() {
   }, [page, totalPages])
   const paginatedSales = visibleSales.slice((page - 1) * 10, page * 10)
 
-  const changeStatus = async (
-    transactionNo: string,
-    status: SaleTransaction["status"],
-  ) => {
-    const existing = transactions.find((s) => s.transactionNo === transactionNo)
-    if (status === "Inactive" && existing && existing.payments.length > 0) {
-      try {
-        await salesApi.archive(transactionNo)
-      } catch (error) {
-        const message =
-          error instanceof Error && error.message
-            ? error.message
-            : "Cannot archive a sales order that already has recorded payments."
-        notifyToast(message, "error")
-        return
-      }
-    }
-
+  const confirmArchiveSale = async () => {
+    if (!saleToArchive) return
+    const transactionNo = saleToArchive.transactionNo
+    setArchiving(true)
+    setArchiveError("")
     try {
-      const updated =
-        status === "Inactive"
-          ? await salesApi.archive(transactionNo)
-          : await salesApi.restore(transactionNo)
-
+      const updated = await salesApi.archive(transactionNo)
       if (updated) {
         setTransactions((current) =>
           current.map((sale) =>
             sale.transactionNo === transactionNo ? updated : sale,
           ),
         )
-        notifyToast(
-          status === "Inactive"
-            ? `Sale ${transactionNo} archived.`
-            : `Sale ${transactionNo} restored.`,
-          "success",
+      } else {
+        setTransactions((current) =>
+          current.map((sale) =>
+            sale.transactionNo === transactionNo
+              ? {
+                  ...sale,
+                  status: "Inactive" as const,
+                  stamp: "DELETED user2 2026-10-13 1:01 PM",
+                }
+              : sale,
+          ),
         )
-        return
       }
+      setSaleToArchive(null)
+      notifyToast(`Sale ${transactionNo} archived.`, "success")
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : "Cannot archive a sales order that already has recorded payments."
+      setArchiveError(message)
+    } finally {
+      setArchiving(false)
+    }
+  }
+
+  const handleRestoreSale = async (transactionNo: string) => {
+    try {
+      const updated = await salesApi.restore(transactionNo)
+      if (updated) {
+        setTransactions((current) =>
+          current.map((sale) =>
+            sale.transactionNo === transactionNo ? updated : sale,
+          ),
+        )
+      } else {
+        setTransactions((current) =>
+          current.map((sale) =>
+            sale.transactionNo === transactionNo
+              ? {
+                  ...sale,
+                  status: "Active" as const,
+                  stamp: "EDITED user1 2026-10-13 1:01 PM",
+                }
+              : sale,
+          ),
+        )
+      }
+      notifyToast(`Sale ${transactionNo} restored.`, "success")
     } catch (error) {
       const message =
         error instanceof Error && error.message
           ? error.message
           : "Unable to update sale status."
       notifyToast(message, "error")
-      return
     }
-
-    setTransactions((current) =>
-      current.map((sale) =>
-        sale.transactionNo === transactionNo
-          ? {
-              ...sale,
-              status,
-              stamp:
-                status === "Active"
-                  ? "EDITED user1 2026-10-13 1:01 PM"
-                  : "DELETED user2 2026-10-13 1:01 PM",
-            }
-          : sale,
-      ),
-    )
-    notifyToast(
-      status === "Inactive"
-        ? `Sale ${transactionNo} archived.`
-        : `Sale ${transactionNo} restored.`,
-      "info",
-    )
   }
 
   const updatePayments = async (transactionNo: string, payments: SalePayment[]) => {
@@ -178,31 +186,29 @@ export default function SalesManagementPage() {
         )
       })
       if (!changed) return previousSale
+
       updated = await salesApi.updatePayment(transactionNo, changed.orNo, {
         amount: changed.amount,
         paydate: changed.date,
         payment_method: changed.paymentMethod ?? "Cash",
       })
+      notice = "Payment updated."
     }
 
-    if (!updated) throw new Error("The payment response was incomplete.")
+    if (!updated) return previousSale
+
     setTransactions((current) =>
       current.map((sale) =>
         sale.transactionNo === transactionNo ? updated : sale,
       ),
     )
-    setSelectedSale((current) =>
-      current?.transactionNo === transactionNo ? updated : current,
-    )
+    setSelectedSale(updated)
     notifyToast(notice, "success")
     return updated
   }
 
   return (
-    <DashboardLayout
-      activeNavigation="Sales"
-      searchPlaceholder="Search workspace"
-    >
+    <DashboardLayout activeNavigation="Sales" searchPlaceholder="Search workspace">
       <>
         <main className="workspace-page">
           <div className="mx-auto max-w-7xl">
@@ -215,10 +221,7 @@ export default function SalesManagementPage() {
               </div>
             </div>
 
-            <section
-              aria-label="Sales filters"
-              className="workspace-panel workspace-filters"
-            >
+            <section className="workspace-filter-bar">
               <label className="workspace-filter-search">
                 <span className="workspace-label">Search sales</span>
                 <span className="relative block">
@@ -271,14 +274,28 @@ export default function SalesManagementPage() {
               page={page}
               onPageChange={setPage}
               onDetails={setSelectedSale}
-              onDelete={(transactionNo) =>
-                changeStatus(transactionNo, "Inactive")
-              }
-              onRestore={(transactionNo) =>
-                changeStatus(transactionNo, "Active")
-              }
+              onDelete={(transactionNo) => {
+                const sale = transactions.find((s) => s.transactionNo === transactionNo)
+                setArchiveError("")
+                setSaleToArchive(
+                  sale ?? {
+                    transactionNo,
+                    status: "Active",
+                    customerCode: "",
+                    customerName: "",
+                    employeeCode: "",
+                    employeeName: "",
+                    salesDate: "",
+                    lines: [],
+                    payments: [],
+                    stamp: "",
+                  },
+                )
+              }}
+              onRestore={handleRestoreSale}
               canViewDetails={canViewDetails}
               canDelete={canDeleteSale}
+              canRestore={canRestoreSale}
               showAdminAudit={canViewAudit}
             />
           </div>
@@ -292,6 +309,17 @@ export default function SalesManagementPage() {
           canEdit={canEditDetail}
           canDelete={canDeleteDetail}
           showAdminAudit={canViewAudit}
+        />
+
+        <ArchiveSaleModal
+          transno={saleToArchive?.transactionNo ?? ""}
+          open={Boolean(saleToArchive)}
+          onCancel={() => {
+            if (!archiving) setSaleToArchive(null)
+          }}
+          onConfirm={confirmArchiveSale}
+          loading={archiving}
+          error={archiveError}
         />
       </>
     </DashboardLayout>

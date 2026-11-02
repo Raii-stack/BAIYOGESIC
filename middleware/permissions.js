@@ -15,7 +15,7 @@ const PERMISSIONS = {
     CRM: new Set(['view', 'edit', 'delete']),
     Inventory: new Set(['view', 'edit', 'delete']),
     HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
-    Sales: new Set(['view', 'edit', 'delete']),
+    Sales: new Set(['view', 'edit', 'delete', 'restore']),
     Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales']),
     Users: new Set(['view', 'edit', 'delete'])
   },
@@ -23,7 +23,7 @@ const PERMISSIONS = {
     CRM: new Set(['view', 'edit', 'delete']),
     Inventory: new Set(['view', 'edit', 'delete']),
     HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
-    Sales: new Set(['view', 'edit', 'delete']),
+    Sales: new Set(['view', 'edit', 'delete', 'restore']),
     Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales']),
     Users: new Set(['view', 'edit', 'delete'])
   },
@@ -31,7 +31,7 @@ const PERMISSIONS = {
     CRM: new Set(['view', 'edit', 'delete']),
     Inventory: new Set(['view', 'edit', 'delete']),
     HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
-    Sales: new Set(['view', 'edit', 'delete']),
+    Sales: new Set(['view', 'edit', 'delete', 'restore']),
     Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales']),
     Users: new Set(['view', 'edit'])
   },
@@ -99,7 +99,8 @@ const EMPLOYEE_RIGHT_RULES = {
   Sales: {
     view: ['sales.access', 'sales.add', 'sales.edit', 'sales.delete', 'sales.details.view', 'sales.details.add', 'sales.details.edit', 'sales.details.delete'],
     edit: ['sales.add', 'sales.edit', 'sales.details.add', 'sales.details.edit'],
-    delete: ['sales.delete', 'sales.details.delete']
+    delete: ['sales.delete', 'sales.details.delete'],
+    restore: ['sales.restore', 'sales.delete']
   },
   Reports: {
     view: [

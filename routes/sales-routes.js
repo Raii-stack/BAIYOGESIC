@@ -29,7 +29,7 @@ router.put('/:transno/payments/:orno', requirePermission('Sales', 'edit'), updat
 router.delete('/:transno/payments/:orno', requirePermission('Sales', 'delete'), deletePayment);
 
 router.delete('/:transno', requirePermission('Sales', 'delete'), archiveSale);
-router.patch('/:transno/restore', requirePermission('Sales', 'delete'), restoreSale);
-router.post('/:transno/restore', requirePermission('Sales', 'delete'), restoreSale);
+router.patch('/:transno/restore', requirePermission('Sales', 'restore'), restoreSale);
+router.post('/:transno/restore', requirePermission('Sales', 'restore'), restoreSale);
 
 module.exports = router;

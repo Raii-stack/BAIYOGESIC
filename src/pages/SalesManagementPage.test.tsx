@@ -32,8 +32,8 @@ test("empty sales searches and archived views show the appropriate actions", asy
   await user.clear(screen.getByRole("searchbox", { name: "Search sales" }))
   await user.selectOptions(screen.getByRole("combobox", { name: "Status" }), "Inactive")
   const table = within(screen.getByRole("table"))
-  expect(table.getAllByRole("button", { name: "Restore" })).toHaveLength(2)
-  expect(table.queryByRole("button", { name: "Archive" })).not.toBeInTheDocument()
+  expect(table.getAllByRole("button", { name: /Restore/ })).toHaveLength(2)
+  expect(table.queryByRole("button", { name: /Archive/ })).not.toBeInTheDocument()
   expect(table.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument()
 })
 
@@ -99,20 +99,36 @@ test("CreateSalePage calculates line totals with price-as-of-date lookup and sub
           success: true,
           data: {
             sale: {
-              transno: "TR000125",
-              salesdate: body.salesdate,
+              transno: "SO-202610-0099",
               custno: body.custno,
-              custname: "Northstar Office Group",
               empno: body.empno,
-              empname: "Employee Record 01",
-              is_deleted: false,
-              stamp: "ADD system",
+              salesdate: body.salesdate,
+              status: "Active",
               lines: body.lines,
               payments: [],
             },
           },
         }),
         { status: 201, headers: { "Content-Type": "application/json" } },
+      )
+    }
+    if (url.includes("/api/sales/catalog")) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            customers: [{ custno: "C0001", custname: "Northstar Office Group", payterm: "30D" }],
+            employees: [{ empno: "00001", firstname: "Employee", lastname: "Record 01" }],
+            products: [{ prodcode: "P-001", description: "Industrial Widget A", unit: "pc", unitprice: 13.75, priceHistory: [] }],
+          },
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      )
+    }
+    if (url.includes("/api/sales/price-lookup")) {
+      return new Response(
+        JSON.stringify({ success: true, data: { unitPrice: 13.75, effectiveDate: "2026-10-01" } }),
+        { headers: { "Content-Type": "application/json" } },
       )
     }
     return new Response(
@@ -167,4 +183,170 @@ test("CreateSalePage calculates line totals with price-as-of-date lookup and sub
 
   await user.click(screen.getByRole("button", { name: "Save sale" }))
   expect(await screen.findByText("Sales list destination")).toBeInTheDocument()
+})
+
+test("opens ArchiveSaleModal, allows cancelling, and confirms archiving via the API", async () => {
+  const user = userEvent.setup()
+  const sale = {
+    transno: "SO-202610-0001",
+    salesdate: "2026-10-01",
+    custno: "C-001",
+    custname: "Acme Corporation",
+    empno: "E-002",
+    empname: "Juan Reyes",
+    is_deleted: false,
+    lines: [],
+    payments: [],
+  }
+
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") {
+      return new Response(JSON.stringify({ success: true, data: { user: {
+        userId: "1", email: "admin@hope.inc", role: "admin", status: "active", mustChangePassword: false,
+      } } }), { headers: { "Content-Type": "application/json" } })
+    }
+    if (url.pathname === "/api/sales" && init?.method === "GET") {
+      return new Response(JSON.stringify({ success: true, data: { sales: [sale], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } } }), { headers: { "Content-Type": "application/json" } })
+    }
+    if (url.pathname === "/api/sales/SO-202610-0001" && init?.method === "DELETE") {
+      return new Response(JSON.stringify({ success: true, data: { sale: { ...sale, is_deleted: true } } }), { headers: { "Content-Type": "application/json" } })
+    }
+    throw new Error(`Unexpected request ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+
+  render(
+    <MemoryRouter initialEntries={["/sales?view=transactions"]}>
+      <AuthProvider>
+        <SalesManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  expect(await screen.findByText("SO-202610-0001")).toBeInTheDocument()
+
+  // Click Archive button in table
+  await user.click(screen.getByRole("button", { name: "Archive SO-202610-0001" }))
+
+  // Verify modal is shown
+  const dialog = screen.getByRole("alertdialog", { name: "Archive this sales order?" })
+  expect(dialog).toBeInTheDocument()
+  expect(within(dialog).getByText("SO-202610-0001")).toBeInTheDocument()
+
+  // Cancel dismissal
+  await user.click(within(dialog).getByRole("button", { name: "Cancel" }))
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+
+  // Open again and confirm
+  await user.click(screen.getByRole("button", { name: "Archive SO-202610-0001" }))
+  const confirmDialog = screen.getByRole("alertdialog", { name: "Archive this sales order?" })
+  await user.click(within(confirmDialog).getByRole("button", { name: "Archive sale" }))
+
+  // Modal closes and delete API was invoked
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith("/api/sales/SO-202610-0001") && init?.method === "DELETE")).toBe(true)
+})
+
+test("shows 409 Conflict error in ArchiveSaleModal when sale has recorded payments", async () => {
+  const user = userEvent.setup()
+  const sale = {
+    transno: "SO-202610-0002",
+    salesdate: "2026-10-01",
+    custno: "C-001",
+    custname: "Acme Corporation",
+    empno: "E-002",
+    empname: "Juan Reyes",
+    is_deleted: false,
+    lines: [],
+    payments: [{ orno: "OR-001", amount: 50, paydate: "2026-10-02" }],
+  }
+
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") {
+      return new Response(JSON.stringify({ success: true, data: { user: {
+        userId: "1", email: "admin@hope.inc", role: "admin", status: "active", mustChangePassword: false,
+      } } }), { headers: { "Content-Type": "application/json" } })
+    }
+    if (url.pathname === "/api/sales" && init?.method === "GET") {
+      return new Response(JSON.stringify({ success: true, data: { sales: [sale], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } } }), { headers: { "Content-Type": "application/json" } })
+    }
+    if (url.pathname === "/api/sales/SO-202610-0002" && init?.method === "DELETE") {
+      return new Response(
+        JSON.stringify({ success: false, error: { message: "Cannot archive a sales order that already has recorded payments.", statusCode: 409 } }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      )
+    }
+    throw new Error(`Unexpected request ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+
+  render(
+    <MemoryRouter initialEntries={["/sales?view=transactions"]}>
+      <AuthProvider>
+        <SalesManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  expect(await screen.findByText("SO-202610-0002")).toBeInTheDocument()
+
+  // Click Archive button
+  await user.click(screen.getByRole("button", { name: "Archive SO-202610-0002" }))
+  const dialog = screen.getByRole("alertdialog", { name: "Archive this sales order?" })
+  await user.click(within(dialog).getByRole("button", { name: "Archive sale" }))
+
+  // Error is displayed inside the modal alertdialog
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent("Cannot archive a sales order that already has recorded payments.")
+  expect(dialog).toBeInTheDocument()
+})
+
+test("restores an archived sales order via the API", async () => {
+  const user = userEvent.setup()
+  const sale = {
+    transno: "SO-202610-0003",
+    salesdate: "2026-10-01",
+    custno: "C-001",
+    custname: "Acme Corporation",
+    empno: "E-002",
+    empname: "Juan Reyes",
+    is_deleted: true,
+    lines: [],
+    payments: [],
+  }
+
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") {
+      return new Response(JSON.stringify({ success: true, data: { user: {
+        userId: "1", email: "admin@hope.inc", role: "admin", status: "active", mustChangePassword: false,
+      } } }), { headers: { "Content-Type": "application/json" } })
+    }
+    if (url.pathname === "/api/sales" && init?.method === "GET") {
+      return new Response(JSON.stringify({ success: true, data: { sales: [sale], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } } }), { headers: { "Content-Type": "application/json" } })
+    }
+    if (url.pathname === "/api/sales/SO-202610-0003/restore" && (init?.method === "PATCH" || init?.method === "POST")) {
+      return new Response(JSON.stringify({ success: true, data: { sale: { ...sale, is_deleted: false } } }), { headers: { "Content-Type": "application/json" } })
+    }
+    throw new Error(`Unexpected request ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+
+  render(
+    <MemoryRouter initialEntries={["/sales?view=transactions"]}>
+      <AuthProvider>
+        <SalesManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  // Switch to Archived view
+  await user.selectOptions(await screen.findByRole("combobox", { name: "Status" }), "Inactive")
+  expect(await screen.findByText("SO-202610-0003")).toBeInTheDocument()
+
+  // Click Restore button
+  await user.click(screen.getByRole("button", { name: "Restore SO-202610-0003" }))
+
+  expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/api/sales/SO-202610-0003/restore"))).toBe(true)
 })

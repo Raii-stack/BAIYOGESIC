@@ -1,6 +1,7 @@
 export type RecordStatus = "Active" | "Inactive"
 
 export type PaymentStatus = "Paid" | "Partial" | "Unpaid"
+export type PaymentMethod = "Cash" | "Bank Transfer" | "Check" | "Card" | "E-wallet"
 
 export type SaleLine = {
   id: string
@@ -23,6 +24,7 @@ export type SalePayment = {
   orNo: string
   date: string
   amount: number
+  paymentMethod?: PaymentMethod
   stamp: string
 }
 

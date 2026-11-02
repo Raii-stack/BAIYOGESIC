@@ -141,51 +141,61 @@ export default function SalesManagementPage() {
     )
   }
 
-  const updatePayments = (transactionNo: string, payments: SalePayment[]) => {
+  const updatePayments = async (transactionNo: string, payments: SalePayment[]) => {
     const previousSale = transactions.find(
       (sale) => sale.transactionNo === transactionNo,
     )
+    if (!previousSale) throw new Error("Sales transaction not found.")
     const previousPayments = previousSale?.payments ?? []
+    let updated: SaleTransaction | null = null
+    let notice = "Payment updated."
 
+    if (payments.length > previousPayments.length) {
+      const added = payments.find(
+        (payment) => !previousPayments.some((existing) => existing.id === payment.id),
+      ) ?? payments.at(-1)
+      if (!added) throw new Error("Payment details are required.")
+      updated = await salesApi.recordPayment(transactionNo, {
+        amount: added.amount,
+        paydate: added.date,
+        payment_method: added.paymentMethod ?? "Cash",
+      })
+      notice = "Payment recorded."
+    } else if (payments.length < previousPayments.length) {
+      const removed = previousPayments.find(
+        (payment) => !payments.some((current) => current.id === payment.id),
+      )
+      if (!removed) throw new Error("Payment record not found.")
+      updated = await salesApi.deletePayment(transactionNo, removed.orNo)
+      notice = "Payment deleted."
+    } else {
+      const changed = payments.find((payment) => {
+        const previous = previousPayments.find((entry) => entry.id === payment.id)
+        return previous && (
+          previous.amount !== payment.amount ||
+          previous.date !== payment.date ||
+          (previous.paymentMethod ?? "Cash") !== (payment.paymentMethod ?? "Cash")
+        )
+      })
+      if (!changed) return previousSale
+      updated = await salesApi.updatePayment(transactionNo, changed.orNo, {
+        amount: changed.amount,
+        paydate: changed.date,
+        payment_method: changed.paymentMethod ?? "Cash",
+      })
+    }
+
+    if (!updated) throw new Error("The payment response was incomplete.")
     setTransactions((current) =>
       current.map((sale) =>
-        sale.transactionNo === transactionNo ? { ...sale, payments } : sale,
+        sale.transactionNo === transactionNo ? updated : sale,
       ),
     )
     setSelectedSale((current) =>
-      current?.transactionNo === transactionNo
-        ? { ...current, payments }
-        : current,
+      current?.transactionNo === transactionNo ? updated : current,
     )
-
-    if (payments.length > previousPayments.length) {
-      const added = payments[payments.length - 1]
-      salesApi
-        .recordPayment(transactionNo, {
-          amount: added.amount,
-          paydate: added.date,
-        })
-        .then((updated) => {
-          if (!updated) {
-            notifyToast("Payment recorded.", "info")
-            return
-          }
-          setTransactions((current) =>
-            current.map((sale) =>
-              sale.transactionNo === transactionNo ? updated : sale,
-            ),
-          )
-          setSelectedSale((current) =>
-            current?.transactionNo === transactionNo ? updated : current,
-          )
-          notifyToast("Payment recorded.", "success")
-        })
-        .catch(() => {
-          notifyToast("Payment recorded.", "info")
-        })
-    } else {
-      notifyToast("Payment updated.", "info")
-    }
+    notifyToast(notice, "success")
+    return updated
   }
 
   return (

@@ -22,7 +22,7 @@ export default function SaleDetailsModal({
 }: {
   sale: SaleTransaction | null
   onClose: () => void
-  onPaymentsChange: (transactionNo: string, payments: SalePayment[]) => void
+  onPaymentsChange: (transactionNo: string, payments: SalePayment[]) => Promise<SaleTransaction>
   canAdd?: boolean
   canEdit?: boolean
   canDelete?: boolean
@@ -57,16 +57,16 @@ export default function SaleDetailsModal({
   )
   const balance = Math.max(0, getSaleTotal(sale) - paymentTotal)
 
-  const updatePayments = (
+  const updatePayments = async (
     updater: (current: SalePayment[]) => SalePayment[],
   ) => {
     const next = updater(payments)
-    setPayments(next)
-    onPaymentsChange(sale.transactionNo, next)
+    const updated = await onPaymentsChange(sale.transactionNo, next)
+    setPayments(updated.payments)
   }
 
-  const savePayment = (payment: SalePayment) => {
-    updatePayments((current) =>
+  const savePayment = async (payment: SalePayment) => {
+    await updatePayments((current) =>
       current.some((entry) => entry.id === payment.id)
         ? current.map((entry) => (entry.id === payment.id ? payment : entry))
         : [...current, payment],
@@ -227,6 +227,7 @@ export default function SaleDetailsModal({
                     {[
                       "OR No.",
                       "Date",
+                      "Method",
                       "Amount",
                       ...(showAdminAudit ? ["Last change"] : []),
                       ...(showDetailActions ? ["Actions"] : []),
@@ -254,6 +255,9 @@ export default function SaleDetailsModal({
                       <td data-label="Date" className="font-mono text-xs text-slate-600">
                         {payment.date}
                       </td>
+                      <td data-label="Method" className="text-xs font-medium text-slate-700">
+                        {payment.paymentMethod ?? "Cash"}
+                      </td>
                       <td data-label="Amount" className="text-right text-sm font-bold tabular-nums text-slate-950">
                         {currency.format(payment.amount)}
                       </td>
@@ -280,13 +284,13 @@ export default function SaleDetailsModal({
                             {canDelete && (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  updatePayments((current) =>
+                                onClick={() => {
+                                  void updatePayments((current) =>
                                     current.filter(
                                       (entry) => entry.id !== payment.id,
                                     ),
-                                  )
-                                }
+                                  ).catch(() => {})
+                                }}
                                 className="workspace-text-action text-red-700"
                               >
                                 Delete

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState, type KeyboardEvent } from "react"
 import { useSearchParams } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
@@ -17,6 +17,12 @@ import type { Employee } from "../types/employee"
 
 const PAGE_SIZE = 10
 const emptyPagination: EmployeePagination = { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 }
+const hrTabs = [
+  { id: "employees", label: "Employees" },
+  { id: "jobs", label: "Jobs" },
+  { id: "departments", label: "Departments" },
+] as const
+type HrTab = typeof hrTabs[number]["id"]
 
 export default function EmployeeDirectoryPage() {
   const { user } = useAuth()
@@ -35,7 +41,8 @@ export default function EmployeeDirectoryPage() {
     canViewAudit,
   } = getHrPermissions(user)
   const canOpenEmployeePanel = canAddEmployee || canEditEmployee
-  const activeTab = searchParams.get("view") === "jobs" ? "jobs" : searchParams.get("view") === "departments" ? "departments" : "employees"
+  const activeTab: HrTab = searchParams.get("view") === "jobs" ? "jobs" : searchParams.get("view") === "departments" ? "departments" : "employees"
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
   const [query, setQuery] = useState(() => searchParams.get("search") || "")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
@@ -98,6 +105,27 @@ export default function EmployeeDirectoryPage() {
 
   const showNotice = (message: string) => setNotice((current) => ({ id: (current?.id ?? 0) + 1, message }))
 
+  const selectTab = (tab: HrTab) => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      next.set("view", tab)
+      next.set("page", "1")
+      return next
+    })
+  }
+
+  const navigateTabs = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
+    let nextIndex: number | undefined
+    if (event.key === "ArrowRight") nextIndex = (index + 1) % hrTabs.length
+    else if (event.key === "ArrowLeft") nextIndex = (index - 1 + hrTabs.length) % hrTabs.length
+    else if (event.key === "Home") nextIndex = 0
+    else if (event.key === "End") nextIndex = hrTabs.length - 1
+    if (nextIndex === undefined) return
+    event.preventDefault()
+    selectTab(hrTabs[nextIndex].id)
+    tabRefs.current[nextIndex]?.focus()
+  }
+
   const save = async (input: EmployeeInput) => {
     if (selected) await employeeApi.update(selected.id, input)
     else await employeeApi.create(input)
@@ -149,19 +177,20 @@ export default function EmployeeDirectoryPage() {
           </header>
 
           <div role="tablist" aria-label="Human Resources sections" className="workspace-tabs">
-            {([
-              { id: "employees", label: "Employees" },
-              { id: "jobs", label: "Jobs" },
-              { id: "departments", label: "Departments" },
-            ] as const).map((tab) => {
+            {hrTabs.map((tab, index) => {
               const selectedTab = activeTab === tab.id
               return (
                 <button
                   key={tab.id}
+                  ref={(element) => { tabRefs.current[index] = element }}
+                  id={`hr-tab-${tab.id}`}
                   type="button"
                   role="tab"
                   aria-selected={selectedTab}
-                  onClick={() => setSearchParams((current) => { const next = new URLSearchParams(current); next.set("view", tab.id); next.set("page", "1"); return next })}
+                  aria-controls={`hr-panel-${tab.id}`}
+                  tabIndex={selectedTab ? 0 : -1}
+                  onClick={() => selectTab(tab.id)}
+                  onKeyDown={(event) => navigateTabs(event, index)}
                   className="workspace-tab"
                 >
                   {tab.label}
@@ -171,7 +200,7 @@ export default function EmployeeDirectoryPage() {
           </div>
 
           {activeTab === "employees" ? (
-            <>
+            <div role="tabpanel" id="hr-panel-employees" aria-labelledby="hr-tab-employees">
               <section aria-label="Employee filters" className="workspace-panel workspace-filters">
                 <label className="workspace-filter-search"><span className="workspace-label">Search employees</span><span className="relative block"><DashboardIcon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder="Name, ID, or email" className="workspace-control workspace-control--search" /></span></label>
                 <FilterSelect label="Department" value={department} onChange={(value) => { setDepartment(value); setPage(1) }} options={departments} allLabel="All departments" />
@@ -183,18 +212,20 @@ export default function EmployeeDirectoryPage() {
               {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{error}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
               {optionsError && !error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"><span>Department and job options are unavailable. Please retry before saving an employee.</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
               <EmployeeTable key={`${page}-${department}-${job}-${status}-${refresh}`} employees={employees} pagination={pagination} loading={loading} error={Boolean(error)} onPageChange={setPage} onEdit={(employee) => { setSelected(employee); setPanelOpen(true) }} onArchive={(employee) => { setArchiveError(""); setEmployeeToArchive(employee) }} onRestore={restoreEmployee} restoringId={restoringId} canEdit={canEditEmployee} canDelete={canDeleteEmployee} canViewHistory={canViewHistory} canViewAudit={canViewAudit} />
-            </>
+            </div>
           ) : (
-            <LookupSection
-              key={activeTab}
-              kind={activeTab}
-              canAdd={activeTab === "jobs" ? canAddJob : canAddDepartment}
-              canEdit={activeTab === "jobs" ? canEditJob : canEditDepartment}
-              canDelete={activeTab === "jobs" ? canDeleteJob : canDeleteDepartment}
-              canViewAudit={canViewAudit}
-              onChanged={() => setRefresh((current) => current + 1)}
-              onNotice={showNotice}
-            />
+            <div role="tabpanel" id={`hr-panel-${activeTab}`} aria-labelledby={`hr-tab-${activeTab}`}>
+              <LookupSection
+                key={activeTab}
+                kind={activeTab}
+                canAdd={activeTab === "jobs" ? canAddJob : canAddDepartment}
+                canEdit={activeTab === "jobs" ? canEditJob : canEditDepartment}
+                canDelete={activeTab === "jobs" ? canDeleteJob : canDeleteDepartment}
+                canViewAudit={canViewAudit}
+                onChanged={() => setRefresh((current) => current + 1)}
+                onNotice={showNotice}
+              />
+            </div>
           )}
         </div>
       </main>

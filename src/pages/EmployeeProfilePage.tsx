@@ -2,6 +2,7 @@ import CareerTimeline from "../components/employees/CareerTimeline"
 import { useEffect, useState } from "react"
 import { useParams } from "react-router"
 import { useAuth } from "../components/auth/AuthProvider"
+import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { employeeApi } from "../lib/employee-api"
 import { getHrPermissions } from "../lib/rbac"
@@ -9,13 +10,14 @@ import type { Employee, JobHistoryEntry } from "../types/employee"
 
 export default function EmployeeProfilePage() {
   const { user } = useAuth()
-  const { canViewHistory, canViewAudit } = getHrPermissions(user)
+  const { canViewHistory, canViewAudit, canViewSalary } = getHrPermissions(user)
   const { employeeId } = useParams()
   const [employee, setEmployee] = useState<Employee | null>(null)
   const [history, setHistory] = useState<JobHistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [refresh, setRefresh] = useState(0)
+  const [salaryRevealed, setSalaryRevealed] = useState(true)
 
   useEffect(() => {
     if (!employeeId) return
@@ -115,8 +117,30 @@ export default function EmployeeProfilePage() {
                         </h2>
                         <p>Most recent assignment first</p>
                       </div>
+                      {canViewSalary && (
+                        <button
+                          type="button"
+                          onClick={() => setSalaryRevealed((prev) => !prev)}
+                          aria-label={salaryRevealed ? "Hide salary" : "Show salary"}
+                          title={salaryRevealed ? "Hide salary" : "Show salary"}
+                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-xs hover:bg-slate-50"
+                        >
+                          <DashboardIcon
+                            name={salaryRevealed ? "eyeOff" : "eye"}
+                            className="h-4 w-4 text-slate-500"
+                          />
+                          <span>{salaryRevealed ? "Hide salary" : "Show salary"}</span>
+                        </button>
+                      )}
                     </div>
-                    <CareerTimeline entries={history} loading={false} showAudit={canViewAudit} />
+                    <CareerTimeline
+                      entries={history}
+                      loading={false}
+                      showAudit={canViewAudit}
+                      canViewSalary={canViewSalary}
+                      revealed={salaryRevealed}
+                      onToggleReveal={() => setSalaryRevealed((prev) => !prev)}
+                    />
                   </section>
                 )}
               </>

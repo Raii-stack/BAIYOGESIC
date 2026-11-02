@@ -32,6 +32,7 @@ export default function EmployeeDirectoryPage() {
     canEditEmployee,
     canDeleteEmployee,
     canViewHistory,
+    canViewSalary,
     canAddJob,
     canEditJob,
     canDeleteJob,
@@ -261,7 +262,7 @@ export default function EmployeeDirectoryPage() {
 
               {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{error}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
               {optionsError && !error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-amber-500 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"><span>Department and job options are unavailable. Please retry before saving an employee.</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
-              <EmployeeTable key={`${page}-${department}-${job}-${status}-${refresh}`} employees={employees} pagination={pagination} loading={loading} error={Boolean(error)} onPageChange={setPage} onEdit={(employee) => { setSelected(employee); setPanelOpen(true) }} onArchive={(employee) => { setArchiveError(""); setEmployeeToArchive(employee) }} onRestore={restoreEmployee} restoringId={restoringId} canEdit={canEditEmployee} canDelete={canDeleteEmployee} canViewHistory={canViewHistory} canViewAudit={canViewAudit} />
+              <EmployeeTable key={`${page}-${department}-${job}-${status}-${refresh}`} employees={employees} pagination={pagination} loading={loading} error={Boolean(error)} onPageChange={setPage} onEdit={(employee) => { setSelected(employee); setPanelOpen(true) }} onArchive={(employee) => { setArchiveError(""); setEmployeeToArchive(employee) }} onRestore={restoreEmployee} restoringId={restoringId} canEdit={canEditEmployee} canDelete={canDeleteEmployee} canViewHistory={canViewHistory} canViewAudit={canViewAudit} canViewSalary={canViewSalary} />
             </div>
           ) : (
             <div role="tabpanel" id={`hr-panel-${activeTab}`} aria-labelledby={`hr-tab-${activeTab}`}>

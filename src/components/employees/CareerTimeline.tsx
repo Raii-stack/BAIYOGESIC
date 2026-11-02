@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
 import type { JobHistoryEntry } from "../../types/employee"
 
@@ -11,6 +12,9 @@ export type CareerTimelineProps = {
   entries: JobHistoryEntry[]
   loading?: boolean
   showAudit?: boolean
+  canViewSalary?: boolean
+  revealed?: boolean
+  onToggleReveal?: () => void
 }
 
 export function CareerTimelineSkeleton() {
@@ -41,7 +45,28 @@ export default function CareerTimeline({
   entries,
   loading = false,
   showAudit = true,
+  canViewSalary,
+  revealed: controlledRevealed,
+  onToggleReveal,
 }: CareerTimelineProps) {
+  const [internalRevealed, setInternalRevealed] = useState(true)
+  const isControlled = controlledRevealed !== undefined
+  const isRevealed = isControlled ? controlledRevealed : internalRevealed
+
+  const toggleReveal = () => {
+    if (onToggleReveal) {
+      onToggleReveal()
+    } else {
+      setInternalRevealed((prev) => !prev)
+    }
+  }
+
+  // Determine if active user is authorized to view compensation
+  const isSalaryAuthorized =
+    canViewSalary !== undefined
+      ? canViewSalary
+      : entries.some((e) => e.canViewSalary)
+
   if (loading) {
     return <CareerTimelineSkeleton />
   }
@@ -127,13 +152,33 @@ export default function CareerTimeline({
               </div>
 
               <div className="workspace-job-timeline-salary">
-                <span>Salary</span>
+                <div className="flex items-center justify-between">
+                  <span>Salary</span>
+                  {isSalaryAuthorized && !isControlled && (
+                    <button
+                      type="button"
+                      onClick={toggleReveal}
+                      aria-label={isRevealed ? "Hide salary" : "Show salary"}
+                      title={isRevealed ? "Hide salary" : "Show salary"}
+                      className="rounded p-0.5 text-slate-400 hover:text-slate-600 focus:outline-none"
+                    >
+                      <DashboardIcon
+                        name={isRevealed ? "eyeOff" : "eye"}
+                        className="h-3.5 w-3.5"
+                      />
+                    </button>
+                  )}
+                </div>
                 <strong>
-                  {entry.canViewSalary ? (
+                  {isSalaryAuthorized && isRevealed && entry.canViewSalary ? (
                     money.format(entry.salary)
                   ) : (
-                    <span aria-label="Salary hidden due to permissions">
-                      ••••••
+                    <span
+                      className="inline-flex items-center gap-1 text-slate-500"
+                      aria-label="Salary hidden due to permissions"
+                    >
+                      <DashboardIcon name="lock" className="h-3.5 w-3.5 text-slate-400" />
+                      ••••••••
                     </span>
                   )}
                 </strong>

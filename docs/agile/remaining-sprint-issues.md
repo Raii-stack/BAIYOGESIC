@@ -385,7 +385,7 @@ Implement the Reports module supporting all 7 system reports with live database 
 ---
 
 ### [#76 [S4-DBA-04 & S4-DBA-05] Database: Audit Log Filter Queries & Sales Child Delete Integrity Rules](https://github.com/Raii-stack/BAIYOGESIC/issues/76)
-**Status:** In Progress (Sales delete rules & covering indexes implemented; Audit filter queries pending)  
+**Status:** Completed (Foreign Keys, Triggers, Audit Window Procedure, Tests & Relational Integrity Documentation Delivered)  
 **Assignee:** @KathrynChloe  
 **Role:** BackEnd Engineer & DB Admin  
 **Priority:** P2 (Medium)  
@@ -393,10 +393,10 @@ Implement the Reports module supporting all 7 system reports with live database 
 **Description:**  
 Write filtered audit log query procedures, verify cascade and restrict delete constraints on sales details and payments, ensuring payments cannot be orphaned.  
 **Acceptance Criteria:**  
-- [x] Implement database checks/triggers blocking deletion of sales with active payment records (Implemented in `controllers/sales-controller.js` and `tests/integration/sales-api.test.js`).
-- [x] Create covering composite indexes for audit log querying (`audit_log_table_action_at_idx`, `audit_log_actor_action_at_idx` in `20261031000000_query_optimization_indexes.sql`).
-- [ ] Write optimized query procedure for `audit_log` filtering by table, actor, action, and timestamp using single-roundtrip window pagination (`count(*) OVER()`).
-- [ ] Document relational integrity and foreign key behavior.
+- [x] Implement database checks/triggers blocking deletion of sales with active payment records (Implemented in `controllers/sales-controller.js`, `20261102010000_issue_76_sales_delete_rules_and_audit_log_queries.sql`, and `tests/qa-unit/sales-integrity-and-audit.test.js`).
+- [x] Create covering composite indexes for audit log querying (`audit_log_table_action_at_idx`, `audit_log_actor_action_at_idx`, `audit_log_composite_filter_idx` in `20261031000000` and `20261102010000`).
+- [x] Write optimized query procedure for `audit_log` filtering by table, actor, action, and timestamp using single-roundtrip window pagination (`count(*) OVER()`).
+- [x] Document relational integrity and foreign key behavior (Documented in `docs/database/sales-child-delete-integrity-and-audit-log.md`).
 
 ---
 

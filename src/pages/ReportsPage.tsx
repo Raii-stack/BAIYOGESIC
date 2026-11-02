@@ -94,6 +94,23 @@ export default function ReportsPage() {
             </div>
           ) : (
             <>
+              <div className="workspace-report-print-header">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xl font-bold uppercase tracking-wider text-slate-950 block">HOPE, Inc. ERP</span>
+                    <span className="text-sm font-semibold text-slate-800 block">{activeReport}</span>
+                  </div>
+                  <div className="text-right text-xs text-slate-600">
+                    <p>Generated: {new Date().toLocaleDateString("en-US", { year: "numeric", month: "short", day: "2-digit" })}</p>
+                    {isTopReport && startDate && endDate ? (
+                      <p>Period: {startDate} to {endDate}</p>
+                    ) : null}
+                    {activeReport === "Employee Job History" && employee ? (
+                      <p>Employee No: {employee}</p>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
               <div role="tablist" aria-label="Report selection" className="workspace-tabs workspace-report-controls"
                 onKeyDown={(event) => {
                   const index = allowedReports.indexOf(activeReport)

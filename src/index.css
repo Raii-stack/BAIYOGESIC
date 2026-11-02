@@ -297,14 +297,90 @@ body:has([aria-modal="true"]:not([inert] [aria-modal="true"])) { overflow: hidde
   .workspace-page { padding-right: 48px; padding-left: 48px; }
 }
 
+.workspace-report-print-header {
+  display: none;
+}
+
 @media print {
-  .erp-workspace:has(.workspace-report-page) { display: block; background: #fff; }
+  @page {
+    size: auto;
+    margin: 12mm 15mm 15mm 15mm;
+  }
+  *, *::before, *::after {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #111827 !important;
+    font-size: 10pt !important;
+    line-height: 1.4 !important;
+  }
+  .erp-workspace:has(.workspace-report-page) {
+    display: block !important;
+    background: #fff !important;
+  }
   .erp-workspace:has(.workspace-report-page) > aside,
   .erp-workspace:has(.workspace-report-page) > div > header,
-  .workspace-report-controls, .workspace-report-notice { display: none !important; }
-  .erp-workspace:has(.workspace-report-page) > div { margin: 0 !important; min-height: 0; background: #fff; }
-  .workspace-report-page { padding: 0; }
-  .workspace-report-page .workspace-panel { box-shadow: none; }
-  .workspace-report-page .overflow-x-auto { overflow: visible; }
-  .workspace-report-page table { min-width: 0; }
+  .workspace-report-controls,
+  .workspace-report-notice,
+  .workspace-filters,
+  .workspace-pagination,
+  .workspace-empty-state button,
+  button,
+  nav {
+    display: none !important;
+  }
+  .erp-workspace:has(.workspace-report-page) > div {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    background: #fff !important;
+  }
+  .workspace-report-page {
+    padding: 0 !important;
+  }
+  .workspace-report-page .workspace-page-header {
+    display: none !important;
+  }
+  .workspace-report-print-header {
+    display: block !important;
+    margin-bottom: 16px !important;
+    border-bottom: 2px solid #111827 !important;
+    padding-bottom: 10px !important;
+  }
+  .workspace-report-page .workspace-panel {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+  .workspace-report-page .overflow-x-auto {
+    overflow: visible !important;
+  }
+  .workspace-report-page table {
+    width: 100% !important;
+    min-width: 0 !important;
+    border-collapse: collapse !important;
+    font-size: 9.5pt !important;
+  }
+  .workspace-report-page thead {
+    display: table-header-group !important;
+  }
+  .workspace-report-page th,
+  .workspace-report-page td {
+    border: 1px solid #d1d5db !important;
+    padding: 6px 10px !important;
+    color: #111827 !important;
+  }
+  .workspace-report-page th {
+    background-color: #f3f4f6 !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    font-size: 8.5pt !important;
+    letter-spacing: 0.03em !important;
+  }
+  .workspace-report-page tr {
+    page-break-inside: avoid !important;
+  }
 }

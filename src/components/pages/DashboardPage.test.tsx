@@ -87,7 +87,7 @@ test("displays the 4 KPI metric cards with live formatted values", async () => {
   expect(screen.getByText("$84.2k")).toBeInTheDocument()
 })
 
-test("renders quick actions with unauthorized actions disabled and greyed out", () => {
+test("shows permitted module links without a redundant quick-action toolbar", () => {
   vi.mocked(useAuth).mockReturnValue({
     user: {
       userId: "1",
@@ -96,7 +96,7 @@ test("renders quick actions with unauthorized actions disabled and greyed out", 
       role: "employee",
       status: "active",
       mustChangePassword: false,
-      rights: ["customers.add"], // Only customer addition allowed
+      rights: ["customers.access", "customers.add"],
     },
     loading: false,
     login: vi.fn(),
@@ -112,22 +112,13 @@ test("renders quick actions with unauthorized actions disabled and greyed out", 
 
   render(<MemoryRouter><DashboardPage /></MemoryRouter>)
 
-  // + New Customer should be active (role="button" or anchor)
-  const newCustomer = screen.getByRole("button", { name: "+ New Customer" })
-  expect(newCustomer).not.toBeDisabled()
-  expect(newCustomer).toHaveAttribute("href", "/customers")
-
-  // + New Product and + New Sale should be disabled / greyed out
-  const newProduct = screen.getByRole("button", { name: "+ New Product" })
-  expect(newProduct).toBeDisabled()
-  expect(newProduct).toHaveAttribute("aria-disabled", "true")
-
-  const newSale = screen.getByRole("button", { name: "+ New Sale" })
-  expect(newSale).toBeDisabled()
-  expect(newSale).toHaveAttribute("aria-disabled", "true")
+  expect(screen.getByRole("link", { name: /^Customers/ })).toHaveAttribute("href", "/customers?view=directory&page=1")
+  expect(screen.queryByRole("link", { name: /^Products/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole("link", { name: /^Sales/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole("toolbar", { name: "Quick actions" })).not.toBeInTheDocument()
 })
 
-test("renders all quick actions enabled for administrator", () => {
+test("keeps business modules accessible to administrators without duplicate create buttons", () => {
   vi.mocked(useAuth).mockReturnValue({
     user: {
       userId: "1",
@@ -152,9 +143,10 @@ test("renders all quick actions enabled for administrator", () => {
 
   render(<MemoryRouter><DashboardPage /></MemoryRouter>)
 
-  expect(screen.getByRole("button", { name: "+ New Customer" })).not.toBeDisabled()
-  expect(screen.getByRole("button", { name: "+ New Product" })).not.toBeDisabled()
-  expect(screen.getByRole("button", { name: "+ New Sale" })).not.toBeDisabled()
+  expect(screen.getByRole("link", { name: /^Customers/ })).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: /^Products/ })).toBeInTheDocument()
+  expect(screen.getByRole("link", { name: /^Sales/ })).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: /New Customer|New Product|New Sale/ })).not.toBeInTheDocument()
 })
 
 test("does not initiate stats fetch when user must first change password", () => {

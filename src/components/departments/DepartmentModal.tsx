@@ -125,7 +125,7 @@ export default function DepartmentModal({
             onClick={onClose}
             disabled={saving}
             aria-label="Close dialog"
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
+            className="workspace-icon-action"
           >
             <DashboardIcon name="close" className="h-5 w-5" />
           </button>
@@ -163,11 +163,7 @@ export default function DepartmentModal({
               aria-required="true"
               aria-invalid={Boolean(errors.code)}
               aria-describedby={errors.code ? "department-code-error" : undefined}
-              className={`mt-1.5 w-full rounded-lg border px-3 py-2 font-mono text-sm uppercase outline-none transition focus:ring-2 ${
-                errors.code
-                  ? "border-red-400 bg-red-50/30 text-red-900 focus:border-red-500 focus:ring-red-200"
-                  : "border-slate-300 bg-white text-neutral-900 focus:border-blue-600 focus:ring-blue-100"
-              } disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500`}
+              className="workspace-control mt-1.5 font-mono uppercase"
             />
             {errors.code && (
               <p
@@ -201,11 +197,7 @@ export default function DepartmentModal({
               aria-required="true"
               aria-invalid={Boolean(errors.name)}
               aria-describedby={errors.name ? "department-name-error" : undefined}
-              className={`mt-1.5 w-full rounded-lg border px-3 py-2 text-sm outline-none transition focus:ring-2 ${
-                errors.name
-                  ? "border-red-400 bg-red-50/30 text-red-900 focus:border-red-500 focus:ring-red-200"
-                  : "border-slate-300 bg-white text-neutral-900 focus:border-blue-600 focus:ring-blue-100"
-              } disabled:cursor-not-allowed disabled:bg-slate-100`}
+              className="workspace-control mt-1.5"
             />
             {errors.name && (
               <p
@@ -223,14 +215,14 @@ export default function DepartmentModal({
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 disabled:opacity-50"
+              className="workspace-secondary-action"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+              className="workspace-primary-action"
             >
               {saving ? (
                 <>

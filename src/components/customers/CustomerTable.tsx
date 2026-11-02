@@ -244,7 +244,7 @@ export default function CustomerTable({
         <div className="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
           <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
             <span>Rows per page</span>
-            <select aria-label="Customer rows per page" value={pageSize} onChange={(event) => onLimitChange(Number(event.target.value) as PageSize)} disabled={loading} className="workspace-control h-8 min-h-8 w-16 py-1">
+            <select aria-label="Customer rows per page" value={pageSize} onChange={(event) => onLimitChange(Number(event.target.value) as PageSize)} disabled={loading} className="workspace-control workspace-page-size">
               {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
             </select>
           </label>

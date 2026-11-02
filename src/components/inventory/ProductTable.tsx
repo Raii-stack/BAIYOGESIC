@@ -115,7 +115,7 @@ const ProductTableRow = memo(function ProductTableRow({
                 onClick={() => onViewPrices(product)}
                 aria-label={`Prices for ${product.code}`}
                 title="Price history modal"
-                className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                className="workspace-secondary-action"
               >
                 Prices
               </button>
@@ -300,7 +300,7 @@ export default function ProductTable({ products, pagination, loading, error, onP
         <div className="flex w-full flex-wrap items-center justify-end gap-3 sm:w-auto">
           <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
             <span>Rows per page</span>
-            <select aria-label="Product rows per page" value={pageSize} onChange={(event) => onLimitChange(Number(event.target.value) as PageSize)} disabled={loading} className="workspace-control h-8 min-h-8 w-16 py-1">
+            <select aria-label="Product rows per page" value={pageSize} onChange={(event) => onLimitChange(Number(event.target.value) as PageSize)} disabled={loading} className="workspace-control workspace-page-size">
               {PAGE_SIZE_OPTIONS.map((size) => <option key={size} value={size}>{size}</option>)}
             </select>
           </label>

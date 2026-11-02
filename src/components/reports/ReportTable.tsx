@@ -84,9 +84,9 @@ export default function ReportTable({ report, rows, loading, error, onRetry }: {
 
   return (
     <section className="workspace-panel" aria-labelledby="report-table-heading">
-      <div className="workspace-panel-heading">
+      <div className="workspace-table-header">
         <h2 id="report-table-heading">{report}</h2>
-        <span>{loading ? "Loading…" : `${rows.length} ${rows.length === 1 ? "record" : "records"}`}</span>
+        <span className="workspace-badge workspace-badge--neutral">{loading ? "Loading…" : `${rows.length} ${rows.length === 1 ? "record" : "records"}`}</span>
       </div>
       <div className="overflow-x-auto">
         {loading ? (

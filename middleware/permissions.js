@@ -15,24 +15,24 @@ const PERMISSIONS = {
     CRM: new Set(['view', 'edit', 'delete']),
     Inventory: new Set(['view', 'edit', 'delete']),
     HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
-    Sales: new Set(['view', 'edit', 'delete']),
-    Reports: new Set(['view']),
+    Sales: new Set(['view', 'edit', 'delete', 'restore']),
+    Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales']),
     Users: new Set(['view', 'edit', 'delete'])
   },
   administrator: {
     CRM: new Set(['view', 'edit', 'delete']),
     Inventory: new Set(['view', 'edit', 'delete']),
     HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
-    Sales: new Set(['view', 'edit', 'delete']),
-    Reports: new Set(['view']),
+    Sales: new Set(['view', 'edit', 'delete', 'restore']),
+    Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales']),
     Users: new Set(['view', 'edit', 'delete'])
   },
   admin: {
     CRM: new Set(['view', 'edit', 'delete']),
     Inventory: new Set(['view', 'edit', 'delete']),
     HR: new Set(['view', 'edit', 'delete', 'salary', 'view_job_history', 'View Job History']),
-    Sales: new Set(['view', 'edit', 'delete']),
-    Reports: new Set(['view']),
+    Sales: new Set(['view', 'edit', 'delete', 'restore']),
+    Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales']),
     Users: new Set(['view', 'edit'])
   },
   user: {
@@ -40,14 +40,14 @@ const PERMISSIONS = {
     Inventory: new Set(['view']),
     HR: new Set(['view', 'view_job_history', 'View Job History']),
     Sales: new Set(['view']),
-    Reports: new Set(['view'])
+    Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales'])
   },
   employee: {
     CRM: new Set(['view']),
     Inventory: new Set(['view']),
     HR: new Set(['view', 'view_job_history', 'View Job History']),
     Sales: new Set(['view']),
-    Reports: new Set(['view'])
+    Reports: new Set(['view', 'top-customers', 'product-master', 'top-products', 'active-employees', 'all-employees', 'job-history', 'top-sales'])
   }
 };
 
@@ -99,7 +99,8 @@ const EMPLOYEE_RIGHT_RULES = {
   Sales: {
     view: ['sales.access', 'sales.add', 'sales.edit', 'sales.delete', 'sales.details.view', 'sales.details.add', 'sales.details.edit', 'sales.details.delete'],
     edit: ['sales.add', 'sales.edit', 'sales.details.add', 'sales.details.edit'],
-    delete: ['sales.delete', 'sales.details.delete']
+    delete: ['sales.delete', 'sales.details.delete'],
+    restore: ['sales.restore', 'sales.delete']
   },
   Reports: {
     view: [
@@ -111,7 +112,14 @@ const EMPLOYEE_RIGHT_RULES = {
       'reports.all-employees',
       'reports.job-history',
       'reports.top-sales'
-    ]
+    ],
+    'top-customers': ['reports.top-customers'],
+    'product-master': ['reports.product-master'],
+    'top-products': ['reports.top-products'],
+    'active-employees': ['reports.active-employees'],
+    'all-employees': ['reports.all-employees'],
+    'job-history': ['reports.job-history'],
+    'top-sales': ['reports.top-sales']
   }
 };
 

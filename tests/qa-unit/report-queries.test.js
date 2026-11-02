@@ -1,6 +1,15 @@
 const fs = require('fs');
 const path = require('path');
-const { requirePool } = require('../../db');
+
+jest.setTimeout(30000);
+
+function optionalPool() {
+  try {
+    return require('../../db').requirePool();
+  } catch {
+    return null;
+  }
+}
 
 describe('Issue #72: Guide §3.7 System Report Queries & Views Specification', () => {
   const migrationPath = path.join(
@@ -86,11 +95,8 @@ describe('Issue #72: Guide §3.7 System Report Queries & Views Specification', (
     let pool;
 
     beforeAll(() => {
-      try {
-        pool = requirePool();
-      } catch {
-        pool = null;
-      }
+      jest.setTimeout(25000);
+      pool = optionalPool();
     });
 
     afterAll(async () => {

@@ -3,20 +3,21 @@ import authRoutes from './auth-routes.js';
 import * as authController from '../controllers/auth-controller.js';
 import { requireActiveUser, primeUserCache, invalidateUserCache } from '../middleware/auth.js';
 
-test('auth routes do not expose removed forgot-password, reset-password, or register endpoints', () => {
+test('auth routes expose register, forgot-password, reset-password, login, session, and logout endpoints', () => {
   const routePaths = authRoutes.stack
     .filter((layer) => layer.route)
     .map((layer) => layer.route.path);
 
-  expect(routePaths).not.toContain('/forgot-password');
-  expect(routePaths).not.toContain('/reset-password');
-  expect(routePaths).not.toContain('/register');
+  expect(routePaths).toContain('/forgot-password');
+  expect(routePaths).toContain('/reset-password');
+  expect(routePaths).toContain('/register');
   expect(routePaths).toEqual(expect.arrayContaining(['/login', '/session', '/logout', '/change-password']));
 });
 
-test('auth controller does not export forgotPassword or resetPassword', () => {
-  expect(authController.forgotPassword).toBeUndefined();
-  expect(authController.resetPassword).toBeUndefined();
+test('auth controller exports register, forgotPassword, and resetPassword', () => {
+  expect(typeof authController.register).toBe('function');
+  expect(typeof authController.forgotPassword).toBe('function');
+  expect(typeof authController.resetPassword).toBe('function');
 });
 
 test('requireActiveUser uses primed cache and respects invalidateUserCache', async () => {

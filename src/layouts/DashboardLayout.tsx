@@ -12,6 +12,7 @@ const HREF_MODULE_MAP: Record<string, ErpModuleKey> = {
   "/customers": "customers",
   "/inventory": "products",
   "/employees": "hr",
+  "/departments": "hr",
   "/sales": "sales",
   "/reports": "reports",
   "/users": "users",
@@ -46,8 +47,8 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
     return !moduleKey || canAccessModule(user, moduleKey)
   }), [user])
   const navigationGroups = [
-    { label: "Business", items: visibleNavigation.filter((item) => !["Employees", "Users"].includes(item.label)) },
-    { label: "Organization", items: visibleNavigation.filter((item) => ["Employees", "Users"].includes(item.label)) },
+    { label: "Business", items: visibleNavigation.filter((item) => !["Employees", "Departments", "Users"].includes(item.label)) },
+    { label: "Organization", items: visibleNavigation.filter((item) => ["Employees", "Departments", "Users"].includes(item.label)) },
   ].filter((group) => group.items.length > 0)
   const currentItem = visibleNavigation.find((item) => item.href && (pathname === pathnameFromHref(item.href) || pathname.startsWith(`${pathnameFromHref(item.href)}/`)))
   const isHome = pathname === "/dashboard"

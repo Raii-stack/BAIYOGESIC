@@ -14,6 +14,7 @@ import ProfilePage from "./components/pages/ProfilePage"
 import ResetPasswordPage from "./components/pages/ResetPasswordPage"
 import CustomerManagementPage from "./pages/CustomerManagementPage"
 import CreateSalePage from "./pages/CreateSalePage"
+import DepartmentManagementPage from "./pages/DepartmentManagementPage"
 import EmployeeDirectoryPage from "./pages/EmployeeDirectoryPage"
 import EmployeeProfilePage from "./pages/EmployeeProfilePage"
 import InventoryPage from "./pages/InventoryPage"
@@ -70,6 +71,7 @@ const router = createBrowserRouter([
   { path: "/customers", element: protectedPage(<CustomerManagementPage />, { module: "customers" }) },
   { path: "/inventory", element: protectedPage(<InventoryPage />, { module: "products" }) },
   { path: "/reports", element: protectedPage(<ReportsPage />, { module: "reports" }) },
+  { path: "/departments", element: protectedPage(<DepartmentManagementPage />, { module: "hr" }) },
   { path: "/employees", element: protectedPage(<EmployeeDirectoryPage />, { module: "hr" }) },
   { path: "/employees/:employeeId", element: protectedPage(<EmployeeProfilePage />, { module: "hr" }) },
   { path: "/sales/new", element: protectedPage(<CreateSalePage />, { module: "sales", right: "sales.add" }) },

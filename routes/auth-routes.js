@@ -3,7 +3,11 @@ const {
   login,
   session,
   logout,
-  changePassword
+  changePassword,
+  register,
+  forgotPassword,
+  resetPassword,
+  setPassword
 } = require('../controllers/auth-controller');
 const { authenticate } = require('../middleware/auth');
 
@@ -13,5 +17,9 @@ router.post('/login', login);
 router.get('/session', authenticate, session);
 router.post('/logout', authenticate, logout);
 router.post('/change-password', authenticate, changePassword);
+router.post('/register', register);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
+router.post('/set-password', setPassword);
 
 module.exports = router;

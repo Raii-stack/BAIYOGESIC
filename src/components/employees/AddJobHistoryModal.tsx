@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 
 import type { JobHistoryEntry } from "../../types/employee"
+import useModalFocus from "../../hooks/useModalFocus"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 type AddJobHistoryModalProps = {
@@ -18,6 +19,10 @@ export default function AddJobHistoryModal({
   const [jobTitle, setJobTitle] = useState("")
   const [department, setDepartment] = useState("")
   const [salary, setSalary] = useState("")
+  const dialogRef = useRef<HTMLElement>(null)
+  const initialFocusRef = useRef<HTMLInputElement>(null)
+
+  useModalFocus(open, dialogRef, initialFocusRef, onClose)
 
   useEffect(() => {
     if (!open) return
@@ -26,14 +31,7 @@ export default function AddJobHistoryModal({
     setJobTitle("")
     setDepartment("")
     setSalary("")
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-
-    window.addEventListener("keydown", closeOnEscape)
-    return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [onClose, open])
+  }, [open])
 
   if (!open) return null
 
@@ -65,6 +63,7 @@ export default function AddJobHistoryModal({
       />
 
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="job-history-modal-title"
@@ -99,6 +98,7 @@ export default function AddJobHistoryModal({
           <div className="workspace-drawer-body grid gap-4 sm:grid-cols-2">
             <FormField label="Effective Date">
               <input
+                ref={initialFocusRef}
                 type="date"
                 required
                 value={effectiveDate}

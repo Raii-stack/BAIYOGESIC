@@ -203,9 +203,9 @@ SET module_name = EXCLUDED.module_name,
 
 INSERT INTO public.app_role (role_code, role_name)
 VALUES
-  ('administrator', 'Superadmin'),
+  ('superadmin', 'Superadmin'),
   ('admin', 'Admin'),
-  ('user', 'User')
+  ('employee', 'Employee')
 ON CONFLICT (role_code) DO UPDATE
 SET role_name = EXCLUDED.role_name,
     is_active = true;
@@ -214,9 +214,9 @@ INSERT INTO public.app_role_permission (role_code, module_code, can_view, can_ed
 SELECT
   roles.role_code,
   modules.module_code,
-  roles.role_code IN ('administrator', 'admin') OR modules.module_code IN ('crm', 'inventory', 'sales'),
-  roles.role_code IN ('administrator', 'admin'),
-  roles.role_code = 'administrator'
+  roles.role_code IN ('superadmin', 'admin') OR modules.module_code IN ('crm', 'inventory', 'sales'),
+  roles.role_code IN ('superadmin', 'admin'),
+  roles.role_code = 'superadmin'
 FROM public.app_role AS roles
 CROSS JOIN public.app_module AS modules
 ON CONFLICT (role_code, module_code) DO UPDATE
@@ -237,7 +237,7 @@ SELECT
   team.email,
   crypt(gen_random_uuid()::text, gen_salt('bf', 12)),
   'pending',
-  'administrator',
+  'superadmin',
   true
 FROM (
   VALUES
@@ -322,4 +322,77 @@ VALUES
   ('2025-01-15', 'P1012', 11.00, false), ('2025-07-01', 'P1012', 11.75, false), ('2026-01-15', 'P1012', 12.50, false)
 ON CONFLICT (effdate, prodcode) DO UPDATE
 SET unitprice = EXCLUDED.unitprice,
+    is_deleted = false;
+
+
+-- Idempotent Sales, Line Items and Payment demo data for workflow and balance verification.
+INSERT INTO public.sales (transno, salesdate, custno, empno, is_deleted)
+VALUES
+  ('TR1001', '2026-02-15', 'C1001', '00005', false),
+  ('TR1002', '2026-02-18', 'C1002', '00015', false),
+  ('TR1003', '2026-03-01', 'C1003', '00017', false),
+  ('TR1004', '2026-03-10', 'C1004', '00021', false),
+  ('TR1005', '2026-03-22', 'C1005', '00025', false),
+  ('TR1006', '2026-04-05', 'C1006', '00027', false),
+  ('TR1007', '2026-04-12', 'C1007', '00051', false),
+  ('TR1008', '2026-04-20', 'C1008', '00055', false),
+  ('TR1009', '2026-05-02', 'C1009', '00057', false),
+  ('TR1010', '2026-05-15', 'C1010', '00059', false),
+  ('TR1011', '2026-06-01', 'C1011', '00061', false),
+  ('TR1012', '2026-06-15', 'C1012', '00063', false),
+  ('TR1013', '2026-07-01', 'C1013', '00005', false),
+  ('TR1014', '2026-07-10', 'C1014', '00015', false),
+  ('TR1015', '2026-08-01', 'C1015', '00017', false)
+ON CONFLICT (transno) DO UPDATE
+SET salesdate = EXCLUDED.salesdate,
+    custno = EXCLUDED.custno,
+    empno = EXCLUDED.empno,
+    is_deleted = false;
+
+INSERT INTO public.salesdetail (transno, prodcode, quantity, is_deleted)
+VALUES
+  ('TR1001', 'P1001', 20.00, false),
+  ('TR1001', 'P1002', 15.00, false),
+  ('TR1002', 'P1003', 10.00, false),
+  ('TR1002', 'P1004', 50.00, false),
+  ('TR1003', 'P1005', 25.00, false),
+  ('TR1004', 'P1006', 8.00,  false),
+  ('TR1004', 'P1007', 12.00, false),
+  ('TR1005', 'P1008', 30.00, false),
+  ('TR1005', 'P1009', 14.00, false),
+  ('TR1006', 'P1010', 40.00, false),
+  ('TR1007', 'P1011', 100.00, false),
+  ('TR1007', 'P1012', 15.00, false),
+  ('TR1008', 'P1001', 10.00, false),
+  ('TR1008', 'P1006', 5.00,  false),
+  ('TR1009', 'P1003', 18.00, false),
+  ('TR1010', 'P1005', 40.00, false),
+  ('TR1011', 'P1007', 20.00, false),
+  ('TR1012', 'P1009', 10.00, false),
+  ('TR1013', 'P1002', 35.00, false),
+  ('TR1014', 'P1004', 60.00, false),
+  ('TR1015', 'P1011', 50.00, false)
+ON CONFLICT (transno, prodcode) DO UPDATE
+SET quantity = EXCLUDED.quantity,
+    is_deleted = false;
+
+-- Official payment receipts covering paid, partially paid, and diverse payment methods
+INSERT INTO public.payment (orno, paydate, amount, payment_method, transno, is_deleted)
+VALUES
+  ('OR1001', '2026-02-16', 512.50, 'Cash', 'TR1001', false),
+  ('OR1002', '2026-02-20', 265.00, 'Bank Transfer', 'TR1002', false),
+  ('OR1003', '2026-03-05', 150.00, 'Check', 'TR1003', false),
+  ('OR1004', '2026-03-12', 118.75, 'Check', 'TR1003', false), -- Full settlement for TR1003
+  ('OR1005', '2026-03-15', 327.00, 'Card', 'TR1004', false),
+  ('OR1006', '2026-03-25', 200.00, 'E-wallet', 'TR1005', false), -- Partial payment
+  ('OR1007', '2026-04-10', 236.00, 'Cash', 'TR1006', false),
+  ('OR1008', '2026-04-15', 637.50, 'Bank Transfer', 'TR1007', false),
+  ('OR1009', '2026-05-05', 243.00, 'Card', 'TR1009', false),
+  ('OR1010', '2026-05-20', 430.00, 'Cash', 'TR1010', false),
+  ('OR1011', '2026-07-05', 262.50, 'Bank Transfer', 'TR1013', false)
+ON CONFLICT (orno) DO UPDATE
+SET paydate = EXCLUDED.paydate,
+    amount = EXCLUDED.amount,
+    payment_method = EXCLUDED.payment_method,
+    transno = EXCLUDED.transno,
     is_deleted = false;

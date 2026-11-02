@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 
 let activePool = null;
 
@@ -115,7 +117,7 @@ function createSalesMockDb() {
       { transno: 'TR000002', prodcode: 'P0001', quantity: '2', is_deleted: false, stamp: 'ADD system' }
     ],
     payment: [
-      { orno: 'OR000001', paydate: '2026-10-02', amount: '200.00', transno: 'TR000001', is_deleted: false, stamp: 'ADD system' }
+      { orno: 'OR000001', paydate: '2026-10-02', amount: '200.00', payment_method: 'Cash', transno: 'TR000001', is_deleted: false, stamp: 'ADD system' }
     ]
   };
 
@@ -176,7 +178,7 @@ function createSalesMockDb() {
       return { rows };
     }
 
-    if (text.startsWith('SELECT orno, paydate::text AS paydate, amount, transno, is_deleted, stamp FROM public.payment')) {
+    if (text.startsWith('SELECT orno, paydate::text AS paydate, amount, payment_method, transno, is_deleted, stamp FROM public.payment')) {
       const [transnos] = params;
       const rows = state.payment.filter((p) => transnos.includes(p.transno) && !p.is_deleted);
       return { rows };
@@ -223,8 +225,8 @@ function createSalesMockDb() {
     }
 
     if (text.startsWith('INSERT INTO public.payment ')) {
-      const [orno, paydate, amount, transno] = params;
-      const row = { orno, paydate, amount: String(amount), transno, is_deleted: false, stamp: 'ADD test' };
+      const [orno, paydate, amount, paymentMethod, transno] = params;
+      const row = { orno, paydate, amount: String(amount), payment_method: paymentMethod, transno, is_deleted: false, stamp: 'ADD test' };
       state.payment.push(row);
       return { rows: [row] };
     }
@@ -405,13 +407,26 @@ describe('Issue #71: Sales Transaction Header & Line Items API', () => {
       recordPayment,
       {
         params: { transno: 'TR000001' },
-        body: { amount: 34.5, paydate: '2026-10-10' },
+        body: { amount: 34.5, paydate: '2026-10-10', payment_method: 'Bank Transfer' },
         user: { email: 'admin@hope.inc', role: 'admin' }
       }
     );
     expect(validPayRes.statusCode).toBe(201);
+    expect(validPayRes.body.data.payment.paymentMethod).toBe('Bank Transfer');
     expect(validPayRes.body.data.sale.balance).toBe(0);
     expect(validPayRes.body.data.sale.paymentStatus).toBe('Paid');
+
+    const invalidMethodRes = await invokeProtected(
+      requirePermission('Sales', 'edit'),
+      recordPayment,
+      {
+        params: { transno: 'TR000002' },
+        body: { amount: 1, paydate: '2026-10-10', payment_method: 'Cryptocurrency' },
+        user: { email: 'admin@hope.inc', role: 'admin' }
+      }
+    );
+    expect(invalidMethodRes.statusCode).toBe(400);
+    expect(invalidMethodRes.body.error.details.payment_method).toMatch(/must be one of/i);
   });
 
   it('DELETE /api/sales/:transno returns HTTP 409 when payments exist, and archives/restores unpaid orders', async () => {
@@ -463,5 +478,19 @@ describe('Issue #71: Sales Transaction Header & Line Items API', () => {
     expect(app).toBeDefined();
     expect(salesRoutes).toBeDefined();
     expect(getSaleByTransno).toBeTypeOf('function');
+  });
+});
+
+describe('Issue #74: Payment recording and balance persistence', () => {
+  it('adds constrained payment methods and secures the balance view for caller RLS', () => {
+    const migrationPath = path.resolve(
+      __dirname,
+      '../../supabase/migrations/20261102053038_issue_74_payment_methods_and_secure_balance_view.sql'
+    );
+    const sql = fs.readFileSync(migrationPath, 'utf8');
+
+    expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS payment_method varchar\(20\)/i);
+    expect(sql).toMatch(/payment_payment_method_check/i);
+    expect(sql).toMatch(/ALTER VIEW public\.sales_balance_view\s+SET \(security_invoker = true\)/i);
   });
 });

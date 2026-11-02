@@ -346,6 +346,11 @@ test("allows superadmin to edit rights of admin and other superadmin accounts an
     expect(within(screen.getByRole("row", { name: /User2 Account/ })).getByText("Active")).toBeInTheDocument(),
   )
   expect(screen.getByRole("status")).toHaveTextContent("User2 Account has been accepted and activated.")
+  const getUserCallsAfterApprove = fetchMock.mock.calls.filter(([input, init]) => {
+    const url = new URL(String(input), "http://localhost")
+    return url.pathname === "/api/users" && (!init?.method || init?.method === "GET")
+  })
+  expect(getUserCallsAfterApprove).toHaveLength(1)
 
   const adminRow = await screen.findByRole("row", { name: /User3 Account/ })
   await user.click(within(adminRow).getByRole("button", { name: "Rights for User3 Account" }))
@@ -520,4 +525,47 @@ test("keeps the edited rights open when saving fails", async () => {
   expect(await within(dialog).findByRole("alert")).toHaveTextContent("Unable to save rights")
   expect(presetSelect).toHaveValue("inventory-employee")
   expect(within(dialog).getByRole("button", { name: "Save Rights" })).toBeEnabled()
+})
+
+test("displays Audit Logs tab for superadmin and toggles to AuditLogViewer", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: superAdminSession })
+    if (url.pathname === "/api/users/options") return success({ availableEmployees: [] })
+    if (url.pathname === "/api/users") return success({ users: [makeUser(1, "employee")], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/audit-logs") {
+      return success({
+        logs: [
+          {
+            auditId: "999",
+            tableName: "sales",
+            action: "UPDATE",
+            recordKey: "SO-1234",
+            oldValues: { total: 100 },
+            newValues: { total: 200 },
+            actionBy: "superadmin",
+            actionAt: "2026-11-02T12:00:00Z",
+          },
+        ],
+        pagination: { page: 1, limit: 15, total: 1, totalPages: 1 },
+      })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <UserManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  expect(await screen.findByRole("tab", { name: "Audit Logs" })).toBeInTheDocument()
+  await user.click(screen.getByRole("tab", { name: "Audit Logs" }))
+
+  expect(await screen.findByText(/Append-Only Audit Log/i)).toBeInTheDocument()
+  expect(await screen.findByText("SO-1234")).toBeInTheDocument()
 })

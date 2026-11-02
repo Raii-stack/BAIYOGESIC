@@ -1,40 +1,40 @@
 import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router"
 
 import SuccessToast from "../components/common/SuccessToast"
 import { useAuth } from "../components/auth/AuthProvider"
 import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import ArchiveProductModal from "../components/inventory/ArchiveProductModal"
+import PriceHistoryModal from "../components/inventory/PriceHistoryModal"
 import ProductPanel from "../components/inventory/ProductPanel"
 import ProductTable from "../components/inventory/ProductTable"
 import DashboardLayout from "../layouts/DashboardLayout"
 import useDebouncedValue from "../hooks/useDebouncedValue"
-import usePageQuery from "../hooks/usePageQuery"
-import { productApi, type ProductInput, type ProductPagination } from "../lib/product-api"
+import useDirectoryTableQuery from "../hooks/useDirectoryTableQuery"
+import { productApi, toProduct, type ProductInput, type ProductPagination, type ProductSortBy } from "../lib/product-api"
 import { getProductPermissions } from "../lib/rbac"
 import type { Product, UnitType } from "../types/product"
 
-const PAGE_SIZE = 10
-const emptyPagination: ProductPagination = { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 }
+const PRODUCT_SORTS: ProductSortBy[] = ["productCode", "description", "unitPrice"]
+const emptyPagination = (limit: number): ProductPagination => ({ page: 1, limit, total: 0, totalPages: 0 })
 
 export default function InventoryPage() {
   const { user } = useAuth()
-  const [searchParams] = useSearchParams()
+  const { searchParams, page, limit, sortBy, sortOrder, setPage, setLimit, toggleSort } = useDirectoryTableQuery(PRODUCT_SORTS, "description")
   const { canAdd, canEdit, canDelete, canViewAudit } = getProductPermissions(user)
   const [query, setQuery] = useState(() => searchParams.get("search") || "")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
   const [unit, setUnit] = useState<UnitType | "">("")
   const [status, setStatus] = useState<"all" | "active" | "archived">("all")
-  const [page, setPage] = usePageQuery()
   const [products, setProducts] = useState<Product[]>([])
-  const [pagination, setPagination] = useState<ProductPagination>(emptyPagination)
+  const [pagination, setPagination] = useState<ProductPagination>(() => emptyPagination(limit))
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState("")
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null)
   const [refresh, setRefresh] = useState(0)
   const [panelOpen, setPanelOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
+  const [priceModalProduct, setPriceModalProduct] = useState<Product | null>(null)
   const [productToArchive, setProductToArchive] = useState<Product | null>(null)
   const [archiveError, setArchiveError] = useState("")
   const [archiving, setArchiving] = useState(false)
@@ -56,7 +56,7 @@ export default function InventoryPage() {
     setLoadError("")
     const load = async () => {
       try {
-        const result = await productApi.list({ page, limit: PAGE_SIZE, search: debouncedQuery, unit, status }, controller.signal)
+        const result = await productApi.list({ page, limit, search: debouncedQuery, unit, status, sortBy, sortOrder }, controller.signal)
         if (controller.signal.aborted) return
         if (page > Math.max(1, result.pagination.totalPages)) {
           setPage(Math.max(1, result.pagination.totalPages))
@@ -68,7 +68,7 @@ export default function InventoryPage() {
         if (!controller.signal.aborted) {
           setLoadError(error instanceof Error ? error.message : "Unable to load products.")
           setProducts([])
-          setPagination(emptyPagination)
+          setPagination(emptyPagination(limit))
         }
       } finally {
         if (!controller.signal.aborted) setLoading(false)
@@ -76,15 +76,30 @@ export default function InventoryPage() {
     }
     void load()
     return () => controller.abort()
-  }, [page, unit, status, debouncedQuery, searchPending, refresh])
+  }, [page, limit, sortBy, sortOrder, unit, status, debouncedQuery, searchPending, refresh, setPage])
 
   const showNotice = (message: string) => setNotice((current) => ({ id: (current?.id ?? 0) + 1, message }))
 
+  const openNewProductPanel = () => {
+    setSelectedProduct(null)
+    setPanelOpen(true)
+  }
+
+  const clearFilters = () => {
+    setQuery("")
+    setUnit("")
+    setStatus("all")
+    setPage(1)
+  }
+
   const saveProduct = async (input: ProductInput) => {
     if (selectedProduct) {
-      await productApi.update(selectedProduct.code, input)
+      const result = await productApi.update(selectedProduct.code, input)
+      const updated = toProduct(result.product)
+      setProducts((prev) =>
+        prev.map((item) => (item.code === selectedProduct.code ? updated : item))
+      )
       showNotice("Product updated successfully.")
-      setRefresh((current) => current + 1)
     } else {
       await productApi.create(input)
       showNotice("Product created successfully.")
@@ -99,11 +114,19 @@ export default function InventoryPage() {
     setArchiving(true)
     setArchiveError("")
     try {
-      await productApi.archive(productToArchive.code)
+      const result = await productApi.archive(productToArchive.code)
+      setProducts((prev) =>
+        status === "active"
+          ? prev.filter((p) => p.code !== productToArchive.code)
+          : prev.map((p) =>
+              p.code === productToArchive.code
+                ? { ...p, status: "Inactive" as const, stamp: result?.product?.stamp || p.stamp }
+                : p
+            )
+      )
       setProductToArchive(null)
       showNotice("Product archived successfully.")
       if (status === "active" && products.length === 1 && page > 1) setPage(page - 1)
-      else setRefresh((current) => current + 1)
     } catch (error) {
       setArchiveError(error instanceof Error ? error.message : "Unable to archive product.")
     } finally {
@@ -114,10 +137,18 @@ export default function InventoryPage() {
   const restoreProduct = async (product: Product) => {
     setRestoringCode(product.code)
     try {
-      await productApi.restore(product.code)
+      const result = await productApi.restore(product.code)
+      setProducts((prev) =>
+        status === "archived"
+          ? prev.filter((p) => p.code !== product.code)
+          : prev.map((p) =>
+              p.code === product.code
+                ? { ...p, status: "Active" as const, stamp: result?.product?.stamp || p.stamp }
+                : p
+            )
+      )
       showNotice("Product restored successfully.")
       if (status === "archived" && products.length === 1 && page > 1) setPage(page - 1)
-      else setRefresh((current) => current + 1)
     } catch {
       // Shared error toast is emitted by apiFailure
     } finally {
@@ -162,15 +193,16 @@ export default function InventoryPage() {
                 </select>
               </span>
             </label>
-            {canAdd && <button type="button" onClick={() => { setSelectedProduct(null); setPanelOpen(true) }} className="workspace-primary-action"><DashboardIcon name="plus" className="h-4 w-4" />Add product</button>}
+            {canAdd && <button type="button" onClick={openNewProductPanel} className="workspace-primary-action"><DashboardIcon name="plus" className="h-4 w-4" />Add product</button>}
           </section>
 
           {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4 hover:text-red-950">Try again</button></div>}
-          <ProductTable key={`${page}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} onRestore={restoreProduct} restoringCode={restoringCode} canEdit={canEdit} canDelete={canDelete} canViewAudit={canViewAudit} />
+          <ProductTable key={`${page}-${limit}-${sortBy}-${sortOrder}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} pageSize={limit} onLimitChange={setLimit} sortBy={sortBy} sortOrder={sortOrder} onSortChange={toggleSort} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} onRestore={restoreProduct} restoringCode={restoringCode} canEdit={canEdit} canDelete={canDelete} canAdd={canAdd} canViewAudit={canViewAudit} hasFilters={Boolean(query.trim() || unit || status !== "all")} onClearFilters={clearFilters} onAdd={openNewProductPanel} onViewPrices={(product) => setPriceModalProduct(product)} />
         </div>
       </main>
 
       {(canAdd || canEdit) && <ProductPanel product={selectedProduct} open={panelOpen} onClose={() => setPanelOpen(false)} onSave={saveProduct} />}
+      <PriceHistoryModal product={priceModalProduct} open={Boolean(priceModalProduct)} onClose={() => setPriceModalProduct(null)} canAddPrice={canEdit} canViewAudit={canViewAudit} onPriceAdded={() => setRefresh((current) => current + 1)} />
       {canDelete && <ArchiveProductModal productName={productToArchive?.description ?? ""} open={Boolean(productToArchive)} onCancel={() => setProductToArchive(null)} onConfirm={archiveProduct} loading={archiving} error={archiveError} />}
       {notice && <SuccessToast key={notice.id} message={notice.message} onClose={() => setNotice((current) => current?.id === notice.id ? null : current)} />}
     </DashboardLayout>

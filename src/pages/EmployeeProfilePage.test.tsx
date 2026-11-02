@@ -27,12 +27,14 @@ const employee = {
 }
 
 const history = [
-  { id: "00001-DEV-2026-01-01", effectiveDate: "2026-01-01", jobTitle: "Senior Developer", department: "Information Technology", salary: 65000, canViewSalary: true, stamp: "UPDATE admin" },
+  { id: "00001-DEV-2026-01-01", effectiveDate: "2026-01-01", jobTitle: "Senior Developer", department: "Engineering", salary: 65000, canViewSalary: true, stamp: "UPDATE admin" },
   { id: "00001-DEV-2022-01-01", effectiveDate: "2022-01-01", jobTitle: "Developer", department: "Information Technology", salary: 55000, canViewSalary: true, stamp: "ADD admin" },
 ]
 
 const admin = { userId: "1", empno: "00001", email: "admin@example.com", role: "administrator", status: "active", mustChangePassword: false, rights: [] }
 const employeeUser = { userId: "2", empno: "00002", email: "staff@example.com", role: "employee", status: "active", mustChangePassword: false, rights: [] }
+const employeeWithHistory = { userId: "3", empno: "00003", email: "staff2@example.com", role: "employee", status: "active", mustChangePassword: false, rights: ["hr.history.view"] }
+const hrManager = { userId: "4", empno: "00004", email: "hrmanager@example.com", role: "hr_manager", status: "active", mustChangePassword: false, rights: ["hr.history.view"] }
 
 afterEach(() => {
   cleanup()
@@ -57,10 +59,64 @@ function renderPage(user = admin) {
 test("loads employee details, history, audit data, and salary values for administrators", async () => {
   renderPage()
   expect(await screen.findByRole("heading", { name: "Ana User" })).toBeInTheDocument()
+  expect(screen.getByRole("list", { name: "Job history timeline" })).toBeInTheDocument()
+  expect(screen.getByText("Current")).toBeInTheDocument()
   expect(screen.getByText("Senior Developer")).toBeInTheDocument()
+  expect(screen.getByText("Promotion")).toBeInTheDocument()
+  expect(screen.getByText("Transfer")).toBeInTheDocument()
   expect(screen.getByText("$65,000")).toBeInTheDocument()
   expect(screen.getByText("UPDATE admin")).toBeInTheDocument()
   expect(employeeApi.get).toHaveBeenCalledWith("00001", expect.any(AbortSignal))
+})
+
+test("shows skeleton loader while fetching profile", () => {
+  vi.mocked(employeeApi.get).mockReturnValue(new Promise(() => {}))
+  renderPage()
+  expect(screen.getByRole("status", { name: "Loading career timeline" })).toBeInTheDocument()
+})
+
+test("keeps salary redacted inside the timeline when the API withholds it", async () => {
+  vi.mocked(employeeApi.get).mockResolvedValue({
+    employee: { ...employee, salary: 0, canViewSalary: false },
+    history: history.map((entry) => ({ ...entry, salary: 0, canViewSalary: false })),
+  })
+  renderPage()
+  expect(await screen.findByRole("list", { name: "Job history timeline" })).toBeInTheDocument()
+  expect(screen.getAllByLabelText("Salary hidden due to permissions")).toHaveLength(2)
+  expect(screen.queryByText("$65,000")).not.toBeInTheDocument()
+})
+
+test("masks salary figures with lock icon and hides reveal toggle button for standard employees", async () => {
+  renderPage(employeeWithHistory)
+  expect(await screen.findByRole("heading", { name: "Ana User" })).toBeInTheDocument()
+  expect(screen.getByRole("list", { name: "Job history timeline" })).toBeInTheDocument()
+  // Masked bullets with lock icon
+  expect(screen.getAllByLabelText("Salary hidden due to permissions")).toHaveLength(2)
+  expect(screen.getAllByText("••••••••")).toHaveLength(2)
+  expect(screen.queryByText("$65,000")).not.toBeInTheDocument()
+  // Reveal toggle button is hidden for unauthorized accounts
+  expect(screen.queryByRole("button", { name: /salary/i })).not.toBeInTheDocument()
+})
+
+test("allows authorized managers to view formatted salary and toggle reveal visibility", async () => {
+  const user = userEvent.setup()
+  renderPage(hrManager)
+  expect(await screen.findByRole("heading", { name: "Ana User" })).toBeInTheDocument()
+  // Formatted salary shown by default
+  expect(screen.getByText("$65,000")).toBeInTheDocument()
+  // Reveal toggle button is present
+  const toggleBtn = screen.getByRole("button", { name: "Hide salary" })
+  expect(toggleBtn).toBeInTheDocument()
+
+  // Click to mask
+  await user.click(toggleBtn)
+  expect(screen.queryByText("$65,000")).not.toBeInTheDocument()
+  expect(screen.getAllByText("••••••••")).toHaveLength(2)
+
+  // Click to unmask / reveal
+  const showBtn = screen.getByRole("button", { name: "Show salary" })
+  await user.click(showBtn)
+  expect(screen.getByText("$65,000")).toBeInTheDocument()
 })
 
 test("hides job history when the user lacks history rights", async () => {
@@ -82,4 +138,3 @@ test("shows an empty-history state and retries a failed profile request", async 
   expect(await screen.findByText("No job history recorded.")).toBeInTheDocument()
   expect(employeeApi.get).toHaveBeenCalledTimes(2)
 })
-

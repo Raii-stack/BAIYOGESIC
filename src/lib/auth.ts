@@ -93,5 +93,10 @@ export const authApi = {
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ message: string }>("/change-password", { currentPassword, newPassword }),
   logout: () => request<{ message: string }>("/logout", {}),
-  resetPassword: (token: string, password: string) => request<{ user: AuthUser }>("/reset-password", { token, password }),
+  register: (payload: { firstName: string; lastName: string; email: string; password?: string }) =>
+    request<{ message: string; user: AuthUser }>("/register", payload),
+  forgotPassword: (email: string) =>
+    request<{ message: string; token?: string }>("/forgot-password", { email }),
+  resetPassword: (token: string, password: string) =>
+    request<{ message?: string; user?: AuthUser }>("/reset-password", { token, password }),
 }

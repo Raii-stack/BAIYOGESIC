@@ -1,4 +1,4 @@
-import type { PaymentStatus, SaleTransaction } from "../../types/sale"
+import type { SaleTransaction } from "../../types/sale"
 import { getPaymentStatus, getSaleBalance, getSaleTotal } from "../../lib/sales"
 
 const currency = new Intl.NumberFormat("en-US", {
@@ -16,6 +16,7 @@ export default function SalesTable({
   onRestore,
   canViewDetails = true,
   canDelete = true,
+  canRestore = true,
   showAdminAudit = false,
 }: {
   sales: SaleTransaction[]
@@ -27,9 +28,10 @@ export default function SalesTable({
   onRestore: (transactionNo: string) => void
   canViewDetails?: boolean
   canDelete?: boolean
+  canRestore?: boolean
   showAdminAudit?: boolean
 }) {
-  const showActions = canViewDetails || canDelete
+  const showActions = canViewDetails || canDelete || canRestore
   return (
     <div className="workspace-panel">
       <div className="workspace-table-header">
@@ -120,10 +122,11 @@ export default function SalesTable({
                   {showActions && (
                     <td data-label="Actions" className="workspace-table-actions">
                       {inactive ? (
-                        canDelete ? (
+                        canRestore ? (
                           <button
                             type="button"
                             onClick={() => onRestore(sale.transactionNo)}
+                            aria-label={`Restore ${sale.transactionNo}`}
                             className="workspace-text-action text-emerald-700"
                           >
                             Restore
@@ -144,6 +147,7 @@ export default function SalesTable({
                             <button
                               type="button"
                               onClick={() => onDelete(sale.transactionNo)}
+                              aria-label={`Archive ${sale.transactionNo}`}
                               className="workspace-text-action text-red-700"
                             >
                               Archive
@@ -179,23 +183,20 @@ export default function SalesTable({
         <nav aria-label="Sales table pagination" className="workspace-pagination">
           <button
             type="button"
-            disabled={page <= 1}
             onClick={() => onPageChange(page - 1)}
+            disabled={page <= 1}
+            className="workspace-secondary-action"
           >
             Previous
           </button>
+          <span className="text-xs text-slate-600">
+            Page {page} of {Math.max(1, Math.ceil(total / 10))}
+          </span>
           <button
             type="button"
-            aria-current="page"
-            aria-label={`Page ${page}`}
-            onClick={() => onPageChange(page)}
-          >
-            {page}
-          </button>
-          <button
-            type="button"
-            disabled={page >= Math.ceil(total / 10)}
             onClick={() => onPageChange(page + 1)}
+            disabled={page >= Math.ceil(total / 10)}
+            className="workspace-secondary-action"
           >
             Next
           </button>
@@ -205,26 +206,33 @@ export default function SalesTable({
   )
 }
 
-export function StatusBadge({ status }: { status: SaleTransaction["status"] }) {
+export function PaymentStatusBadge({ status }: { status: "Paid" | "Partial" | "Unpaid" }) {
+  const styles = {
+    Paid: "bg-emerald-100 text-emerald-800",
+    Partial: "bg-amber-100 text-amber-800",
+    Unpaid: "bg-rose-100 text-rose-800",
+  }
+
   return (
     <span
-      className={`workspace-badge ${
-        status === "Active"
-          ? "bg-emerald-100 text-emerald-800"
-          : "bg-neutral-100 text-neutral-600"
-      }`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${styles[status]}`}
     >
-      {status === "Inactive" ? "Archived" : status}
+      {status}
     </span>
   )
 }
 
-export function PaymentStatusBadge({ status }: { status: PaymentStatus }) {
-  const styles =
-    status === "Paid"
-      ? "bg-emerald-100 text-emerald-800"
-      : status === "Partial"
-        ? "bg-amber-100 text-amber-800"
-        : "bg-slate-100 text-slate-700"
-  return <span className={`workspace-badge ${styles}`}>{status}</span>
+export function StatusBadge({ status }: { status: "Active" | "Inactive" }) {
+  const styles = {
+    Active: "bg-emerald-100 text-emerald-800",
+    Inactive: "bg-slate-100 text-slate-800",
+  }
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${styles[status]}`}
+    >
+      {status === "Inactive" ? "Archived" : status}
+    </span>
+  )
 }

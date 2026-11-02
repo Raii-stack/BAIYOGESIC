@@ -16,6 +16,8 @@ const employeeRoutes = require('./routes/employee-routes');
 const userRoutes = require('./routes/user-routes');
 const salesRoutes = require('./routes/sales-routes');
 const dashboardRoutes = require('./routes/dashboard-routes');
+const reportRoutes = require('./routes/report-routes');
+const auditLogRoutes = require('./routes/audit-log-routes');
 
 const app = express();
 const port = Number.parseInt(process.env.PORT || '3000', 10);
@@ -73,6 +75,8 @@ app.use('/api/jobs', employeeRoutes.jobRouter);
 app.use('/api/users', userRoutes);
 app.use('/api/sales', salesRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
 
 // shortcut: 5s health check TTL avoids hitting Supabase on every probe
 let healthOkUntil = 0;

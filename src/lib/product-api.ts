@@ -15,6 +15,7 @@ type PriceRow = { effdate: string; unitprice: string | number; stamp: string }
 
 export type ProductInput = { description: string; unit: UnitType; unitprice: number }
 export type ProductPagination = { page: number; limit: number; total: number; totalPages: number }
+export type ProductSortBy = "productCode" | "description" | "unitPrice"
 
 type ApiResponse<T> = { success: boolean; data?: T; error?: { message?: string } }
 const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
@@ -41,7 +42,7 @@ async function request<T>(path: string, method = "GET", body?: object, signal?: 
   return result.data
 }
 
-function toProduct(row: ProductRow): Product {
+export function toProduct(row: ProductRow): Product {
   return {
     code: row.prodcode,
     description: row.description,
@@ -54,11 +55,13 @@ function toProduct(row: ProductRow): Product {
 }
 
 export const productApi = {
-  async list(options: { page: number; limit: number; search: string; unit: UnitType | ""; status: "all" | "active" | "archived" }, signal?: AbortSignal) {
+  async list(options: { page: number; limit: number; search: string; unit: UnitType | ""; status: "all" | "active" | "archived"; sortBy: ProductSortBy; sortOrder: "asc" | "desc" }, signal?: AbortSignal) {
     const params = new URLSearchParams({ page: String(options.page), limit: String(options.limit) })
     if (options.search) params.set("search", options.search)
     if (options.unit) params.set("unit", options.unit)
     if (options.status !== "all") params.set("status", options.status)
+    params.set("sortBy", options.sortBy)
+    params.set("sortOrder", options.sortOrder)
     const data = await request<{ products: ProductRow[]; pagination: ProductPagination }>(`?${params}`, "GET", undefined, signal)
     return { products: data.products.map(toProduct), pagination: data.pagination }
   },

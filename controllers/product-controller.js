@@ -5,6 +5,8 @@ const { asyncHandler } = require('../middleware/error-handler');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
+const PRODUCT_SORT_COLUMNS = { productCode: 'p.prodcode', description: 'p.description', unitPrice: 'price.unitprice' };
+const SORT_ORDERS = new Set(['asc', 'desc']);
 
 function requestError(message, statusCode, details) {
   const error = new Error(message);
@@ -40,6 +42,16 @@ const listProducts = asyncHandler(async (req, res) => {
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
   const unit = typeof req.query.unit === 'string' ? req.query.unit.trim().toLowerCase() : '';
   const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
+  const sortBy = req.query.sortBy === undefined ? 'description' : req.query.sortBy;
+  const sortOrder = req.query.sortOrder === undefined
+    ? 'asc'
+    : typeof req.query.sortOrder === 'string' ? req.query.sortOrder.toLowerCase() : '';
+  if (typeof sortBy !== 'string' || !Object.hasOwn(PRODUCT_SORT_COLUMNS, sortBy)) {
+    throw requestError('sortBy must be productCode, description, or unitPrice', 400);
+  }
+  if (!SORT_ORDERS.has(sortOrder)) {
+    throw requestError('sortOrder must be asc or desc', 400);
+  }
   if (unit && !UNITS.has(unit)) throw requestError('Invalid unit filter', 400);
   if (!['all', 'active', 'archived'].includes(status)) throw requestError('Invalid status filter', 400);
 
@@ -61,6 +73,7 @@ const listProducts = asyncHandler(async (req, res) => {
   const countValues = [...values];
   const offset = (page - 1) * limit;
   values.push(limit, offset);
+  const secondarySort = sortBy === 'productCode' ? '' : ', p.prodcode ASC';
 
   const pool = requirePool();
   const productsResult = await pool.query(
@@ -78,7 +91,7 @@ const listProducts = asyncHandler(async (req, res) => {
        LIMIT 1
      ) price ON true
      ${whereClause}
-     ORDER BY p.description ASC, p.prodcode ASC
+     ORDER BY ${PRODUCT_SORT_COLUMNS[sortBy]} ${sortOrder.toUpperCase()} NULLS LAST${secondarySort}
      LIMIT $${values.length - 1} OFFSET $${values.length}`,
     values
   );

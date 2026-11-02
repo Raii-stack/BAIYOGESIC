@@ -26,6 +26,7 @@ require.cache[require.resolve('../../db')] = {
 const {
   getPriceHistory,
   addPriceHistory,
+  updateProduct,
   archiveProduct,
   restoreProduct
 } = require('../../controllers/product-controller');
@@ -35,6 +36,29 @@ const {
 } = require('../../controllers/customer-controller');
 const productRoutes = require('../../routes/product-routes');
 const customerRoutes = require('../../routes/customer-routes');
+
+describe('Product edit response', () => {
+  test.each([['12.50', 25], ['25.00', 25], [null, 25]])('includes the saved price and date when the previous price is %s', async (previousPrice, unitprice) => {
+    mockClient.query.mockReset();
+    mockClient.query.mockImplementation(async (sql, params) => {
+      if (sql.includes('UPDATE public.product')) return { rows: [{ prodcode: 'PX0001', description: 'Updated product', unit: 'ea', is_deleted: false, stamp: 'EDIT admin' }] };
+      if (sql.includes('SELECT unitprice')) return { rows: previousPrice === null ? [] : [{ unitprice: previousPrice, effdate: '2026-10-01' }] };
+      if (sql.includes('INSERT INTO public.pricehist')) {
+        expect(sql).toContain('RETURNING unitprice, effdate::text AS effdate');
+        return { rows: [{ unitprice: String(params[1]), effdate: '2026-11-02' }] };
+      }
+      return { rows: [] };
+    });
+    const res = { json: vi.fn() };
+    await updateProduct({ params: { prodcode: 'PX0001' }, body: { description: 'Updated product', unit: 'ea', unitprice }, user: { email: 'admin@hope.inc' } }, res, (error) => { throw error; });
+    expect(res.json).toHaveBeenCalledWith({ success: true, data: { product: {
+      prodcode: 'PX0001', description: 'Updated product', unit: 'ea', is_deleted: false, stamp: 'EDIT admin',
+      unitprice: '25.00' === previousPrice ? previousPrice : '25',
+      effdate: '25.00' === previousPrice ? '2026-10-01' : '2026-11-02',
+    } } });
+    expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
+  });
+});
 
 describe('[S2-DEV-07a] Price History API & Audit Logging', () => {
   beforeEach(() => {

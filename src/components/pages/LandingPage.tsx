@@ -35,11 +35,11 @@ export default function LandingPage() {
               <button
                 type="button"
                 onClick={() => setRegisterOpen(true)}
-                className="hope-button hope-button-outline hope-header-register"
+                className="hope-button hope-button-outline"
               >
                 Register
               </button>
-              <Link to="/login" className="hope-button hope-button-light hope-header-signin">Sign in<span aria-hidden="true">↗</span></Link>
+              <Link to="/login" className="hope-button hope-button-light">Sign in<span aria-hidden="true">↗</span></Link>
             </nav>
           </header>
 
@@ -60,8 +60,8 @@ export default function LandingPage() {
               >
                 Register for an account<span aria-hidden="true">→</span>
               </button>
-              <a href="#workspace" className="hope-button hope-button-outline">Explore the workspace<span aria-hidden="true">↓</span></a>
             </div>
+            <a href="#workspace" className="hope-text-link">Explore the workspace<span aria-hidden="true">↓</span></a>
           </div>
         </section>
 
@@ -91,7 +91,7 @@ export default function LandingPage() {
             <div><p className="hope-eyebrow">Your next step</p><h2 id="access-heading">A place for<br />your team to work.</h2></div>
             <div className="hope-access-action">
               <p>Already part of HOPE? Your workspace is ready when you are.</p>
-              <div className="flex flex-wrap gap-2.5">
+              <div className="hope-access-buttons">
                 <Link to="/login" className="hope-button hope-button-dark">Open your workspace<span aria-hidden="true">↗</span></Link>
                 <button
                   type="button"

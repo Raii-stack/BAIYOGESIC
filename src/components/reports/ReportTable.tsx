@@ -62,9 +62,9 @@ const columns: Record<ReportName, Column[]> = {
 const currency = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" })
 const date = new Intl.DateTimeFormat("en-PH")
 
-function displayValue(value: ReportRow[string], format?: Column["format"]) {
-  if (value === null || value === "") return "—"
-  if (format === "currency") return currency.format(Number(value))
+function displayValue(value: ReportRow[string] | undefined, format?: Column["format"]) {
+  if (value == null || value === "") return "—"
+  if (format === "currency") return Number.isFinite(Number(value)) ? currency.format(Number(value)) : "—"
   if (format === "date") {
     const rawDate = String(value)
     const parsedDate = new Date(rawDate.includes("T") ? rawDate : `${rawDate}T00:00:00`)

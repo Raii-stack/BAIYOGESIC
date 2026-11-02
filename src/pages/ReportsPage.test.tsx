@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { MemoryRouter, useLocation } from "react-router"
 import { afterEach, expect, test, vi } from "vitest"
@@ -99,4 +99,26 @@ test("employee job history loads employee options and the selected history", asy
   await waitFor(() => expect(employee).toHaveValue("00001"), { timeout: 5000 })
   expect(await screen.findByText("Manager", {}, { timeout: 5000 })).toBeInTheDocument()
   expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/job-history?empno=00001"))).toBe(true)
+})
+
+test("a late report response cannot replace the newly selected report", async () => {
+  let finishOldReport!: () => void
+  const oldReport = new Promise<void>((resolve) => { finishOldReport = resolve })
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    let data: Record<string, unknown>
+    if (url.includes("/auth/session")) data = { user: { userId: "1", email: "admin@hope.inc", role: "superadmin", status: "active", mustChangePassword: false } }
+    else if (url.includes("/top-customers")) {
+      await oldReport
+      data = { rows: [{ custno: "OLD", custname: "Outdated report", totalsales: "500" }] }
+    } else data = { rows: [{ prodcode: "P001", description: "Current report", unit: "pc", currentprice: "25" }] }
+    return new Response(JSON.stringify({ success: true, data }), { headers: { "Content-Type": "application/json" } })
+  }))
+  const user = userEvent.setup()
+  render(<MemoryRouter initialEntries={["/reports?report=Top+Customers"]}><AuthProvider><ReportsPage /></AuthProvider></MemoryRouter>)
+  await user.click(await screen.findByRole("tab", { name: "Product Master List" }))
+  await screen.findByText("Current report")
+  await act(async () => { finishOldReport(); await oldReport })
+  expect(screen.queryByText("Outdated report")).not.toBeInTheDocument()
+  expect(screen.getByText("Current report")).toBeInTheDocument()
 })

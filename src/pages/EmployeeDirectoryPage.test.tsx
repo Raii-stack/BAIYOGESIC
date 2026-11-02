@@ -71,7 +71,7 @@ test("saves employee edits through the API and refreshes the directory", async (
     const url = new URL(String(input), "http://localhost")
     if (url.pathname === "/api/auth/session") return response({ user: auth("administrator") })
     if (url.pathname === "/api/employees/options") return response({ departments: [{ code: "IT", name: "Information Tech" }], jobs: [{ code: "DEV", name: "Developer" }] })
-    if (url.pathname === "/api/employees" && init?.method === "GET") return response({ employees: [{ ...row(1), firstname: updated ? "Updated" : "Person1" }], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees" && init?.method === "GET") return response({ employees: [{ ...row(1), firstname: updated ? "Updated" : "Person1", stamp: updated ? "EDIT admin 2026-11-02" : "ADD admin" }], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
     if (url.pathname === "/api/employees/00001" && init?.method === "PUT") {
       expect(init.credentials).toBe("include")
       expect(JSON.parse(String(init.body)).firstname).toBe("Updated")
@@ -91,6 +91,8 @@ test("saves employee edits through the API and refreshes the directory", async (
   await user.type(first, "Updated")
   await user.click(within(dialog).getByRole("button", { name: "Save changes" }))
   expect(await screen.findByText("Updated Example")).toBeInTheDocument()
+  expect(screen.getByText("EDIT admin 2026-11-02")).toBeInTheDocument()
+  expect(fetchMock.mock.calls.filter(([input, init]) => new URL(String(input), "http://localhost").pathname === "/api/employees" && init?.method === "GET")).toHaveLength(2)
   expect(screen.getByRole("status")).toHaveTextContent("Employee updated successfully")
 })
 

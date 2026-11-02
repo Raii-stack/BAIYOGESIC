@@ -45,6 +45,7 @@ export default function ReportsPage() {
       limit: isTopReport ? topN : undefined,
       empno: activeReport === "Employee Job History" ? employee : undefined,
     }, controller.signal).then((result) => {
+      if (controller.signal.aborted) return
       setRows(result.rows)
       if (activeReport === "Employee Job History") {
         const options = result.employees || []

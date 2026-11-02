@@ -130,31 +130,7 @@ export default function EmployeeDirectoryPage() {
   const save = async (input: EmployeeInput) => {
     if (selected) {
       await employeeApi.update(selected.id, input)
-      const deptName = departments.find((d) => d.code === input.deptcode)?.name || selected.department
-      const jobDesc = jobs.find((j) => j.code === input.jobcode)?.name || selected.jobTitle
-      setEmployees((prev) =>
-        prev.map((item) =>
-          item.id === selected.id
-            ? {
-                ...item,
-                firstName: input.firstname,
-                lastName: input.lastname,
-                fullName: [input.firstname, input.lastname].filter(Boolean).join(" ") || item.id,
-                email: input.email,
-                gender: input.gender || null,
-                birthDate: input.birthdate,
-                hireDate: input.hiredate,
-                separationDate: input.sepdate || null,
-                departmentCode: input.deptcode,
-                department: deptName,
-                jobCode: input.jobcode,
-                jobTitle: jobDesc,
-                salary: input.salary,
-                effectiveDate: input.effdate,
-              }
-            : item
-        )
-      )
+      setRefresh((current) => current + 1)
       showNotice("Employee updated successfully.")
     } else {
       await employeeApi.create(input)

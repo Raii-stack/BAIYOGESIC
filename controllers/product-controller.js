@@ -315,20 +315,23 @@ const updateProduct = asyncHandler(async (req, res) => {
     if (!result.rows.length) return null;
 
     const currentPrice = await client.query(
-      `SELECT unitprice FROM public.pricehist
+      `SELECT unitprice, effdate::text AS effdate FROM public.pricehist
        WHERE prodcode = $1 AND is_deleted = false AND effdate <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
        ORDER BY effdate DESC LIMIT 1`,
       [prodcode]
     );
-    if (!currentPrice.rows.length || Number(currentPrice.rows[0].unitprice) !== unitprice) {
+    let savedPrice = currentPrice.rows[0];
+    if (!savedPrice || Number(savedPrice.unitprice) !== unitprice) {
       const oldUnitprice = currentPrice.rows.length ? Number(currentPrice.rows[0].unitprice) : null;
-      await client.query(
+      const priceResult = await client.query(
         `INSERT INTO public.pricehist (effdate, prodcode, unitprice, is_deleted)
          VALUES ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date, $1, $2, false)
          ON CONFLICT (effdate, prodcode)
-         DO UPDATE SET unitprice = EXCLUDED.unitprice, is_deleted = false`,
+         DO UPDATE SET unitprice = EXCLUDED.unitprice, is_deleted = false
+         RETURNING unitprice, effdate::text AS effdate`,
         [prodcode, unitprice]
       );
+      savedPrice = priceResult.rows[0];
       const actorUserId = req.user?.sub || req.user?.userId || req.user?.id || req.user?.empno || req.user?.email || 'system';
       await client.query(
         `INSERT INTO public.audit_log
@@ -343,7 +346,7 @@ const updateProduct = asyncHandler(async (req, res) => {
         ]
       );
     }
-    return result.rows[0];
+    return { ...result.rows[0], ...savedPrice };
   });
   if (!product) throw requestError('Product not found', 404);
   res.json({ success: true, data: { product } });

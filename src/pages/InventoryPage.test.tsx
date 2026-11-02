@@ -173,7 +173,7 @@ test("creates, updates, and archives a product through the API", async () => {
     }
     if (url.pathname === "/api/products/PX0002" && init?.method === "PUT") {
       expect(JSON.parse(String(init.body))).toEqual({ description: "Updated product", unit: "pkg", unitprice: 21 })
-      records = [records[0], product(2, "pkg", "Updated product", "21.00")]
+      records = [records[0], { ...product(2, "pkg", "Updated product", "21.00"), effdate: "2026-11-02", stamp: "EDIT admin 2026-11-02" }]
       return success({ product: records[1] })
     }
     if (url.pathname === "/api/products/PX0002" && init?.method === "DELETE") {
@@ -208,6 +208,11 @@ test("creates, updates, and archives a product through the API", async () => {
   await user.type(within(dialog).getByRole("spinbutton", { name: /Current Unit Price/ }), "21")
   await user.click(within(dialog).getByRole("button", { name: "Save changes" }))
   expect(await screen.findByText("Updated product")).toBeInTheDocument()
+  const updatedRow = screen.getByRole("row", { name: /Updated product/ })
+  expect(within(updatedRow).getByText("$21.00")).toBeInTheDocument()
+  expect(within(updatedRow).getByText("2026-11-02")).toBeInTheDocument()
+  expect(within(updatedRow).getByText("EDIT admin 2026-11-02")).toBeInTheDocument()
+  expect(screen.queryByText(/NaN/)).not.toBeInTheDocument()
   expect(screen.getByRole("status")).toHaveTextContent("Product updated successfully")
   const getProductCallsAfterEdit = fetchMock.mock.calls.filter(([input, init]) => {
     const url = new URL(String(input), "http://localhost")

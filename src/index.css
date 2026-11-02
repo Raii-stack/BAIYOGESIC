@@ -312,6 +312,10 @@ body:has([aria-modal="true"]:not([inert] [aria-modal="true"])) { overflow: hidde
   display: none;
 }
 
+.workspace-report-page .workspace-table th { color: #303030; font-size: 13px; font-weight: 600; }
+.workspace-report-page .workspace-table td { color: #262626; font-size: 14px; font-weight: 500; line-height: 22px; }
+.workspace-report-page .workspace-table-header h2 { font-weight: 600; }
+
 @media print {
   @page {
     size: auto;

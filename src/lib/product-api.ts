@@ -5,8 +5,8 @@ type ProductRow = {
   prodcode: string
   description: string
   unit: UnitType
-  unitprice: string | number | null
-  effdate: string | null
+  unitprice?: string | number | null
+  effdate?: string | null
   is_deleted: boolean
   stamp: string
 }
@@ -43,12 +43,13 @@ async function request<T>(path: string, method = "GET", body?: object, signal?: 
 }
 
 export function toProduct(row: ProductRow): Product {
+  const price = row.unitprice == null || row.unitprice === "" ? null : Number(row.unitprice)
   return {
     code: row.prodcode,
     description: row.description,
     unitType: row.unit,
-    currentPrice: row.unitprice === null ? null : Number(row.unitprice),
-    priceEffectiveDate: row.effdate,
+    currentPrice: price !== null && Number.isFinite(price) ? price : null,
+    priceEffectiveDate: row.effdate ?? null,
     status: row.is_deleted ? "Inactive" : "Active",
     stamp: row.stamp,
   }

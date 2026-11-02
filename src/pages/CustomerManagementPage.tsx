@@ -208,7 +208,7 @@ export default function CustomerManagementPage() {
                   <option value="30D">Net 30</option>
                   <option value="45D">Net 45</option>
                   <option value="60D">Net 60</option>
-                  <option value="COD">Cash on delivery</option>
+                  <option value="COD">COD</option>
                 </select>
               </span>
             </label>

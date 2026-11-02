@@ -92,6 +92,34 @@ test("waits for a pause in typing before searching products", async () => {
   expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain("search=Product")
 })
 
+test("explains filtered empty results and clears every product filter", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: admin })
+    if (url.pathname === "/api/products") {
+      const filtered = Boolean(url.searchParams.get("search") || url.searchParams.get("unit"))
+      return success({
+        products: filtered ? [] : [product(1)],
+        pagination: { page: 1, limit: 10, total: filtered ? 0 : 1, totalPages: filtered ? 0 : 1 },
+      })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><InventoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Product 1")
+  await user.selectOptions(screen.getByLabelText("Unit type"), "ltr")
+
+  expect(await screen.findByText("No products match your filters")).toBeInTheDocument()
+  expect(screen.getByText("Clear the search and filters to see the full product list.")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Clear filters" }))
+
+  expect(await screen.findByText("Product 1")).toBeInTheDocument()
+  expect(screen.getByLabelText("Unit type")).toHaveValue("")
+})
+
 test("creates, updates, and archives a product through the API", async () => {
   let records = [product(1)]
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -165,10 +193,21 @@ test("shows a clear archive error when a product has active sales", async () => 
   const user = userEvent.setup()
   render(<MemoryRouter><AuthProvider><InventoryPage /></AuthProvider></MemoryRouter>)
   await screen.findByText("Product 1")
-  await user.click(screen.getByRole("button", { name: "Archive PX0001" }))
+  const archiveTrigger = screen.getByRole("button", { name: "Archive PX0001" })
+  await user.click(archiveTrigger)
+  const cancel = screen.getByRole("button", { name: "Cancel" })
+  const confirm = screen.getByRole("button", { name: "Archive product" })
+  expect(cancel).toHaveFocus()
+  await user.tab({ shift: true })
+  expect(confirm).toHaveFocus()
+  await user.tab()
+  expect(cancel).toHaveFocus()
   await user.click(screen.getByRole("button", { name: "Archive product" }))
   expect(await screen.findByRole("alert")).toHaveTextContent("active sales records")
-  expect(screen.getByRole("alertdialog")).toBeInTheDocument()
+  expect(screen.getByRole("alertdialog")).toHaveAttribute("aria-describedby", "archive-product-description archive-product-error")
+  await user.keyboard("{Escape}")
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  expect(archiveTrigger).toHaveFocus()
 })
 
 test("allows an employee to review products without edit or archive controls", async () => {

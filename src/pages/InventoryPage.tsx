@@ -80,6 +80,18 @@ export default function InventoryPage() {
 
   const showNotice = (message: string) => setNotice((current) => ({ id: (current?.id ?? 0) + 1, message }))
 
+  const openNewProductPanel = () => {
+    setSelectedProduct(null)
+    setPanelOpen(true)
+  }
+
+  const clearFilters = () => {
+    setQuery("")
+    setUnit("")
+    setStatus("all")
+    setPage(1)
+  }
+
   const saveProduct = async (input: ProductInput) => {
     if (selectedProduct) {
       await productApi.update(selectedProduct.code, input)
@@ -162,11 +174,11 @@ export default function InventoryPage() {
                 </select>
               </span>
             </label>
-            {canAdd && <button type="button" onClick={() => { setSelectedProduct(null); setPanelOpen(true) }} className="workspace-primary-action"><DashboardIcon name="plus" className="h-4 w-4" />Add product</button>}
+            {canAdd && <button type="button" onClick={openNewProductPanel} className="workspace-primary-action"><DashboardIcon name="plus" className="h-4 w-4" />Add product</button>}
           </section>
 
           {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4 hover:text-red-950">Try again</button></div>}
-          <ProductTable key={`${page}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} onRestore={restoreProduct} restoringCode={restoringCode} canEdit={canEdit} canDelete={canDelete} canViewAudit={canViewAudit} />
+          <ProductTable key={`${page}-${unit}-${status}-${refresh}`} products={products} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={(product) => { setSelectedProduct(product); setPanelOpen(true) }} onArchive={(product) => { setArchiveError(""); setProductToArchive(product) }} onRestore={restoreProduct} restoringCode={restoringCode} canEdit={canEdit} canDelete={canDelete} canAdd={canAdd} canViewAudit={canViewAudit} hasFilters={Boolean(query.trim() || unit || status !== "all")} onClearFilters={clearFilters} onAdd={openNewProductPanel} />
         </div>
       </main>
 

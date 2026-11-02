@@ -96,6 +96,13 @@ export default function CustomerManagementPage() {
     setPanelOpen(true)
   }
 
+  const clearFilters = () => {
+    setQuery("")
+    setPaymentTerm("")
+    setStatus("all")
+    setPage(1)
+  }
+
   const showNotice = (message: string) => {
     setNotice((current) => ({ id: (current?.id ?? 0) + 1, message }))
   }
@@ -191,7 +198,7 @@ export default function CustomerManagementPage() {
 
           {loadError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{loadError}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4 hover:text-red-950">Try again</button></div>}
 
-          <CustomerTable customers={customers} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={openEditCustomerPanel} onArchive={(customer) => { setArchiveError(""); setCustomerToArchive(customer) }} onRestore={restoreCustomer} restoringId={restoringId} canEdit={canEdit} canDelete={canDelete} canViewAudit={canViewAudit} />
+          <CustomerTable customers={customers} pagination={pagination} loading={loading} error={Boolean(loadError)} onPageChange={setPage} onEdit={openEditCustomerPanel} onArchive={(customer) => { setArchiveError(""); setCustomerToArchive(customer) }} onRestore={restoreCustomer} restoringId={restoringId} canEdit={canEdit} canDelete={canDelete} canAdd={canAdd} canViewAudit={canViewAudit} hasFilters={Boolean(query.trim() || paymentTerm || status !== "all")} onClearFilters={clearFilters} onAdd={openNewCustomerPanel} />
         </div>
       </main>
 

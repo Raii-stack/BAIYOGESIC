@@ -2,6 +2,7 @@ import { TableSkeletonRows } from "../common/TableSkeleton"
 import type { Customer } from "../../types/customer"
 import type { CustomerPagination } from "../../lib/customer-api"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
+import RecordEmptyState from "../common/RecordEmptyState"
 
 const termLabels: Record<Customer["paymentTerm"], string> = {
   "30D": "Net 30",
@@ -28,7 +29,11 @@ export default function CustomerTable({
   restoringId,
   canEdit,
   canDelete,
+  canAdd,
   canViewAudit = true,
+  hasFilters,
+  onClearFilters,
+  onAdd,
 }: {
   customers: Customer[]
   pagination: CustomerPagination
@@ -41,7 +46,11 @@ export default function CustomerTable({
   restoringId?: string | null
   canEdit: boolean
   canDelete: boolean
+  canAdd: boolean
   canViewAudit?: boolean
+  hasFilters: boolean
+  onClearFilters: () => void
+  onAdd: () => void
 }) {
   const showActions = canEdit || canDelete
   const start = pagination.total ? (pagination.page - 1) * pagination.limit + 1 : 0
@@ -95,12 +104,7 @@ export default function CustomerTable({
             ))}
           </tbody>
         </table>
-        {!loading && !error && customers.length === 0 && (
-          <div className="workspace-empty-state">
-            <p className="text-sm font-semibold text-slate-800">No customers found</p>
-            <p className="mt-1 text-xs text-slate-500">Try a different search, status, or payment term.</p>
-          </div>
-        )}
+        {!loading && !error && customers.length === 0 && <RecordEmptyState kind="customers" filtered={hasFilters} canCreate={canAdd} onClearFilters={onClearFilters} onCreate={onAdd} />}
       </div>
 
       <div className="workspace-table-footer">

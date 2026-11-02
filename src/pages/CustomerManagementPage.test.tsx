@@ -113,6 +113,34 @@ test("waits for a pause in typing before searching customers", async () => {
   expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain("search=Customer")
 })
 
+test("explains filtered empty results and clears every customer filter", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: admin })
+    if (url.pathname === "/api/customers") {
+      const filtered = Boolean(url.searchParams.get("search") || url.searchParams.get("payterm"))
+      return success({
+        customers: filtered ? [] : [customer(1)],
+        pagination: { page: 1, limit: 10, total: filtered ? 0 : 1, totalPages: filtered ? 0 : 1 },
+      })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><CustomerManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Customer 1")
+  await user.selectOptions(screen.getByLabelText("Payment terms"), "60D")
+
+  expect(await screen.findByText("No customers match your filters")).toBeInTheDocument()
+  expect(screen.getByText("Clear the search and filters to see the full customer list.")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Clear filters" }))
+
+  expect(await screen.findByText("Customer 1")).toBeInTheDocument()
+  expect(screen.getByLabelText("Payment terms")).toHaveValue("")
+})
+
 test("sends customer edits to the API and reloads the directory after saving", async () => {
   let saved = false
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -208,9 +236,19 @@ test("explains why a customer with active sales cannot be archived", async () =>
   const user = userEvent.setup()
   render(<MemoryRouter><AuthProvider><CustomerManagementPage /></AuthProvider></MemoryRouter>)
   await screen.findByText("Customer 1")
-  await user.click(screen.getByRole("button", { name: "Archive Customer 1" }))
+  const archiveTrigger = screen.getByRole("button", { name: "Archive Customer 1" })
+  await user.click(archiveTrigger)
+  const cancel = screen.getByRole("button", { name: "Cancel" })
+  const confirm = screen.getByRole("button", { name: "Yes, Archive Record" })
+  expect(cancel).toHaveFocus()
+  await user.tab({ shift: true })
+  expect(confirm).toHaveFocus()
+  await user.tab()
+  expect(cancel).toHaveFocus()
   await user.click(screen.getByRole("button", { name: "Yes, Archive Record" }))
   expect(await screen.findByRole("alert")).toHaveTextContent("active sales records")
-  expect(screen.getByRole("alertdialog")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Archive Customer 1" })).toBeInTheDocument()
+  expect(screen.getByRole("alertdialog")).toHaveAttribute("aria-describedby", "archive-dialog-description archive-customer-error")
+  await user.keyboard("{Escape}")
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  expect(archiveTrigger).toHaveFocus()
 })

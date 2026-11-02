@@ -134,17 +134,21 @@ export default function UserManagementPage() {
   }
 
   const handleUpdateUser = async (userId: string, input: UserUpdateInput) => {
-    await userApi.update(userId, input)
+    const updated = await userApi.update(userId, input)
+    setUsers((current) =>
+      current.map((user) => (user.userId === updated.userId ? updated : user)),
+    )
     showNotice("User account updated successfully.")
-    setRefresh((current) => current + 1)
   }
 
   const handleApproveUser = async (target: SystemUser) => {
     setApprovingId(target.userId)
     try {
-      await userApi.approve(target.userId)
+      const updated = await userApi.approve(target.userId)
+      setUsers((current) =>
+        current.map((user) => (user.userId === updated.userId ? updated : user)),
+      )
       showNotice(`${target.name} has been accepted and activated.`)
-      setRefresh((current) => current + 1)
     } catch {
       // Shared error toast is emitted by apiFailure
     } finally {
@@ -156,13 +160,15 @@ export default function UserManagementPage() {
     setTogglingId(target.userId)
     try {
       const nextBlocked = !target.isBlocked
-      await userApi.setBlocked(target.userId, nextBlocked)
+      const updated = await userApi.setBlocked(target.userId, nextBlocked)
+      setUsers((current) =>
+        current.map((user) => (user.userId === updated.userId ? updated : user)),
+      )
       showNotice(
         nextBlocked
           ? `${target.name} has been blocked.`
           : `${target.name} has been unblocked.`,
       )
-      setRefresh((current) => current + 1)
     } catch {
       // Shared error toast is emitted by apiFailure
     } finally {
@@ -176,7 +182,6 @@ export default function UserManagementPage() {
       current.map((user) => (user.userId === updated.userId ? updated : user)),
     )
     showNotice("User permissions updated successfully.")
-    setRefresh((current) => current + 1)
   }
 
   return (

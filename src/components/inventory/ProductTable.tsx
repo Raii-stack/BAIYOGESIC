@@ -1,5 +1,5 @@
 import TableSkeleton, { TableSkeletonRows } from "../common/TableSkeleton"
-import { Fragment, useEffect, useState } from "react"
+import { Fragment, memo, useCallback, useEffect, useState } from "react"
 
 import { DashboardIcon } from "../dashboard/DashboardComponents"
 import RecordEmptyState from "../common/RecordEmptyState"
@@ -55,6 +55,165 @@ function visiblePages(page: number, totalPages: number) {
   return Array.from({ length: count }, (_, index) => start + index)
 }
 
+type ProductTableRowProps = {
+  product: Product
+  expanded: boolean
+  canViewAudit: boolean
+  showActions: boolean
+  canEdit: boolean
+  canDelete: boolean
+  restoringCode?: string | null
+  headingsCount: number
+  onToggleExpand: (code: string) => void
+  onViewPrices?: (product: Product) => void
+  onEdit: (product: Product) => void
+  onArchive: (product: Product) => void
+  onRestore?: (product: Product) => void
+}
+
+const ProductTableRow = memo(function ProductTableRow({
+  product,
+  expanded,
+  canViewAudit,
+  showActions,
+  canEdit,
+  canDelete,
+  restoringCode,
+  headingsCount,
+  onToggleExpand,
+  onViewPrices,
+  onEdit,
+  onArchive,
+  onRestore,
+}: ProductTableRowProps) {
+  return (
+    <Fragment>
+      <tr
+        className={`border-b border-slate-100 transition-colors ${
+          expanded ? "is-expanded" : product.status === "Active" ? "hover:bg-neutral-50" : "is-muted"
+        }`}
+      >
+        <td data-label="Product code" className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">
+          {product.code}
+        </td>
+        <td data-label="Description" className="min-w-48 text-[13px] font-medium text-neutral-900">
+          {product.description}
+        </td>
+        <td data-label="Unit">
+          <span className="workspace-badge workspace-badge--neutral" data-unit={product.unitType}>
+            {product.unitType}
+          </span>
+        </td>
+        <td data-label="Unit price" className="whitespace-nowrap">
+          <div className="flex items-center justify-end gap-2">
+            <span className="text-[13px] font-semibold tabular-nums text-neutral-900">
+              {product.currentPrice === null ? "No price" : currency.format(product.currentPrice)}
+            </span>
+            {onViewPrices && (
+              <button
+                type="button"
+                onClick={() => onViewPrices(product)}
+                aria-label={`Prices for ${product.code}`}
+                title="Price history modal"
+                className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600"
+              >
+                Prices
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label={`${expanded ? "Hide" : "Show"} price history for ${product.code}`}
+              aria-expanded={expanded}
+              aria-controls={`price-history-${product.code}`}
+              title="Price history"
+              onClick={() => onToggleExpand(product.code)}
+              className="workspace-icon-action"
+            >
+              <DashboardIcon name="history" className="h-4 w-4" />
+            </button>
+          </div>
+        </td>
+        <td data-label="Effective" className="whitespace-nowrap font-mono text-xs text-slate-600">
+          {product.priceEffectiveDate || "—"}
+        </td>
+        {canViewAudit && (
+          <td data-label="Status" className="whitespace-nowrap">
+            <span
+              className={`workspace-badge ${
+                product.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-600"
+              }`}
+            >
+              {product.status === "Active" ? "Active" : "Archived"}
+            </span>
+          </td>
+        )}
+        {canViewAudit && (
+          <td data-label="Last change" className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">
+            {product.stamp || "—"}
+          </td>
+        )}
+        {showActions && (
+          <td
+            data-label="Actions"
+            className={`workspace-table-actions ${product.status === "Active" ? "bg-white" : "bg-slate-50"}`}
+          >
+            <div className="flex items-center gap-1">
+              {product.status === "Active" ? (
+                <>
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(product)}
+                      aria-label={`Edit ${product.code}`}
+                      title="Edit product"
+                      className="workspace-icon-action"
+                    >
+                      <DashboardIcon name="edit" className="h-4 w-4" />
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button
+                      type="button"
+                      onClick={() => onArchive(product)}
+                      aria-label={`Archive ${product.code}`}
+                      title="Archive product"
+                      className="workspace-icon-action workspace-icon-action--danger"
+                    >
+                      <DashboardIcon name="archive" className="h-4 w-4" />
+                    </button>
+                  )}
+                </>
+              ) : canDelete && onRestore ? (
+                <button
+                  type="button"
+                  onClick={() => onRestore(product)}
+                  disabled={restoringCode === product.code}
+                  aria-label={`Restore ${product.code}`}
+                  title="Restore product"
+                  className="workspace-icon-action"
+                >
+                  <DashboardIcon name="restore" className="h-4 w-4" />
+                </button>
+              ) : (
+                <span className="px-2 text-slate-400" aria-label="No actions for archived product">
+                  —
+                </span>
+              )}
+            </div>
+          </td>
+        )}
+      </tr>
+      {expanded && (
+        <tr className="border-b border-slate-200">
+          <td colSpan={headingsCount} className="workspace-table-expansion">
+            <PriceHistory code={product.code} canViewAudit={canViewAudit} />
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  )
+})
+
 export default function ProductTable({ products, pagination, loading, error, onPageChange, pageSize, onLimitChange, sortBy, sortOrder, onSortChange, onEdit, onArchive, onRestore, restoringCode, canEdit, canDelete, canAdd, canViewAudit = true, hasFilters, onClearFilters, onAdd, onViewPrices }: {
   products: Product[]
   pagination: ProductPagination
@@ -109,45 +268,30 @@ export default function ProductTable({ products, pagination, loading, error, onP
               return <th key={heading} scope="col" className={`workspace-table-heading ${heading === "Actions" ? "workspace-table-actions" : ""}`}>{heading}</th>
             })}
           </tr></thead>
-          <tbody>{loading ? <TableSkeletonRows headings={headings} /> : products.map((product) => {
-            const expanded = expandedProduct === product.code
-            return <Fragment key={product.code}>
-              <tr className={`border-b border-slate-100 transition-colors ${expanded ? "is-expanded" : product.status === "Active" ? "hover:bg-neutral-50" : "is-muted"}`}>
-                <td data-label="Product code" className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">{product.code}</td>
-                <td data-label="Description" className="min-w-48 text-[13px] font-medium text-neutral-900">{product.description}</td>
-                <td data-label="Unit"><span className="workspace-badge workspace-badge--neutral" data-unit={product.unitType}>{product.unitType}</span></td>
-                <td data-label="Unit price" className="whitespace-nowrap">
-                  <div className="flex items-center justify-end gap-2">
-                    <span className="text-[13px] font-semibold tabular-nums text-neutral-900">{product.currentPrice === null ? "No price" : currency.format(product.currentPrice)}</span>
-                    {onViewPrices && (
-                      <button
-                        type="button"
-                        onClick={() => onViewPrices(product)}
-                        aria-label={`Prices for ${product.code}`}
-                        title="Price history modal"
-                        className="rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                      >
-                        Prices
-                      </button>
-                    )}
-                    <button type="button" aria-label={`${expanded ? "Hide" : "Show"} price history for ${product.code}`} aria-expanded={expanded} aria-controls={`price-history-${product.code}`} title="Price history" onClick={() => setExpandedProduct(expanded ? null : product.code)} className="workspace-icon-action">
-                      <DashboardIcon name="history" className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
-                <td data-label="Effective" className="whitespace-nowrap font-mono text-xs text-slate-600">{product.priceEffectiveDate || "—"}</td>
-                {canViewAudit && <td data-label="Status" className="whitespace-nowrap"><span className={`workspace-badge ${product.status === "Active" ? "bg-emerald-100 text-emerald-800" : "bg-neutral-100 text-neutral-600"}`}>{product.status === "Active" ? "Active" : "Archived"}</span></td>}
-                {canViewAudit && <td data-label="Last change" className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">{product.stamp || "—"}</td>}
-                {showActions && <td data-label="Actions" className={`workspace-table-actions ${product.status === "Active" ? "bg-white" : "bg-slate-50"}`}><div className="flex items-center gap-1">
-                  {product.status === "Active" ? <>
-                    {canEdit && <button type="button" onClick={() => onEdit(product)} aria-label={`Edit ${product.code}`} title="Edit product" className="workspace-icon-action"><DashboardIcon name="edit" className="h-4 w-4" /></button>}
-                    {canDelete && <button type="button" onClick={() => onArchive(product)} aria-label={`Archive ${product.code}`} title="Archive product" className="workspace-icon-action workspace-icon-action--danger"><DashboardIcon name="archive" className="h-4 w-4" /></button>}
-                  </> : canDelete && onRestore ? <button type="button" onClick={() => onRestore(product)} disabled={restoringCode === product.code} aria-label={`Restore ${product.code}`} title="Restore product" className="workspace-icon-action"><DashboardIcon name="restore" className="h-4 w-4" /></button> : <span className="px-2 text-slate-400" aria-label="No actions for archived product">—</span>}
-                </div></td>}
-              </tr>
-              {expanded && <tr className="border-b border-slate-200"><td colSpan={headings.length} className="workspace-table-expansion"><PriceHistory code={product.code} canViewAudit={canViewAudit} /></td></tr>}
-            </Fragment>
-          })}</tbody>
+          <tbody>
+            {loading ? (
+              <TableSkeletonRows headings={headings} />
+            ) : (
+              products.map((product) => (
+                <ProductTableRow
+                  key={product.code}
+                  product={product}
+                  expanded={expandedProduct === product.code}
+                  canViewAudit={canViewAudit}
+                  showActions={showActions}
+                  canEdit={canEdit}
+                  canDelete={canDelete}
+                  restoringCode={restoringCode}
+                  headingsCount={headings.length}
+                  onToggleExpand={(code) => setExpandedProduct((prev) => (prev === code ? null : code))}
+                  onViewPrices={onViewPrices}
+                  onEdit={onEdit}
+                  onArchive={onArchive}
+                  onRestore={onRestore}
+                />
+              ))
+            )}
+          </tbody>
         </table>
         {!loading && !error && products.length === 0 && <RecordEmptyState kind="products" filtered={hasFilters} canCreate={canAdd} onClearFilters={onClearFilters} onCreate={onAdd} />}
       </div>

@@ -181,7 +181,7 @@ test("explains filtered empty results and clears every customer filter", async (
   expect(screen.getByLabelText("Payment terms")).toHaveValue("")
 })
 
-test("sends customer edits to the API and reloads the directory after saving", async () => {
+test("sends customer edits to the API and updates the directory in-place without re-querying", async () => {
   let saved = false
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), "http://localhost")
@@ -211,6 +211,11 @@ test("sends customer edits to the API and reloads the directory after saving", a
 
   expect(await screen.findByText("Updated account")).toBeInTheDocument()
   expect(screen.getByRole("status")).toHaveTextContent("Customer updated successfully")
+  const getCustomerCalls = fetchMock.mock.calls.filter(([input, init]) => {
+    const url = new URL(String(input), "http://localhost")
+    return url.pathname === "/api/customers" && (!init?.method || init?.method === "GET")
+  })
+  expect(getCustomerCalls).toHaveLength(1)
   await user.click(screen.getByRole("button", { name: "Dismiss notification" }))
   await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument())
 })

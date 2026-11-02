@@ -209,6 +209,11 @@ test("creates, updates, and archives a product through the API", async () => {
   await user.click(within(dialog).getByRole("button", { name: "Save changes" }))
   expect(await screen.findByText("Updated product")).toBeInTheDocument()
   expect(screen.getByRole("status")).toHaveTextContent("Product updated successfully")
+  const getProductCallsAfterEdit = fetchMock.mock.calls.filter(([input, init]) => {
+    const url = new URL(String(input), "http://localhost")
+    return url.pathname === "/api/products" && (!init?.method || init?.method === "GET")
+  })
+  expect(getProductCallsAfterEdit).toHaveLength(2)
 
   await user.click(screen.getByRole("button", { name: "Archive PX0002" }))
   await user.click(screen.getByRole("button", { name: "Archive product" }))

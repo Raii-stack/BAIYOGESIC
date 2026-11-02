@@ -55,7 +55,7 @@ test("submits valid credentials and renders registration success state", async (
       empno: "00099",
       email: "jane.doe@hope.inc",
       role: "employee",
-      status: "active",
+      status: "pending",
       mustChangePassword: false,
     },
   })
@@ -79,10 +79,10 @@ test("submits valid credentials and renders registration success state", async (
     })
   })
 
-  expect(await screen.findByRole("status")).toHaveTextContent("Registration complete!")
+  expect(await screen.findByRole("status")).toHaveTextContent("Your account is pending approval.")
   expect(onSuccess).toHaveBeenCalledOnce()
 
-  await user.click(screen.getByRole("button", { name: "Proceed to sign in" }))
+  await user.click(screen.getByRole("button", { name: "Done" }))
   expect(onClose).toHaveBeenCalledOnce()
 })
 

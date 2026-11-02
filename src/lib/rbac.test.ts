@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { canViewSalary, getHrPermissions, hasActionRight, setActiveRbacUser } from "./rbac"
+import { canAccessModule, canViewSalary, getHrPermissions, hasActionRight, setActiveRbacUser } from "./rbac"
 import type { AuthUser } from "./auth"
 
 const superadmin: AuthUser = {
@@ -51,6 +51,13 @@ const standardEmployee: AuthUser = {
   mustChangePassword: false,
   rights: ["hr.access", "hr.history.view"],
 }
+
+test("account approvals are available to HR editors and administrators, not HR viewers", () => {
+  expect(canAccessModule({ ...standardEmployee, rights: ["hr.employee.edit"] }, "users")).toBe(true)
+  expect(canAccessModule(standardEmployee, "users")).toBe(false)
+  expect(canAccessModule({ ...admin, rights: ["customers.access"] }, "users")).toBe(true)
+  expect(canAccessModule(superadmin, "users")).toBe(true)
+})
 
 describe("RBAC hasActionRight & canViewSalary", () => {
   test("allows superadmins and administrators to view salary", () => {

@@ -95,7 +95,7 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
         password: form.password,
       })
       setIsSuccess(true)
-      notifyToast("Account registered successfully.")
+      notifyToast("Registration submitted. Your account is pending approval.")
       onSuccess?.()
     } catch (err) {
       setServerError(safeErrorMessage(err))
@@ -137,7 +137,7 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
             Create your account
           </h2>
           <p id="register-modal-description" className="mt-1.5 text-xs text-neutral-500">
-            Join HOPE, Inc. ERP workspace. New self-registered accounts are created with standard User (Employee) access.
+            New accounts start pending. HR, an admin, or a superadmin must approve your account before you can sign in.
           </p>
         </div>
 
@@ -151,9 +151,9 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
               <div>
-                <p className="font-semibold">Registration complete!</p>
+                <p className="font-semibold">Registration submitted</p>
                 <p className="mt-1 text-xs text-emerald-800">
-                  Your account has been created. You can now sign in with your credentials.
+                  Your account is pending approval. You can sign in once HR, an admin, or a superadmin accepts it.
                 </p>
               </div>
             </div>
@@ -162,18 +162,18 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
               onClick={onClose}
               className="workspace-primary-action w-full"
             >
-              Proceed to sign in
+              Done
             </button>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} noValidate className="mt-6 space-y-3.5">
+          <form onSubmit={handleSubmit} noValidate className="mt-6 flex flex-col gap-4">
             {serverError && (
               <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-600">
                 {serverError}
               </p>
             )}
 
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 id="register-first-name"
                 label="First name"
@@ -211,20 +211,22 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
               error={errors.email}
             />
 
-            <Field
-              id="register-password"
-              label="Password"
-              type="password"
-              autoComplete="new-password"
-              placeholder="At least 8 characters"
-              icon="lock"
-              passwordToggle
-              className="mb-0"
-              value={form.password}
-              onChange={set("password")}
-              error={errors.password}
-            />
-            {form.password && <PasswordStrengthMeter password={form.password} />}
+            <div>
+              <Field
+                id="register-password"
+                label="Password"
+                type="password"
+                autoComplete="new-password"
+                placeholder="At least 8 characters"
+                icon="lock"
+                passwordToggle
+                className="mb-0"
+                value={form.password}
+                onChange={set("password")}
+                error={errors.password}
+              />
+              {form.password && <PasswordStrengthMeter password={form.password} className="mt-3" />}
+            </div>
 
             <Field
               id="register-confirm-password"
@@ -244,13 +246,13 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
               Role: <span className="font-semibold text-neutral-800">User (Employee)</span>. Administrator roles must be granted by existing system administrators.
             </div>
 
-            <div className="pt-2">
+            <div>
               <Submit loading={submitting} loadingLabel="Creating account…">
                 Register account
               </Submit>
             </div>
 
-            <p className="pt-2 text-center text-xs text-neutral-500">
+            <p className="text-center text-xs text-neutral-500">
               Already have an account?{" "}
               <button
                 type="button"

@@ -2,7 +2,7 @@ const bcrypt = require('bcrypt');
 const { requirePool } = require('../db');
 const { invalidateUserCache } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error-handler');
-const { isSuperAdminRole } = require('../middleware/permissions');
+const { isSuperAdminRole, isAdminOrSuperAdmin } = require('../middleware/permissions');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -109,6 +109,9 @@ const listUsers = asyncHandler(async (req, res) => {
   const requesterIsSuperAdmin = isSuperAdminRole(req.user && req.user.role);
   const values = [];
   const filters = [];
+  if (!isAdminOrSuperAdmin(req.user?.role)) {
+    filters.push("u.role = 'employee' AND u.status = 'pending' AND u.is_blocked = false");
+  }
 
   // Per Student Guide §3.8: Superadmin accounts are hidden from Admin view
   if (!requesterIsSuperAdmin) {
@@ -450,7 +453,6 @@ const updateUser = asyncHandler(async (req, res) => {
          SET email = $2,
              role = $3,
              password_hash = $4,
-             status = 'active',
              must_change_password = $5,
              stamp = public.audit_stamp('EDIT'),
              updated_at = now()
@@ -497,7 +499,7 @@ const approveUser = asyncHandler(async (req, res) => {
 
   const updated = await withAudit(actor, async (client) => {
     const existingResult = await client.query(
-      `SELECT user_id, role, status FROM public.app_user WHERE user_id = $1::uuid FOR UPDATE`,
+      `SELECT user_id, role, status, is_blocked FROM public.app_user WHERE user_id = $1::uuid FOR UPDATE`,
       [userId]
     );
     const existing = existingResult.rows[0];
@@ -509,10 +511,13 @@ const approveUser = asyncHandler(async (req, res) => {
       throw requestError('Admins can only approve Employee accounts', 403);
     }
 
+    if (existing.status !== 'pending' || existing.is_blocked) {
+      throw requestError('Only unblocked pending accounts can be approved', 409);
+    }
+
     await client.query(
       `UPDATE public.app_user
        SET status = 'active',
-           is_blocked = false,
            stamp = public.audit_stamp('EDIT'),
            updated_at = now()
        WHERE user_id = $1::uuid`,

@@ -76,7 +76,7 @@ const router = createBrowserRouter([
   { path: "/employees/:employeeId", element: protectedPage(<EmployeeProfilePage />, { module: "hr" }) },
   { path: "/sales/new", element: protectedPage(<CreateSalePage />, { module: "sales", right: "sales.add" }) },
   { path: "/sales", element: protectedPage(<SalesManagementPage />, { module: "sales" }) },
-  { path: "/users", element: protectedPage(<UserManagementPage />, { roles: ["superadmin", "administrator", "admin"], module: "users" }) },
+  { path: "/users", element: protectedPage(<UserManagementPage />, { module: "users" }) },
   { path: "*", element: <Navigate to="/" replace /> },
 ])
 

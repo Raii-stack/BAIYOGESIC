@@ -63,6 +63,38 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+test("HR can approve pending employees without user-editing controls", async () => {
+  let pending = true
+  const applicant = { ...makeUser(5), status: "pending" as const }
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: { ...adminSession, role: "employee", rights: ["hr.employee.edit"] } })
+    if (url.pathname === "/api/auth/activity") return success({ message: "ok" })
+    if (url.pathname === "/api/users") {
+      expect(url.searchParams.get("role")).toBe("employee")
+      expect(url.searchParams.get("status")).toBe("pending")
+      return success({ users: pending ? [applicant] : [], pagination: { page: 1, limit: 10, total: pending ? 1 : 0, totalPages: pending ? 1 : 0 } })
+    }
+    if (url.pathname === `/api/users/${applicant.userId}/approve` && init?.method === "POST") {
+      pending = false
+      return success({ user: { ...applicant, status: "active" } })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+  render(<MemoryRouter><AuthProvider><UserManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("User5 Account")
+  expect(screen.getByRole("heading", { name: "Pending registrations" })).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Add user" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: /^(Edit|Block|Rights for)/ })).not.toBeInTheDocument()
+  expect(screen.getByLabelText("Role")).toBeDisabled()
+  expect(screen.getByLabelText("Status")).toHaveValue("pending")
+  await user.click(screen.getByRole("button", { name: "Accept User5 Account" }))
+  expect(await screen.findByText("No user accounts found")).toBeInTheDocument()
+  expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/users/options"))).toBe(false)
+})
+
 test("loads user accounts with skeletons, filters, and server pagination for superadmin", async () => {
   let releaseFirstPage: (() => void) | undefined
   const firstPageGate = new Promise<void>((resolve) => {

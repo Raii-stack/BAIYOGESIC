@@ -79,7 +79,8 @@ async function request<T>(path: string, body?: object, signal?: AbortSignal): Pr
     const knownAuthError =
       (response.status === 401 && authDetail &&
         /^(Email or password is incorrect|Invalid email or password|Current password is incorrect)\.?$/i.test(authDetail)) ||
-      (response.status === 403 && authDetail && /blocked/i.test(authDetail))
+      (response.status === 403 && authDetail && (/blocked/i.test(authDetail)
+        || authDetail === "Your account is pending approval. Contact HR or an administrator."))
     throw new AuthApiError(
       knownAuthError ? authDetail : safeApiMessage(response.status, result),
       response.status,

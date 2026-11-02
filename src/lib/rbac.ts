@@ -149,7 +149,107 @@ export function getProductPermissions(user: AuthUser | null | undefined) {
   return { canAdd, canEdit, canDelete, canViewAudit }
 }
 
+let currentActiveUser: AuthUser | null = null
+
+export function setActiveRbacUser(user: AuthUser | null) {
+  currentActiveUser = user
+}
+
+/**
+ * Evaluates whether a user has permission to perform a specific action within a module.
+ * Can be invoked either as:
+ *   hasActionRight(user, 'Human Resources', 'View Salary')
+ * or:
+ *   hasActionRight('Human Resources', 'View Salary')
+ */
+export function hasActionRight(
+  userOrModule: AuthUser | null | undefined | string,
+  moduleOrAction: string,
+  actionOrUser?: string | AuthUser | null
+): boolean {
+  let user: AuthUser | null | undefined
+  let moduleName: string
+  let action: string
+
+  if (typeof userOrModule === "string") {
+    moduleName = userOrModule
+    action = moduleOrAction
+    user = (actionOrUser as AuthUser | null) ?? currentActiveUser
+  } else {
+    user = userOrModule
+    moduleName = moduleOrAction
+    action = actionOrUser as string
+  }
+
+  if (!user) return false
+
+  const normalizedModule = String(moduleName || "").toLowerCase().trim()
+  const normalizedAction = String(action || "").toLowerCase().trim()
+
+  // Superadmins and administrators have full permission across modules
+  if (user.role === "superadmin" || user.role === "administrator") {
+    return true
+  }
+
+  // Admin role
+  if (user.role === "admin") {
+    if (Array.isArray(user.rights) && user.rights.length > 0) {
+      if (normalizedModule === "human resources" || normalizedModule === "hr") {
+        if (normalizedAction === "view salary" || normalizedAction === "salary") {
+          return (
+            user.rights.includes("hr.salary") ||
+            user.rights.includes("hr.view_salary") ||
+            user.rights.includes("hr:salary:view") ||
+            user.rights.includes("hr.employee.edit") ||
+            user.rights.includes("hr.history.edit") ||
+            user.rights.includes("hr.access") ||
+            isAdminRole(user.role)
+          )
+        }
+      }
+    }
+    return true
+  }
+
+  // HR Managers / Managers
+  const role = String(user.role || "").toLowerCase().trim()
+  if (role === "hr" || role === "hr_manager" || role === "manager") {
+    return true
+  }
+
+  // Check granular user rights
+  const userRights = [
+    ...(Array.isArray(user.rights) ? user.rights : []),
+    ...(Array.isArray((user as unknown as { permissions?: string[] }).permissions)
+      ? (user as unknown as { permissions: string[] }).permissions
+      : []),
+  ].map((r) => String(r).toLowerCase().trim())
+
+  if (normalizedModule === "human resources" || normalizedModule === "hr") {
+    if (normalizedAction === "view salary" || normalizedAction === "salary") {
+      return userRights.some((r) =>
+        [
+          "hr.salary",
+          "hr.view_salary",
+          "hr:salary:view",
+          "hr:view_salary",
+          "hr.salary.view",
+          "hr.employee.edit",
+          "hr.history.edit",
+        ].includes(r)
+      )
+    }
+  }
+
+  return false
+}
+
+export function canViewSalary(user: AuthUser | null | undefined): boolean {
+  return hasActionRight(user, "Human Resources", "View Salary")
+}
+
 export function getHrPermissions(user: AuthUser | null | undefined) {
+  setActiveRbacUser(user ?? null)
   const canAddEmployee = hasRight(user, "hr.employee.add")
   const canEditEmployee = hasRight(user, "hr.employee.edit")
   const canDeleteEmployee = hasRight(user, "hr.employee.delete")
@@ -159,6 +259,7 @@ export function getHrPermissions(user: AuthUser | null | undefined) {
     "hr.history.edit",
     "hr.history.delete",
   ])
+  const canViewSalaryPermission = hasActionRight(user, "Human Resources", "View Salary")
   const canAddJob = hasRight(user, "hr.job.add")
   const canEditJob = hasRight(user, "hr.job.edit")
   const canDeleteJob = hasRight(user, "hr.job.delete")
@@ -176,6 +277,7 @@ export function getHrPermissions(user: AuthUser | null | undefined) {
     canEditEmployee,
     canDeleteEmployee,
     canViewHistory,
+    canViewSalary: canViewSalaryPermission,
     canAddJob,
     canEditJob,
     canDeleteJob,

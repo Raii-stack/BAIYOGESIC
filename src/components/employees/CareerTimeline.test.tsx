@@ -1,4 +1,5 @@
 import { cleanup, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, test } from "vitest"
 import CareerTimeline from "./CareerTimeline"
 import type { JobHistoryEntry } from "../../types/employee"
@@ -109,11 +110,38 @@ describe("CareerTimeline", () => {
     expect(screen.getByText("$85,000")).toBeInTheDocument()
     expect(screen.getByText("$65,000")).toBeInTheDocument()
 
-    // Unauthorized entry (Junior Dev) shows masked bullets
+    // Unauthorized entry (Junior Dev) shows masked bullets with lock icon
     expect(
       screen.getByLabelText("Salary hidden due to permissions")
     ).toBeInTheDocument()
-    expect(screen.getByText("••••••")).toBeInTheDocument()
+    expect(screen.getByText("••••••••")).toBeInTheDocument()
+  })
+
+  test("allows authorized user to toggle reveal / mask of compensation", async () => {
+    const user = userEvent.setup()
+    render(<CareerTimeline entries={sampleEntries} canViewSalary={true} />)
+
+    expect(screen.getByText("$85,000")).toBeInTheDocument()
+    const toggleButtons = screen.getAllByRole("button", { name: "Hide salary" })
+    expect(toggleButtons.length).toBeGreaterThan(0)
+
+    // Click toggle to mask
+    await user.click(toggleButtons[0])
+    expect(screen.queryByText("$85,000")).not.toBeInTheDocument()
+    expect(screen.getAllByText("••••••••").length).toBeGreaterThan(0)
+
+    // Click toggle to reveal
+    const showButtons = screen.getAllByRole("button", { name: "Show salary" })
+    await user.click(showButtons[0])
+    expect(screen.getByText("$85,000")).toBeInTheDocument()
+  })
+
+  test("hides reveal toggle button completely for unauthorized users", () => {
+    render(<CareerTimeline entries={sampleEntries} canViewSalary={false} />)
+
+    expect(screen.queryByRole("button", { name: /salary/i })).not.toBeInTheDocument()
+    expect(screen.queryByText("$85,000")).not.toBeInTheDocument()
+    expect(screen.getAllByText("••••••••")).toHaveLength(3)
   })
 
   test("respects showAudit prop", () => {

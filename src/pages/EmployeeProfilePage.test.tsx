@@ -33,6 +33,8 @@ const history = [
 
 const admin = { userId: "1", empno: "00001", email: "admin@example.com", role: "administrator", status: "active", mustChangePassword: false, rights: [] }
 const employeeUser = { userId: "2", empno: "00002", email: "staff@example.com", role: "employee", status: "active", mustChangePassword: false, rights: [] }
+const employeeWithHistory = { userId: "3", empno: "00003", email: "staff2@example.com", role: "employee", status: "active", mustChangePassword: false, rights: ["hr.history.view"] }
+const hrManager = { userId: "4", empno: "00004", email: "hrmanager@example.com", role: "hr_manager", status: "active", mustChangePassword: false, rights: ["hr.history.view"] }
 
 afterEach(() => {
   cleanup()
@@ -82,6 +84,39 @@ test("keeps salary redacted inside the timeline when the API withholds it", asyn
   expect(await screen.findByRole("list", { name: "Job history timeline" })).toBeInTheDocument()
   expect(screen.getAllByLabelText("Salary hidden due to permissions")).toHaveLength(2)
   expect(screen.queryByText("$65,000")).not.toBeInTheDocument()
+})
+
+test("masks salary figures with lock icon and hides reveal toggle button for standard employees", async () => {
+  renderPage(employeeWithHistory)
+  expect(await screen.findByRole("heading", { name: "Ana User" })).toBeInTheDocument()
+  expect(screen.getByRole("list", { name: "Job history timeline" })).toBeInTheDocument()
+  // Masked bullets with lock icon
+  expect(screen.getAllByLabelText("Salary hidden due to permissions")).toHaveLength(2)
+  expect(screen.getAllByText("••••••••")).toHaveLength(2)
+  expect(screen.queryByText("$65,000")).not.toBeInTheDocument()
+  // Reveal toggle button is hidden for unauthorized accounts
+  expect(screen.queryByRole("button", { name: /salary/i })).not.toBeInTheDocument()
+})
+
+test("allows authorized managers to view formatted salary and toggle reveal visibility", async () => {
+  const user = userEvent.setup()
+  renderPage(hrManager)
+  expect(await screen.findByRole("heading", { name: "Ana User" })).toBeInTheDocument()
+  // Formatted salary shown by default
+  expect(screen.getByText("$65,000")).toBeInTheDocument()
+  // Reveal toggle button is present
+  const toggleBtn = screen.getByRole("button", { name: "Hide salary" })
+  expect(toggleBtn).toBeInTheDocument()
+
+  // Click to mask
+  await user.click(toggleBtn)
+  expect(screen.queryByText("$65,000")).not.toBeInTheDocument()
+  expect(screen.getAllByText("••••••••")).toHaveLength(2)
+
+  // Click to unmask / reveal
+  const showBtn = screen.getByRole("button", { name: "Show salary" })
+  await user.click(showBtn)
+  expect(screen.getByText("$65,000")).toBeInTheDocument()
 })
 
 test("hides job history when the user lacks history rights", async () => {

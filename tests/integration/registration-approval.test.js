@@ -19,6 +19,10 @@ const query = vi.fn(async (sql, values = []) => {
     return { rows: account ? [account] : [] };
   }
   if (sql.includes('FROM public.app_user')) {
+    if (sql.includes('ORDER BY u.created_at DESC')) {
+      const pending = accounts.filter((row) => row.status === 'pending' && row.role === 'employee' && !row.is_blocked);
+      return { rows: pending.slice(0, 5).map((row) => ({ userId: row.user_id, email: row.email, name: 'New Employee', createdAt: '2026-11-02T10:00:00.000Z', _total: pending.length })) };
+    }
     if (sql.includes('WHERE lower(u.email)')) return { rows: account ? [account] : [] };
     if (sql.includes('AS "userId"') && !sql.includes('WHERE u.user_id =')) {
       return { rows: accounts.filter((row) => row.status === 'pending').map((row) => ({ ...row, userId: row.user_id, _total: 1 })) };
@@ -55,6 +59,24 @@ beforeEach(() => {
   ].map((row) => ({ status: 'active', is_blocked: false, must_change_password: false, password_hash: hash, empno: null, ...row }));
 });
 afterEach(() => vi.unstubAllEnvs());
+
+test.each([1, 3, 4])('registration notifications are available to approver %s and clear after approval', async (approver) => {
+  const response = await request(app).get('/api/auth/registration-notifications').set('Cookie', cookie(approver));
+  expect(response.status).toBe(200);
+  expect(response.body.data).toMatchObject({ total: 1, registrations: [{ userId: id(5), name: 'New Employee' }] });
+  expect(response.body.data.registrations[0]._total).toBeUndefined();
+  const notificationQuery = query.mock.calls.find(([sql]) => sql.includes('ORDER BY u.created_at DESC'))[0];
+  expect(notificationQuery).toContain("u.role = 'employee' AND u.status = 'pending' AND NOT u.is_blocked");
+  expect(notificationQuery).toContain('LIMIT 5');
+  await request(app).post(`/api/users/${id(5)}/approve`).set('Cookie', cookie(approver));
+  expect((await request(app).get('/api/auth/registration-notifications').set('Cookie', cookie(approver))).body.data).toEqual({ total: 0, registrations: [] });
+});
+
+test('notification data is protected from ordinary employees, pending accounts and signed-out visitors', async () => {
+  expect((await request(app).get('/api/auth/registration-notifications').set('Cookie', cookie(2))).status).toBe(403);
+  expect((await request(app).get('/api/auth/registration-notifications').set('Cookie', cookie(5))).status).toBe(401);
+  expect((await request(app).get('/api/auth/registration-notifications')).status).toBe(401);
+});
 
 test('pending accounts cannot log in or use a protected endpoint with a token', async () => {
   const pending = await request(app).post('/api/auth/login').send({ email: 'new@hope.inc', password });

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router"
+import { useEffect, useRef, useState } from "react"
+import { useLocation, useSearchParams } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
 import SuccessToast from "../components/common/SuccessToast"
@@ -26,6 +26,8 @@ const emptyPagination: UserPagination = { page: 1, limit: PAGE_SIZE, total: 0, t
 export default function UserManagementPage() {
   const { user: currentUser } = useAuth()
   const [searchParams] = useSearchParams()
+  const { state: navigationState } = useLocation()
+  const handledNotification = useRef<unknown>(null)
   const isSuperAdmin = isSuperAdminRole(currentUser?.role)
   const approvalOnly = !isAdminRole(currentUser?.role)
   const currentUserId = String(currentUser?.userId ?? "")
@@ -36,8 +38,8 @@ export default function UserManagementPage() {
   const [query, setQuery] = useState(() => searchParams.get("search") || "")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
-  const [roleFilter, setRoleFilter] = useState<"all" | UserRole>("all")
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "blocked" | "pending">("all")
+  const [roleFilter, setRoleFilter] = useState<"all" | UserRole>(() => searchParams.get("status") === "pending" ? "employee" : "all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "blocked" | "pending">(() => searchParams.get("status") === "pending" ? "pending" : "all")
   const [page, setPage] = usePageQuery()
   const [users, setUsers] = useState<SystemUser[]>([])
   const [pagination, setPagination] = useState<UserPagination>(emptyPagination)
@@ -52,6 +54,16 @@ export default function UserManagementPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null)
+
+  useEffect(() => {
+    if (navigationState === handledNotification.current || typeof navigationState?.registrationEmail !== "string") return
+    handledNotification.current = navigationState
+    setActiveView("users")
+    setQuery(navigationState.registrationEmail)
+    setRoleFilter("employee")
+    setStatusFilter("pending")
+    setPage(1)
+  }, [navigationState, setPage])
 
   useEffect(() => {
     document.title = "User Management | HOPE, Inc."
@@ -156,6 +168,7 @@ export default function UserManagementPage() {
         current.map((user) => (user.userId === updated.userId ? updated : user)),
       )
       showNotice(`${target.name} has been accepted and activated.`)
+      window.dispatchEvent(new Event("hope:registrations-changed"))
       if (approvalOnly || statusFilter === "pending") setRefresh((current) => current + 1)
     } catch {
       // Shared error toast is emitted by apiFailure

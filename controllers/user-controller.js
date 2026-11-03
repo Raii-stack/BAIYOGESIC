@@ -577,6 +577,23 @@ const setBlockStatus = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { user: updated } });
 });
 
+const registrationNotifications = asyncHandler(async (_req, res) => {
+  const result = await requirePool().query(
+    `SELECT u.user_id AS "userId", u.email, u.created_at AS "createdAt",
+            COALESCE(NULLIF(TRIM(concat_ws(' ', e.firstname, e.lastname)), ''), 'New employee') AS name,
+            count(*) OVER()::integer AS _total
+     FROM public.app_user u
+     LEFT JOIN public.employee e ON e.empno = u.empno
+     WHERE u.role = 'employee' AND u.status = 'pending' AND NOT u.is_blocked
+     ORDER BY u.created_at DESC, u.user_id DESC
+     LIMIT 5`
+  );
+  res.json({ success: true, data: {
+    total: result.rows[0]?._total || 0,
+    registrations: result.rows.map(({ _total, ...registration }) => registration)
+  } });
+});
+
 const updateUserRights = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   if (!UUID_PATTERN.test(String(userId || ''))) {
@@ -684,6 +701,7 @@ module.exports = {
   createUser,
   updateUser,
   approveUser,
+  registrationNotifications,
   setBlockStatus,
   updateUserRights
 };

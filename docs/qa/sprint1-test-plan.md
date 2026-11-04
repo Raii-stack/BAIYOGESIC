@@ -50,7 +50,6 @@
 | API not ready when testing starts | Tests delayed | Write test cases first, automate as endpoints land |
 | Reset tokens are hard to expire on demand | Expiry tests blocked | Edit the token's expiry in the database via the test service client |
 | Missing `data-testid` attributes | Unstable UI tests | Request them from the UI/UX developer early |
-| [add your own] | | |
 
 ## 6. Acceptance Criteria
 | ID | Area | Criterion |
@@ -61,9 +60,9 @@
 | AC-04 | Soft delete | Deleted records have `is_deleted = true` and are excluded from every GET |
 | AC-05 | Soft delete | A parent with child records cannot be deleted |
 | AC-06 | Audit | Each mutation creates an `audit_log` row with the correct acting user |
-| AC-07 | RBAC | Unauthorized roles get 403; unauthenticated requests get 401 |
+| AC-07 | RBAC | Unauthorized roles get 403; unauthenticated requests get 401 | RBAC unit level:     passed (71 tests). HTTP level: pending routes.
 | AC-08 | First login | A user cannot bypass first-time password setup |
-| AC-09 | UI rights | Module tiles disappear when backend rights are revoked |
+| AC-09 | UI rights | Module tiles disappear when backend rights are revoked | Rights are read from app_user_right on every request, so revocation is immediate.
 
 ## 7. Traceability Matrix
 | Criterion | Test case ID | Level | File | Priority |

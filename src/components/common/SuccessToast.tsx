@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 export default function SuccessToast({ message, onClose }: { message: string; onClose: () => void }) {
   const onCloseRef = useRef(onClose)
@@ -16,7 +17,7 @@ export default function SuccessToast({ message, onClose }: { message: string; on
       </span>
       <p className="flex-1 pt-0.5 text-sm font-semibold leading-5">{message}</p>
       <button type="button" onClick={onClose} aria-label="Dismiss notification" className="-mr-1 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600">
-        <svg aria-hidden="true" viewBox="0 0 20 20" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><path d="m5 5 10 10M15 5 5 15" /></svg>
+        <DashboardIcon name="close" className="h-4 w-4" />
       </button>
     </div>
   )

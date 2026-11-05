@@ -39,6 +39,7 @@ export default function CustomerCombobox({
         onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false) }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
+            event.preventDefault()
             event.stopPropagation()
             event.currentTarget.querySelector("input")?.focus()
             setOpen(false)
@@ -46,7 +47,7 @@ export default function CustomerCombobox({
         }}>
         <DashboardIcon
           name="search"
-          className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-slate-400"
+          className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-neutral-400"
         />
         <input
           type="search"
@@ -76,7 +77,7 @@ export default function CustomerCombobox({
           <span
             id="customer-options"
             role="listbox"
-            className="absolute inset-x-0 top-[calc(100%+6px)] z-20 max-h-64 overflow-y-auto rounded-lg border border-neutral-200 bg-white p-1 shadow-lg"
+            className="workspace-picker absolute inset-x-0 top-[calc(100%+6px)] z-20"
           >
             {matches.length ? (
               matches.map((customer) => (
@@ -91,22 +92,18 @@ export default function CustomerCombobox({
                     setQuery(customer.company)
                     setOpen(false)
                   }}
-                  className={`flex w-full items-center justify-between gap-4 px-3 py-2.5 text-left transition ${
-                    customer.id === selectedCustomerId
-                      ? "bg-neutral-100 text-neutral-900"
-                      : "text-neutral-700 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"
-                  }`}
+                  className="workspace-option"
                 >
-                  <span className="text-sm font-semibold">
+                  <span className="workspace-option-label">
                     {customer.company}
                   </span>
-                  <span className="font-mono text-[10px] text-slate-500">
+                  <span className="workspace-option-meta shrink-0 font-mono">
                     {customer.id}
                   </span>
                 </button>
               ))
             ) : (
-              <span className="block px-3 py-4 text-sm text-slate-500">
+              <span className="workspace-picker-empty">
                 No customers found.
               </span>
             )}

@@ -1,27 +1,13 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 
 import type { JobHistoryEntry } from "../../types/employee"
+import useModalFocus from "../../hooks/useModalFocus"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 type AddJobHistoryModalProps = {
   open: boolean
   onClose: () => void
   onSave: (entry: JobHistoryEntry) => void
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
 }
 
 export default function AddJobHistoryModal({
@@ -33,6 +19,10 @@ export default function AddJobHistoryModal({
   const [jobTitle, setJobTitle] = useState("")
   const [department, setDepartment] = useState("")
   const [salary, setSalary] = useState("")
+  const dialogRef = useRef<HTMLElement>(null)
+  const initialFocusRef = useRef<HTMLInputElement>(null)
+
+  useModalFocus(open, dialogRef, initialFocusRef, onClose)
 
   useEffect(() => {
     if (!open) return
@@ -41,14 +31,7 @@ export default function AddJobHistoryModal({
     setJobTitle("")
     setDepartment("")
     setSalary("")
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-
-    window.addEventListener("keydown", closeOnEscape)
-    return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [onClose, open])
+  }, [open])
 
   if (!open) return null
 
@@ -71,7 +54,7 @@ export default function AddJobHistoryModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center px-4 py-8">
+    <div className="workspace-modal-overlay z-[60]">
       <button
         type="button"
         aria-label="Close job history form"
@@ -80,14 +63,15 @@ export default function AddJobHistoryModal({
       />
 
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="job-history-modal-title"
-        className="relative w-full max-w-xl overflow-hidden rounded-lg border border-slate-300 border-t-[3px] border-t-blue-800 bg-white shadow-[0_24px_80px_rgba(15,23,42,0.30)]"
+        className="workspace-modal workspace-panel relative w-full max-w-xl shadow-xl"
       >
-        <header className="flex items-start justify-between gap-5 border-b border-slate-300 px-6 py-5 sm:px-8">
+        <header className="workspace-drawer-header">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-800">
+            <p className="text-xs font-medium text-neutral-500">
               Personnel change
             </p>
             <h2
@@ -104,28 +88,30 @@ export default function AddJobHistoryModal({
             type="button"
             onClick={onClose}
             aria-label="Close job history form"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+            className="workspace-icon-action"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 
-        <form onSubmit={submit}>
-          <div className="grid gap-5 px-6 py-6 sm:grid-cols-2 sm:px-8">
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          <div className="workspace-drawer-body grid gap-4 sm:grid-cols-2">
             <FormField label="Effective Date">
               <input
+                ref={initialFocusRef}
                 type="date"
                 required
                 value={effectiveDate}
                 onChange={(event) => setEffectiveDate(event.target.value)}
-                className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                className="workspace-control"
               />
             </FormField>
             <FormField label="Salary">
               <span className="relative block">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">
-                  $
-                </span>
+                <DashboardIcon
+                  name="currency"
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
+                />
                 <input
                   type="number"
                   required
@@ -133,7 +119,7 @@ export default function AddJobHistoryModal({
                   value={salary}
                   onChange={(event) => setSalary(event.target.value)}
                   placeholder="0"
-                  className="h-11 w-full rounded-md border border-slate-300 bg-white pl-7 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  className="workspace-control workspace-control--currency"
                 />
               </span>
             </FormField>
@@ -145,7 +131,7 @@ export default function AddJobHistoryModal({
                   value={jobTitle}
                   onChange={(event) => setJobTitle(event.target.value)}
                   placeholder="Enter the new job title"
-                  className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  className="workspace-control"
                 />
               </FormField>
             </div>
@@ -157,23 +143,23 @@ export default function AddJobHistoryModal({
                   value={department}
                   onChange={(event) => setDepartment(event.target.value)}
                   placeholder="Enter the department"
-                  className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
+                  className="workspace-control"
                 />
               </FormField>
             </div>
           </div>
 
-          <footer className="flex items-center justify-end gap-3 border-t border-slate-300 bg-slate-50 px-6 py-4 sm:px-8">
+          <footer className="workspace-drawer-footer">
             <button
               type="button"
               onClick={onClose}
-              className="h-11 rounded-md border border-slate-300 bg-white px-5 text-sm font-bold text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
+              className="workspace-secondary-action"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="h-11 rounded-md bg-blue-800 px-5 text-sm font-bold text-white transition hover:bg-blue-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200"
+              className="workspace-primary-action"
             >
               Save Job History
             </button>
@@ -193,7 +179,7 @@ function FormField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-xs font-bold text-slate-700">
+      <span className="workspace-label">
         {label}
       </span>
       {children}

@@ -5,10 +5,13 @@ const { asyncHandler } = require('../middleware/error-handler');
 
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
+const PRODUCT_SORT_COLUMNS = { productCode: 'p.prodcode', description: 'p.description', unitPrice: 'price.unitprice' };
+const SORT_ORDERS = new Set(['asc', 'desc']);
 
-function requestError(message, statusCode) {
+function requestError(message, statusCode, details) {
   const error = new Error(message);
   error.statusCode = statusCode;
+  if (details) error.details = details;
   return error;
 }
 
@@ -39,6 +42,16 @@ const listProducts = asyncHandler(async (req, res) => {
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
   const unit = typeof req.query.unit === 'string' ? req.query.unit.trim().toLowerCase() : '';
   const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
+  const sortBy = req.query.sortBy === undefined ? 'description' : req.query.sortBy;
+  const sortOrder = req.query.sortOrder === undefined
+    ? 'asc'
+    : typeof req.query.sortOrder === 'string' ? req.query.sortOrder.toLowerCase() : '';
+  if (typeof sortBy !== 'string' || !Object.hasOwn(PRODUCT_SORT_COLUMNS, sortBy)) {
+    throw requestError('sortBy must be productCode, description, or unitPrice', 400);
+  }
+  if (!SORT_ORDERS.has(sortOrder)) {
+    throw requestError('sortOrder must be asc or desc', 400);
+  }
   if (unit && !UNITS.has(unit)) throw requestError('Invalid unit filter', 400);
   if (!['all', 'active', 'archived'].includes(status)) throw requestError('Invalid status filter', 400);
 
@@ -60,33 +73,42 @@ const listProducts = asyncHandler(async (req, res) => {
   const countValues = [...values];
   const offset = (page - 1) * limit;
   values.push(limit, offset);
+  const secondarySort = sortBy === 'productCode' ? '' : ', p.prodcode ASC';
 
-  const [productsResult, countResult] = await Promise.all([
-    requirePool().query(
-      `SELECT p.prodcode, p.description, p.unit, p.is_deleted, p.stamp,
-              price.unitprice, price.effdate::text AS effdate
-       FROM public.product p
-       LEFT JOIN (
-         SELECT DISTINCT ON (prodcode, is_deleted) prodcode, is_deleted, unitprice, effdate
-         FROM public.pricehist
-         WHERE effdate <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
-         ORDER BY prodcode, is_deleted, effdate DESC
-       ) price ON price.prodcode = p.prodcode AND price.is_deleted = p.is_deleted
-       ${whereClause}
-       ORDER BY p.description ASC, p.prodcode ASC
-       LIMIT $${values.length - 1} OFFSET $${values.length}`,
-      values
-    ),
-    requirePool().query(
+  const pool = requirePool();
+  const productsResult = await pool.query(
+    `SELECT p.prodcode, p.description, p.unit, p.is_deleted, p.stamp,
+            price.unitprice, price.effdate::text AS effdate,
+            count(*) OVER()::integer AS _total
+     FROM public.product p
+     LEFT JOIN LATERAL (
+       SELECT ph.unitprice, ph.effdate
+       FROM public.pricehist ph
+       WHERE ph.prodcode = p.prodcode
+         AND ph.is_deleted = p.is_deleted
+         AND ph.effdate <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
+       ORDER BY ph.effdate DESC
+       LIMIT 1
+     ) price ON true
+     ${whereClause}
+     ORDER BY ${PRODUCT_SORT_COLUMNS[sortBy]} ${sortOrder.toUpperCase()} NULLS LAST${secondarySort}
+     LIMIT $${values.length - 1} OFFSET $${values.length}`,
+    values
+  );
+
+  let total = productsResult.rows[0] ? productsResult.rows[0]._total : 0;
+  if (productsResult.rows.length === 0 && offset > 0) {
+    const countResult = await pool.query(
       `SELECT count(*)::integer AS total FROM public.product p ${whereClause}`,
       countValues
-    )
-  ]);
-  const total = countResult.rows[0].total;
+    );
+    total = countResult.rows[0].total;
+  }
+  const products = productsResult.rows.map(({ _total, ...row }) => row);
   res.json({
     success: true,
     data: {
-      products: productsResult.rows,
+      products,
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
     }
   });
@@ -101,23 +123,162 @@ const getPriceHistory = asyncHandler(async (req, res) => {
   if (!productResult.rows.length) throw requestError('Product not found', 404);
 
   const historyResult = await requirePool().query(
-    `SELECT effdate::text AS effdate, unitprice, stamp
+    `SELECT prodcode, effdate::text AS effdate, unitprice, unitprice AS price, is_deleted, stamp
      FROM public.pricehist
      WHERE prodcode = $1 AND is_deleted = $2
      ORDER BY effdate DESC`,
     [prodcode, productResult.rows[0].is_deleted]
   );
-  res.json({ success: true, data: { prices: historyResult.rows } });
+  res.json({
+    success: true,
+    data: {
+      prodcode,
+      prices: historyResult.rows,
+      priceHistory: historyResult.rows
+    }
+  });
+});
+
+const addPriceHistory = asyncHandler(async (req, res) => {
+  const prodcode = String(req.params.prodcode || '').trim();
+  if (!prodcode) throw requestError('Product code is required', 400);
+
+  const rawPrice = req.body?.price ?? req.body?.unitprice;
+  if (rawPrice === undefined || rawPrice === null || rawPrice === '') {
+    throw requestError('price is required', 400);
+  }
+  const price = Number(rawPrice);
+  if (!Number.isFinite(price) || price <= 0) {
+    throw requestError('price must be a positive number', 400);
+  }
+
+  const rawEffdate = typeof req.body?.effdate === 'string'
+    ? req.body.effdate.trim()
+    : typeof req.body?.effectiveDate === 'string'
+      ? req.body.effectiveDate.trim()
+      : '';
+  if (!rawEffdate) {
+    throw requestError('effdate is required', 400);
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(rawEffdate) || Number.isNaN(Date.parse(rawEffdate))) {
+    throw requestError('effdate must be a valid date in YYYY-MM-DD format', 400);
+  }
+
+  const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  if (rawEffdate < todayStr) {
+    throw requestError('Effective date cannot be in the past', 400);
+  }
+
+  const actorUserId = req.user?.sub || req.user?.userId || req.user?.id || req.user?.empno || req.user?.email || 'system';
+
+  try {
+    const newPriceRecord = await withAuditContext(req.user?.email || actorUserId, async (client) => {
+      const product = await client.query(
+        'SELECT prodcode, is_deleted FROM public.product WHERE prodcode = $1 FOR UPDATE',
+        [prodcode]
+      );
+      if (!product.rows.length || product.rows[0].is_deleted) {
+        throw requestError('Product not found', 404);
+      }
+
+      const duplicate = await client.query(
+        'SELECT 1 FROM public.pricehist WHERE prodcode = $1 AND effdate = $2::date LIMIT 1',
+        [prodcode, rawEffdate]
+      );
+      if (duplicate.rows.length) {
+        throw requestError('A price entry with this effective date already exists for this product', 400);
+      }
+
+      const prevActivePrice = await client.query(
+        `SELECT unitprice, effdate::text AS effdate
+         FROM public.pricehist
+         WHERE prodcode = $1 AND is_deleted = false AND effdate <= $2::date
+         ORDER BY effdate DESC
+         LIMIT 1`,
+        [prodcode, rawEffdate]
+      );
+      const fallbackPrice = await client.query(
+        `SELECT unitprice, effdate::text AS effdate
+         FROM public.pricehist
+         WHERE prodcode = $1 AND is_deleted = false
+         ORDER BY effdate DESC
+         LIMIT 1`,
+        [prodcode]
+      );
+      const oldPrice = prevActivePrice.rows.length
+        ? Number(prevActivePrice.rows[0].unitprice)
+        : (fallbackPrice.rows.length ? Number(fallbackPrice.rows[0].unitprice) : null);
+
+      const inserted = await client.query(
+        `INSERT INTO public.pricehist (effdate, prodcode, unitprice, is_deleted)
+         VALUES ($1::date, $2, $3, false)
+         RETURNING effdate::text AS effdate, prodcode, unitprice, is_deleted, stamp`,
+        [rawEffdate, prodcode, price]
+      );
+
+      await client.query(
+        `INSERT INTO public.audit_log
+           (table_name, action, record_key, old_values, new_values, action_by, action_at)
+         VALUES
+           ('pricehist', 'EDIT', $1, $2::jsonb, $3::jsonb, $4, CURRENT_TIMESTAMP)`,
+        [
+          prodcode,
+          oldPrice !== null ? JSON.stringify({ price: oldPrice, unitprice: oldPrice }) : null,
+          JSON.stringify({ event: 'PRICE_UPDATE', prodcode, effdate: rawEffdate, price, unitprice: price }),
+          String(actorUserId)
+        ]
+      );
+
+      return inserted.rows[0];
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        price: {
+          prodcode: newPriceRecord.prodcode,
+          effdate: newPriceRecord.effdate,
+          effectiveDate: newPriceRecord.effdate,
+          unitprice: Number(newPriceRecord.unitprice),
+          price: Number(newPriceRecord.unitprice),
+          is_deleted: newPriceRecord.is_deleted,
+          stamp: newPriceRecord.stamp
+        }
+      }
+    });
+  } catch (error) {
+    if (error.code === '23505') {
+      throw requestError('A price entry with this effective date already exists for this product', 400);
+    }
+    throw error;
+  }
 });
 
 const createProduct = asyncHandler(async (req, res) => {
   const { description, unit, unitprice } = validateProduct(req.body);
   const requestedCode = typeof req.body?.prodcode === 'string' ? req.body.prodcode.trim() : '';
-  if (requestedCode.length > 6) throw requestError('Product code must be at most 6 characters', 400);
+  if (requestedCode.length > 6) {
+    throw requestError('Validation failed', 400, {
+      prodcode: 'Product code must be 6 characters or fewer'
+    });
+  }
 
   try {
     const product = await withAuditContext(req.user.email, async (client) => {
       const prodcode = requestedCode || await nextProductCode(client);
+      const duplicate = await client.query(
+        `SELECT 1
+         FROM public.product
+         WHERE is_deleted = false
+           AND lower(trim(description)) = lower(trim($1))
+         LIMIT 1`,
+        [description]
+      );
+      if (duplicate.rows.length) {
+        throw requestError('A product with that description already exists', 409, {
+          description: 'An active product with this description already exists'
+        });
+      }
       const result = await client.query(
         `INSERT INTO public.product (prodcode, description, unit, is_deleted)
          VALUES ($1, $2, $3, false)
@@ -154,21 +315,38 @@ const updateProduct = asyncHandler(async (req, res) => {
     if (!result.rows.length) return null;
 
     const currentPrice = await client.query(
-      `SELECT unitprice FROM public.pricehist
+      `SELECT unitprice, effdate::text AS effdate FROM public.pricehist
        WHERE prodcode = $1 AND is_deleted = false AND effdate <= (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date
        ORDER BY effdate DESC LIMIT 1`,
       [prodcode]
     );
-    if (!currentPrice.rows.length || Number(currentPrice.rows[0].unitprice) !== unitprice) {
-      await client.query(
+    let savedPrice = currentPrice.rows[0];
+    if (!savedPrice || Number(savedPrice.unitprice) !== unitprice) {
+      const oldUnitprice = currentPrice.rows.length ? Number(currentPrice.rows[0].unitprice) : null;
+      const priceResult = await client.query(
         `INSERT INTO public.pricehist (effdate, prodcode, unitprice, is_deleted)
          VALUES ((CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Manila')::date, $1, $2, false)
          ON CONFLICT (effdate, prodcode)
-         DO UPDATE SET unitprice = EXCLUDED.unitprice, is_deleted = false`,
+         DO UPDATE SET unitprice = EXCLUDED.unitprice, is_deleted = false
+         RETURNING unitprice, effdate::text AS effdate`,
         [prodcode, unitprice]
       );
+      savedPrice = priceResult.rows[0];
+      const actorUserId = req.user?.sub || req.user?.userId || req.user?.id || req.user?.empno || req.user?.email || 'system';
+      await client.query(
+        `INSERT INTO public.audit_log
+           (table_name, action, record_key, old_values, new_values, action_by, action_at)
+         VALUES
+           ('pricehist', 'EDIT', $1, $2::jsonb, $3::jsonb, $4, CURRENT_TIMESTAMP)`,
+        [
+          prodcode,
+          oldUnitprice !== null ? JSON.stringify({ price: oldUnitprice, unitprice: oldUnitprice }) : null,
+          JSON.stringify({ event: 'PRICE_UPDATE', prodcode, price: unitprice, unitprice }),
+          String(actorUserId)
+        ]
+      );
     }
-    return result.rows[0];
+    return { ...result.rows[0], ...savedPrice };
   });
   if (!product) throw requestError('Product not found', 404);
   res.json({ success: true, data: { product } });
@@ -176,9 +354,10 @@ const updateProduct = asyncHandler(async (req, res) => {
 
 const archiveProduct = asyncHandler(async (req, res) => {
   const prodcode = String(req.params.prodcode || '').trim();
+  if (!prodcode) throw requestError('Product code is required', 400);
   let product;
   try {
-    product = await withAuditContext(req.user.email, async (client) => {
+    product = await withAuditContext(req.user?.email || 'system', async (client) => {
       const existing = await client.query(
         'SELECT prodcode FROM public.product WHERE prodcode = $1 AND is_deleted = false FOR UPDATE',
         [prodcode]
@@ -215,7 +394,8 @@ const archiveProduct = asyncHandler(async (req, res) => {
 
 const restoreProduct = asyncHandler(async (req, res) => {
   const prodcode = String(req.params.prodcode || '').trim();
-  const product = await withAuditContext(req.user.email, async (client) => {
+  if (!prodcode) throw requestError('Product code is required', 400);
+  const product = await withAuditContext(req.user?.email || 'system', async (client) => {
     const existing = await client.query(
       'SELECT prodcode FROM public.product WHERE prodcode = $1 AND is_deleted = true FOR UPDATE',
       [prodcode]
@@ -238,4 +418,4 @@ const restoreProduct = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { product } });
 });
 
-module.exports = { listProducts, getPriceHistory, createProduct, updateProduct, archiveProduct, restoreProduct };
+module.exports = { listProducts, getPriceHistory, addPriceHistory, createProduct, updateProduct, archiveProduct, restoreProduct };

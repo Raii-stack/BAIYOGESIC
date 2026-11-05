@@ -1,7 +1,9 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { TableSkeletonRows } from "../common/TableSkeleton"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
 import useDebouncedValue from "../../hooks/useDebouncedValue"
 import usePageQuery from "../../hooks/usePageQuery"
+import useModalFocus from "../../hooks/useModalFocus"
 import { employeeApi, type EmployeePagination } from "../../lib/employee-api"
 
 type Item = { code: string; label: string; archived: boolean; stamp: string }
@@ -9,18 +11,6 @@ type Item = { code: string; label: string; archived: boolean; stamp: string }
 const PAGE_SIZE = 10
 const emptyPagination: EmployeePagination = { page: 1, limit: PAGE_SIZE, total: 0, totalPages: 0 }
 const pages = (current: number, total: number) => { const count = Math.min(total, 5); const start = Math.max(1, Math.min(current - 2, total - count + 1)); return Array.from({ length: count }, (_, i) => start + i) }
-
-function EditIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m14 5 5 5M4 20l3.5-.7L20 6.8a2.1 2.1 0 0 0-3-3L4.7 16.3 4 20Z" /></svg>
-}
-
-function ArchiveIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" /></svg>
-}
-
-function RestoreIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" /></svg>
-}
 
 export default function LookupSection({ kind, canAdd = canEdit, canEdit, canDelete, canViewAudit = true, onChanged, onNotice }: {
   kind: "jobs" | "departments"
@@ -54,6 +44,13 @@ export default function LookupSection({ kind, canAdd = canEdit, canEdit, canDele
   const [archiveError, setArchiveError] = useState("")
   const [archiving, setArchiving] = useState(false)
   const [restoringCode, setRestoringCode] = useState<string | null>(null)
+  const panelRef = useRef<HTMLElement>(null)
+  const panelInitialFocusRef = useRef<HTMLInputElement>(null)
+  const archiveRef = useRef<HTMLElement>(null)
+  const archiveCancelRef = useRef<HTMLButtonElement>(null)
+
+  useModalFocus(panelOpen, panelRef, panelInitialFocusRef, () => setPanelOpen(false), saving)
+  useModalFocus(Boolean(toArchive), archiveRef, archiveCancelRef, () => setToArchive(null), archiving)
 
   useEffect(() => {
     if (searchPending) { setLoading(true); setError(""); return }
@@ -164,25 +161,25 @@ export default function LookupSection({ kind, canAdd = canEdit, canEdit, canDele
       <section aria-label={`${singular} filters`} className="workspace-panel workspace-filters">
         <label className="workspace-filter-search"><span className="workspace-label">Search {kind}</span><span className="relative block"><DashboardIcon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1) }} placeholder={isJobs ? "Job code or description" : "Dept code or department name"} className="workspace-control workspace-control--search" /></span></label>
         {canViewAudit && <label><span className="workspace-label">Status</span><select value={status} onChange={(event) => { setStatus(event.target.value as "all" | "active" | "archived"); setPage(1) }} className="workspace-control"><option value="all">All statuses</option><option value="active">Active</option><option value="archived">Archived</option></select></label>}
-        {canAdd && <button type="button" onClick={() => openModal(null)} className="workspace-primary-action">+ Add {singular.toLowerCase()}</button>}
+        {canAdd && <button type="button" onClick={() => openModal(null)} className="workspace-primary-action"><DashboardIcon name="plus" className="h-4 w-4" />Add {singular.toLowerCase()}</button>}
       </section>
 
       {error && <div role="alert" className="mb-4 flex items-center justify-between gap-3 border-l-2 border-red-600 bg-red-50 px-4 py-3 text-sm font-semibold text-red-800"><span>{error}</span><button type="button" onClick={() => setRefresh((current) => current + 1)} className="underline underline-offset-4">Try again</button></div>}
 
       <section aria-label={`${singular} records`} className="workspace-panel">
         <div className="workspace-table-header"><div><h2 className="text-sm font-bold text-slate-900">{isJobs ? "Job catalog" : "Department directory"}</h2><p className="mt-0.5 text-xs text-slate-500">{isJobs ? "Standard job codes and titles" : "Organizational units and department codes"}</p></div><span className="workspace-badge workspace-badge--neutral">{loading ? "Loading…" : error ? "Unavailable" : `${pagination.total} records`}</span></div>
-        <div className="overflow-x-auto" aria-busy={loading}><table className="workspace-table min-w-[780px]"><thead><tr className="border-b border-slate-200 bg-slate-50">{headings.map((heading) => <th key={heading} scope="col" className={`workspace-table-heading ${heading === "Actions" ? "workspace-table-actions" : ""}`}>{heading}</th>)}</tr></thead><tbody>
-          {loading ? Array.from({ length: 6 }, (_, index) => <tr key={index} aria-hidden="true" className="border-b border-slate-100">{Array.from({ length: headings.length }, (_, column) => <td key={column} ><div className="h-3.5 max-w-full animate-pulse rounded bg-slate-200" style={{ width: column === 1 ? 160 : 90 }} /></td>)}</tr>) : items.map((item) => (
+        <div className="overflow-x-auto" aria-busy={loading}><table role="table" className="workspace-table min-w-[780px]"><thead><tr className="border-b border-slate-200 bg-slate-50">{headings.map((heading) => <th key={heading} scope="col" className={`workspace-table-heading ${heading === "Actions" ? "workspace-table-actions" : ""}`}>{heading}</th>)}</tr></thead><tbody>
+          {loading ? <TableSkeletonRows headings={headings} rowCount={6} /> : items.map((item) => (
             <tr key={item.code} className={`border-b border-slate-100 transition-colors last:border-0 ${item.archived ? "is-muted" : "hover:bg-neutral-50"}`}>
-              <td className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">{item.code}</td>
-              <td className=" text-[13px] font-medium text-neutral-900">{item.label}</td>
-              {canViewAudit && <td className="whitespace-nowrap "><span className={`workspace-badge ${item.archived ? "bg-slate-200 text-slate-700" : "bg-emerald-100 text-emerald-800"}`}>{item.archived ? "Archived" : "Active"}</span></td>}
-              {canViewAudit && <td className="max-w-56  font-mono text-[11px] leading-5 text-slate-500">{item.stamp || "—"}</td>}
-              {showActions && <td className={`workspace-table-actions ${item.archived ? "bg-slate-50" : "bg-white"}`}><div className="flex items-center gap-1">
+              <td data-label={isJobs ? "Job code" : "Dept code"} className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">{item.code}</td>
+              <td data-label={isJobs ? "Description" : "Department name"} className=" text-[13px] font-medium text-neutral-900">{item.label}</td>
+              {canViewAudit && <td data-label="Status" className="whitespace-nowrap "><span className={`workspace-badge ${item.archived ? "bg-slate-200 text-slate-700" : "bg-emerald-100 text-emerald-800"}`}>{item.archived ? "Archived" : "Active"}</span></td>}
+              {canViewAudit && <td data-label="Last change" className="max-w-56  font-mono text-[11px] leading-5 text-slate-500">{item.stamp || "—"}</td>}
+              {showActions && <td data-label="Actions" className={`workspace-table-actions ${item.archived ? "bg-slate-50" : "bg-white"}`}><div className="flex items-center gap-1">
                 {!item.archived ? <>
-                  {canEdit && <button type="button" onClick={() => openModal(item)} aria-label={`Edit ${item.label}`} title={`Edit ${singular.toLowerCase()}`} className="workspace-icon-action"><EditIcon /></button>}
-                  {canDelete && <button type="button" onClick={() => { setArchiveError(""); setToArchive(item) }} aria-label={`Archive ${item.label}`} title={`Archive ${singular.toLowerCase()}`} className="workspace-icon-action workspace-icon-action--danger"><ArchiveIcon /></button>}
-                </> : canDelete ? <button type="button" onClick={() => restore(item)} disabled={restoringCode === item.code} aria-label={`Restore ${item.label}`} title={`Restore ${singular.toLowerCase()}`} className="workspace-icon-action"><RestoreIcon /></button> : <span className="px-2 text-slate-400">—</span>}
+                  {canEdit && <button type="button" onClick={() => openModal(item)} aria-label={`Edit ${item.label}`} title={`Edit ${singular.toLowerCase()}`} className="workspace-icon-action"><DashboardIcon name="edit" className="h-4 w-4" /></button>}
+                  {canDelete && <button type="button" onClick={() => { setArchiveError(""); setToArchive(item) }} aria-label={`Archive ${item.label}`} title={`Archive ${singular.toLowerCase()}`} className="workspace-icon-action workspace-icon-action--danger"><DashboardIcon name="archive" className="h-4 w-4" /></button>}
+                </> : canDelete ? <button type="button" onClick={() => restore(item)} disabled={restoringCode === item.code} aria-label={`Restore ${item.label}`} title={`Restore ${singular.toLowerCase()}`} className="workspace-icon-action"><DashboardIcon name="restore" className="h-4 w-4" /></button> : <span className="px-2 text-slate-400">—</span>}
               </div></td>}
             </tr>
           ))}
@@ -190,16 +187,16 @@ export default function LookupSection({ kind, canAdd = canEdit, canEdit, canDele
         <div className="workspace-table-footer"><p aria-live="polite" className="text-xs font-medium text-slate-600">{loading ? `Loading ${kind}…` : error ? `${singular} records unavailable` : `Showing ${start}–${end} of ${pagination.total}`}</p><nav aria-label={`${singular} table pagination`} className="workspace-pagination"><button type="button" onClick={() => setPage(pagination.page - 1)} disabled={loading || pagination.page <= 1}>Previous</button>{pages(pagination.page, pagination.totalPages).map((p) => <button key={p} type="button" onClick={() => setPage(p)} disabled={loading} aria-label={`Page ${p}`} aria-current={p === pagination.page ? "page" : undefined}>{p}</button>)}<button type="button" onClick={() => setPage(pagination.page + 1)} disabled={loading || pagination.page >= pagination.totalPages}>Next</button></nav></div>
       </section>
 
-      {panelOpen && <div className="fixed inset-0 z-50"><button type="button" aria-label={`Close ${singular.toLowerCase()} form`} onClick={() => setPanelOpen(false)} className="absolute inset-0 bg-slate-950/50" /><aside role="dialog" aria-modal="true" aria-labelledby="lookup-panel-title" className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-neutral-200 bg-white shadow-xl workspace-drawer">
-        <header className="workspace-drawer-header"><div><h2 id="lookup-panel-title" className="mt-2 text-xl font-semibold tracking-tight text-neutral-900">{selected ? `Edit ${singular.toLowerCase()}` : `Add ${singular.toLowerCase()}`}</h2></div><button type="button" onClick={() => setPanelOpen(false)} aria-label={`Close ${singular.toLowerCase()} form`} className="workspace-icon-action text-xl">×</button></header>
+      {panelOpen && <div className="fixed inset-0 z-50"><button type="button" aria-label={`Close ${singular.toLowerCase()} form`} onClick={() => { if (!saving) setPanelOpen(false) }} className="absolute inset-0 bg-black/45" /><aside ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="lookup-panel-title" aria-describedby="lookup-panel-description" className="absolute inset-y-0 right-0 flex w-full max-w-md flex-col border-l border-neutral-200 bg-white shadow-xl workspace-drawer">
+        <header className="workspace-drawer-header"><div><h2 id="lookup-panel-title" className="mt-2 text-xl font-semibold tracking-tight text-neutral-900">{selected ? `Edit ${singular.toLowerCase()}` : `Add ${singular.toLowerCase()}`}</h2><p id="lookup-panel-description">{isJobs ? "Maintain the standard job code and title." : "Maintain the organizational unit and department code."}</p></div><button type="button" onClick={() => setPanelOpen(false)} disabled={saving} aria-label={`Close ${singular.toLowerCase()} form`} className="workspace-icon-action"><DashboardIcon name="close" className="h-5 w-5" /></button></header>
         <form onSubmit={save} className="flex min-h-0 flex-1 flex-col"><div className="workspace-drawer-body space-y-4">
-          <label className="block"><span className="workspace-label">{isJobs ? "Job code" : "Department code"}</span><input required maxLength={codeMax} readOnly={Boolean(selected)} value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder={isJobs ? "e.g. DEV" : "e.g. IT"} className={`workspace-control font-mono uppercase ${selected ? "bg-slate-100 text-slate-500" : "bg-white text-slate-900 focus:border-blue-700 focus:ring-3 focus:ring-blue-100"}`} /></label>
-          <label className="block"><span className="workspace-label">{isJobs ? "Description" : "Department name"}</span><input required maxLength={20} value={label} onChange={(event) => setLabel(event.target.value)} placeholder={isJobs ? "Enter job title" : "Enter department name"} className="workspace-control" /></label>
+          <label className="block"><span className="workspace-label">{isJobs ? "Job code" : "Department code"}</span><input ref={selected ? undefined : panelInitialFocusRef} required maxLength={codeMax} readOnly={Boolean(selected)} value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder={isJobs ? "e.g. DEV" : "e.g. IT"} className={`workspace-control font-mono uppercase ${selected ? "bg-slate-100 text-slate-500" : "bg-white text-slate-900 focus:border-blue-700 focus:ring-3 focus:ring-blue-100"}`} /></label>
+          <label className="block"><span className="workspace-label">{isJobs ? "Description" : "Department name"}</span><input ref={selected ? panelInitialFocusRef : undefined} required maxLength={20} value={label} onChange={(event) => setLabel(event.target.value)} placeholder={isJobs ? "Enter job title" : "Enter department name"} className="workspace-control" /></label>
           {formError && <p role="alert" className="text-sm font-semibold text-red-700">{formError}</p>}
         </div><footer className="workspace-drawer-footer"><button type="button" onClick={() => setPanelOpen(false)} className="workspace-secondary-action">Cancel</button><button type="submit" disabled={saving} className="workspace-primary-action">{saving ? "Saving…" : selected ? "Save changes" : `Create ${singular.toLowerCase()}`}</button></footer></form>
       </aside></div>}
 
-      {toArchive && <div className="fixed inset-0 z-[60] grid place-items-center px-4 py-8"><button type="button" aria-label="Cancel archive" onClick={() => { if (!archiving) setToArchive(null) }} className="absolute inset-0 bg-slate-950/70" /><section role="alertdialog" aria-modal="true" aria-labelledby="archive-lookup-title" className="relative w-full max-w-lg workspace-panel shadow-xl"><div className="p-6 text-center"><h2 id="archive-lookup-title" className="text-xl font-semibold text-neutral-900">Archive this {singular.toLowerCase()}?</h2><p className="mt-2 text-sm font-semibold text-slate-700">{toArchive.code} — {toArchive.label}</p><p className="mx-auto mt-4 max-w-md text-sm leading-6 text-slate-600">Records linked to active job-history entries cannot be archived.</p></div>{archiveError && <p role="alert" className="px-6 pb-4 text-sm font-semibold text-red-700">{archiveError}</p>}<div className="workspace-drawer-footer"><button type="button" onClick={() => setToArchive(null)} disabled={archiving} className="workspace-secondary-action">Cancel</button><button type="button" onClick={archive} disabled={archiving} className="workspace-danger-action">{archiving ? "Archiving…" : `Archive ${singular.toLowerCase()}`}</button></div></section></div>}
+      {toArchive && <div className="workspace-modal-overlay z-[60]"><button type="button" aria-label="Cancel archive" onClick={() => { if (!archiving) setToArchive(null) }} className="absolute inset-0 bg-black/45" /><section ref={archiveRef} role="alertdialog" aria-modal="true" aria-labelledby="archive-lookup-title" aria-describedby={`archive-lookup-description${archiveError ? " archive-lookup-error" : ""}`} className="workspace-modal workspace-panel relative w-full max-w-lg shadow-xl"><div className="workspace-drawer-body text-center"><h2 id="archive-lookup-title" className="text-xl font-semibold text-neutral-900">Archive this {singular.toLowerCase()}?</h2><p className="mt-2 text-sm font-semibold text-slate-700">{toArchive.code} — {toArchive.label}</p><p id="archive-lookup-description" className="mx-auto mt-4 max-w-md text-sm leading-6 text-slate-600">Records linked to active job-history entries cannot be archived.</p></div>{archiveError && <p id="archive-lookup-error" role="alert" className="px-6 pb-4 text-sm font-semibold text-red-700">{archiveError}</p>}<div className="workspace-drawer-footer"><button ref={archiveCancelRef} type="button" onClick={() => setToArchive(null)} disabled={archiving} className="workspace-secondary-action">Cancel</button><button type="button" onClick={archive} disabled={archiving} className="workspace-danger-action">{archiving ? "Archiving…" : `Archive ${singular.toLowerCase()}`}</button></div></section></div>}
     </>
   )
 }

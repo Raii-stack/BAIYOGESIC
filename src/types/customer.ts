@@ -1,4 +1,4 @@
-export type PaymentTerm = "30D" | "45D" | "COD"
+export type PaymentTerm = "30D" | "45D" | "60D" | "COD"
 
 export type Customer = {
   id: string

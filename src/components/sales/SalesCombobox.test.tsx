@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, expect, test, vi } from "vitest"
 import { customers } from "../../lib/customers"
@@ -24,8 +24,15 @@ test.each(["customer", "employee"])("%s picker supports keyboard selection and E
   await user.click(input)
   await user.keyboard("{Tab}")
   expect(screen.getByRole("option")).toHaveFocus()
-  await user.keyboard("{Escape}")
+  // Cancel the search input's native Escape action so it cannot clear the selection and reopen the menu.
+  expect(fireEvent.keyDown(screen.getByRole("option"), { key: "Escape" })).toBe(false)
   expect(input).toHaveFocus()
+  expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
+  const selectedLabel = kind === "customer" ? customers[0].company : employees[0].fullName
+  expect(input).toHaveValue(selectedLabel)
+  await user.click(input)
+  expect(fireEvent.keyDown(input, { key: "Escape" })).toBe(false)
+  expect(input).toHaveValue(selectedLabel)
   expect(screen.queryByRole("listbox")).not.toBeInTheDocument()
   await user.clear(input)
   await user.type(input, "no matching record")

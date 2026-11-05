@@ -1,30 +1,18 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
 
-import type { SalePayment } from "../../types/sale"
+import useModalFocus from "../../hooks/useModalFocus"
+import type { PaymentMethod, SalePayment } from "../../types/sale"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 type RecordPaymentModalProps = {
   open: boolean
   payment: SalePayment | null
   balance: number
   onClose: () => void
-  onSave: (payment: SalePayment) => void
+  onSave: (payment: SalePayment) => Promise<void>
 }
 
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
-}
+const paymentMethods: PaymentMethod[] = ["Cash", "Bank Transfer", "Check", "Card", "E-wallet"]
 
 export default function RecordPaymentModal({
   open,
@@ -35,7 +23,14 @@ export default function RecordPaymentModal({
 }: RecordPaymentModalProps) {
   const [date, setDate] = useState("")
   const [amount, setAmount] = useState("")
+  const [method, setMethod] = useState<PaymentMethod>("Cash")
   const [amountError, setAmountError] = useState("")
+  const [formError, setFormError] = useState("")
+  const [saving, setSaving] = useState(false)
+  const dialogRef = useRef<HTMLElement>(null)
+  const initialFocusRef = useRef<HTMLInputElement>(null)
+
+  useModalFocus(open, dialogRef, initialFocusRef, onClose, saving)
 
   useEffect(() => {
     if (!open) return
@@ -44,22 +39,22 @@ export default function RecordPaymentModal({
       payment?.date ?? new Intl.DateTimeFormat("en-CA").format(new Date()),
     )
     setAmount(String(payment?.amount ?? balance.toFixed(2)))
+    setMethod(payment?.paymentMethod ?? "Cash")
     setAmountError("")
-
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
-    }
-
-    window.addEventListener("keydown", closeOnEscape)
-    return () => window.removeEventListener("keydown", closeOnEscape)
-  }, [balance, onClose, open, payment])
+    setFormError("")
+  }, [balance, open, payment])
 
   if (!open) return null
 
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
     const numericAmount = Number(amount)
     const availableBalance = balance + (payment?.amount ?? 0)
+
+    if (!date) {
+      setFormError("Payment date is required.")
+      return
+    }
 
     if (!numericAmount || numericAmount <= 0) {
       setAmountError("Payment amount must be greater than zero.")
@@ -70,32 +65,42 @@ export default function RecordPaymentModal({
       return
     }
 
-    onSave({
-      id: payment?.id ?? `PAY-${Date.now()}`,
-      orNo: payment?.orNo ?? `OR-${String(Date.now()).slice(-5)}`,
-      date,
-      amount: numericAmount,
-      stamp: payment
-        ? "EDITED user1 2026-10-13 1:01 PM"
-        : "CREATED system 2026-10-01 9:00 AM",
-    })
-    onClose()
+    setSaving(true)
+    setFormError("")
+    try {
+      await onSave({
+        id: payment?.id ?? "",
+        orNo: payment?.orNo ?? "",
+        date,
+        amount: numericAmount,
+        paymentMethod: method,
+        stamp: payment?.stamp ?? "",
+      })
+      onClose()
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Unable to record payment.")
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 z-[70] grid place-items-center px-4 py-6">
+    <div className="workspace-modal-overlay z-[70]">
       <button
         type="button"
         aria-label="Close payment form"
-        onClick={onClose}
-        className="absolute inset-0 bg-slate-950/70"
+        onClick={() => { if (!saving) onClose() }}
+        className="absolute inset-0 bg-black/45"
       />
 
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="record-payment-title"
-        className="relative flex max-h-[calc(100dvh-48px)] w-full max-w-lg flex-col workspace-panel shadow-xl"
+        aria-describedby={formError ? "record-payment-form-error" : undefined}
+        aria-busy={saving}
+        className="workspace-modal workspace-panel relative w-full max-w-lg shadow-xl"
       >
         <header className="workspace-drawer-header">
           <div>
@@ -109,14 +114,15 @@ export default function RecordPaymentModal({
           <button
             type="button"
             onClick={onClose}
+            disabled={saving}
             aria-label="Close payment form"
             className="workspace-icon-action"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 
-        <form onSubmit={submit} noValidate className="flex min-h-0 flex-col">
+        <form onSubmit={submit} noValidate className="flex min-h-0 flex-1 flex-col">
           <div className="workspace-drawer-body space-y-4">
             <label className="block">
               <span className="workspace-label">
@@ -134,12 +140,24 @@ export default function RecordPaymentModal({
                 Payment date
               </span>
               <input
+                ref={initialFocusRef}
                 type="date"
                 required
                 value={date}
                 onChange={(event) => setDate(event.target.value)}
                 className="workspace-control"
               />
+            </label>
+            <label className="block">
+              <span className="workspace-label">Payment method</span>
+              <select
+                required
+                value={method}
+                onChange={(event) => setMethod(event.target.value as PaymentMethod)}
+                className="workspace-control"
+              >
+                {paymentMethods.map((option) => <option key={option} value={option}>{option}</option>)}
+              </select>
             </label>
             <label className="block">
               <span className="workspace-label workspace-label--row">
@@ -149,9 +167,10 @@ export default function RecordPaymentModal({
                 </span>
               </span>
               <span className="relative block">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-500">
-                  $
-                </span>
+                <DashboardIcon
+                  name="currency"
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400"
+                />
                 <input
                   type="number"
                   min="0.01"
@@ -178,21 +197,24 @@ export default function RecordPaymentModal({
                 {amountError || "\u00a0"}
               </p>
             </label>
+            {formError && <p id="record-payment-form-error" role="alert" className="text-sm font-semibold text-red-700">{formError}</p>}
           </div>
 
           <footer className="workspace-drawer-footer">
             <button
               type="button"
               onClick={onClose}
+              disabled={saving}
               className="workspace-secondary-action"
             >
               Cancel
             </button>
             <button
               type="submit"
+              disabled={saving}
               className="workspace-primary-action"
             >
-              Save Payment
+              {saving ? "Saving…" : "Save Payment"}
             </button>
           </footer>
         </form>

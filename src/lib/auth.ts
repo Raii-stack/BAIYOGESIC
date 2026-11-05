@@ -58,7 +58,7 @@ export class AuthApiError extends Error {
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
 
-async function request<T>(path: string, body?: object): Promise<T> {
+async function request<T>(path: string, body?: object, signal?: AbortSignal): Promise<T> {
   let response: Response
   try {
     response = await fetch(`${apiBase}/api/auth${path}`, {
@@ -66,8 +66,10 @@ async function request<T>(path: string, body?: object): Promise<T> {
       credentials: "include",
       headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,
+      signal,
     })
-  } catch {
+  } catch (error) {
+    if (signal?.aborted) throw error
     throw new AuthApiError("The service is temporarily unavailable. Please try again.", 0)
   }
 
@@ -77,7 +79,8 @@ async function request<T>(path: string, body?: object): Promise<T> {
     const knownAuthError =
       (response.status === 401 && authDetail &&
         /^(Email or password is incorrect|Invalid email or password|Current password is incorrect)\.?$/i.test(authDetail)) ||
-      (response.status === 403 && authDetail && /blocked/i.test(authDetail))
+      (response.status === 403 && authDetail && (/blocked/i.test(authDetail)
+        || authDetail === "Your account is pending approval. Contact HR or an administrator."))
     throw new AuthApiError(
       knownAuthError ? authDetail : safeApiMessage(response.status, result),
       response.status,
@@ -87,11 +90,31 @@ async function request<T>(path: string, body?: object): Promise<T> {
 }
 
 export const authApi = {
+  heartbeat: (idleMs = 0) => request<{ message: string }>("/activity", { idleMs }),
+  activeEmployees: (signal?: AbortSignal) => request<{ employees: ActiveEmployee[] }>("/active-employees", undefined, signal),
+  async registrationNotifications(signal?: AbortSignal): Promise<RegistrationNotifications> {
+    const data = await request<RegistrationNotifications>("/registration-notifications", undefined, signal)
+    if (!Array.isArray(data.registrations) || !Number.isSafeInteger(data.total) || data.total < data.registrations.length
+      || data.registrations.some((item) => !item || typeof item.userId !== "string" || typeof item.name !== "string"
+        || typeof item.email !== "string" || typeof item.createdAt !== "string" || Number.isNaN(Date.parse(item.createdAt)))) {
+      throw new AuthApiError("Unable to load registration notifications.", 502)
+    }
+    return data
+  },
   login: (email: string, password: string) =>
     request<{ user: AuthUser }>("/login", { email, password }),
   session: () => request<{ user: AuthUser }>("/session"),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ message: string }>("/change-password", { currentPassword, newPassword }),
   logout: () => request<{ message: string }>("/logout", {}),
-  resetPassword: (token: string, password: string) => request<{ user: AuthUser }>("/reset-password", { token, password }),
+  register: (payload: { firstName: string; lastName: string; email: string; password?: string }) =>
+    request<{ message: string; user: AuthUser }>("/register", payload),
+  forgotPassword: (email: string) =>
+    request<{ message: string; token?: string }>("/forgot-password", { email }),
+  resetPassword: (token: string, password: string) =>
+    request<{ message?: string; user?: AuthUser }>("/reset-password", { token, password }),
 }
+
+export type ActiveEmployee = { userId: string; empno: string; name: string; lastSeenAt: string }
+export type RegistrationNotice = { userId: string; name: string; email: string; createdAt: string }
+export type RegistrationNotifications = { total: number; registrations: RegistrationNotice[] }

@@ -68,7 +68,7 @@ export const employeeApi = {
   },
   create: (input: EmployeeInput) => request<{ empno: string }>("", "POST", input),
   update: (id: string, input: EmployeeInput) => request<{ empno: string }>(`/${encodeURIComponent(id)}`, "PUT", input),
-  archive: (id: string) => request<{ empno: string }>(`/${encodeURIComponent(id)}`, "DELETE"),
+  archive: (id: string, separationDate?: string) => request<{ empno: string; sepdate?: string }>(`/${encodeURIComponent(id)}`, "DELETE", separationDate ? { separation_date: separationDate } : undefined),
   restore: (id: string) => request<{ empno: string }>(`/${encodeURIComponent(id)}/restore`, "POST"),
   jobs: {
     async list(options: { page: number; limit: number; search: string; status: string }, signal?: AbortSignal) {

@@ -15,7 +15,8 @@ const failure = (status: number, message: string) => new Response(
 )
 
 beforeEach(() => {
-  window.history.replaceState({}, "", "/")
+  window.history.replaceState({}, "", "/login")
+  window.dispatchEvent(new PopStateEvent("popstate"))
 })
 
 afterEach(() => {
@@ -23,7 +24,20 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-test("default-password login requires a successful password change before opening the dashboard", async () => {
+test("pending applicants see an approval message and stay signed out", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/login")
+    ? failure(403, "Your account is pending approval. Contact HR or an administrator.")
+    : failure(401, "Authentication required")))
+  const user = userEvent.setup()
+  render(<App />)
+  await user.type(await screen.findByLabelText("Work email"), "new@hope.inc")
+  await user.type(screen.getByLabelText("Password"), "SecurePass123!")
+  await user.click(screen.getByRole("button", { name: "Sign in", exact: true }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("Your account is pending approval. Contact HR or an administrator.")
+  expect(window.location.pathname).toBe("/login")
+})
+
+test("default-password users enter the dashboard and must change their password there", async () => {
   const pendingUser = {
     userId: 1,
     empno: "EMP-1",
@@ -64,14 +78,15 @@ test("default-password login requires a successful password change before openin
   await user.type(screen.getByLabelText("Password"), "default-pass")
   await user.click(screen.getByRole("button", { name: "Sign in" }))
 
-  const dialog = await screen.findByRole("dialog", { name: "Change your default password" })
+  expect(await screen.findByRole("heading", { name: "Welcome back, user@example.com" })).toBeInTheDocument()
+  const dialog = await screen.findByRole("dialog", { name: "Set a new password" })
   expect(dialog).toHaveAttribute("aria-modal", "true")
-  expect(screen.queryByText("Main Dashboard")).not.toBeInTheDocument()
+  expect(screen.queryByLabelText("Work email")).not.toBeInTheDocument()
 
   cleanup()
   render(<App />)
-  expect(await screen.findByRole("dialog", { name: "Change your default password" })).toBeInTheDocument()
-  expect(screen.queryByText("Main Dashboard")).not.toBeInTheDocument()
+  expect(await screen.findByRole("heading", { name: "Welcome back, user@example.com" })).toBeInTheDocument()
+  expect(screen.getByRole("dialog", { name: "Set a new password" })).toBeInTheDocument()
 
   await user.type(screen.getByLabelText("Current password"), "incorrect")
   await user.type(screen.getByLabelText("New password"), "a-new-password")
@@ -84,13 +99,14 @@ test("default-password login requires a successful password change before openin
   await user.type(screen.getByLabelText("Current password"), "default-pass")
   await user.click(screen.getByRole("button", { name: "Update password" }))
 
-  await waitFor(() => expect(screen.getByText("Welcome back, user@example.com")).toBeInTheDocument())
+  await waitFor(() => expect(screen.queryByRole("dialog", { name: "Set a new password" })).not.toBeInTheDocument())
   expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
     "/api/auth/session",
     "/api/auth/login",
     "/api/auth/session",
     "/api/auth/change-password",
     "/api/auth/change-password",
+    "/api/auth/activity",
   ])
 })
 
@@ -112,4 +128,28 @@ test("shows a failed login as inline error text", async () => {
   expect(error).toHaveClass("mt-2", "text-xs", "leading-4", "text-red-600")
   expect(error).not.toHaveClass("bg-red-50")
   expect(screen.getByLabelText("Password").parentElement?.parentElement).toHaveClass("mb-0")
+})
+
+test("allows user to open Forgot password and Register modals from login page", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(input)
+    if (path.endsWith("/session")) return failure(401, "Authentication required")
+    throw new Error(`Unexpected request: ${path}`)
+  }))
+  const user = userEvent.setup()
+  render(<App />)
+
+  await user.click(await screen.findByRole("button", { name: "Forgot password?" }))
+  expect(await screen.findByRole("dialog", { name: "Reset password" })).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Close recovery dialog" }))
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog", { name: "Reset password" })).not.toBeInTheDocument()
+  })
+
+  await user.click(screen.getByRole("button", { name: "Register" }))
+  expect(await screen.findByRole("dialog", { name: "Create your account" })).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Close registration dialog" }))
+  await waitFor(() => {
+    expect(screen.queryByRole("dialog", { name: "Create your account" })).not.toBeInTheDocument()
+  })
 })

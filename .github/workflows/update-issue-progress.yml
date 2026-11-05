@@ -1,0 +1,45 @@
+name: Update Issue Progress Documentation
+
+on:
+  issues:
+    types: [opened, closed, reopened, deleted, transferred]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: read
+
+concurrency:
+  group: issue-progress-documentation
+  cancel-in-progress: true
+
+jobs:
+  update-progress:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Update issue progress
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/update-issue-progress.js
+
+      - name: Commit updated documentation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/PROJECT_DOCUMENTATION.md docs/images/issue-progress.svg
+          if git diff --cached --quiet; then
+            echo "Issue progress is already current."
+            exit 0
+          fi
+          git commit -m "docs: update issue progress"
+          git push

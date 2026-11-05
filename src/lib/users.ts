@@ -2,6 +2,13 @@ import type { DepartmentPermissionPreset, PermissionGroup } from "../types/user"
 
 export const permissionGroups: PermissionGroup[] = [
   {
+    module: "Employee Activity",
+    accessRight: "activity.access",
+    employeeDefaultIds: [],
+    viewerIds: [],
+    permissions: [],
+  },
+  {
     module: "Customer Management",
     accessRight: "customers.access",
     employeeDefaultIds: ["customers.access", "customers.add", "customers.edit"],
@@ -50,7 +57,7 @@ export const permissionGroups: PermissionGroup[] = [
       { id: "hr.department.edit", label: "Edit Department" },
       { id: "hr.department.delete", label: "Delete Department" },
       { id: "hr.employee.add", label: "Add Employee" },
-      { id: "hr.employee.edit", label: "Edit Employee" },
+      { id: "hr.employee.edit", label: "Edit Employee / Approve Registrations" },
       { id: "hr.employee.delete", label: "Delete Employee" },
       { id: "hr.history.view", label: "View Job History" },
       { id: "hr.history.add", label: "Add Job History" },
@@ -119,6 +126,7 @@ export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
     description:
       "Full Customer and Sales management (including archive/restore), Product catalog view, and commercial reports.",
     rights: [
+      "activity.access",
       "customers.access",
       "customers.add",
       "customers.edit",
@@ -169,6 +177,7 @@ export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
     description:
       "Full Product and Price History management (including archive/restore), Sales lookup, and Product reports.",
     rights: [
+      "activity.access",
       "products.access",
       "products.add",
       "products.edit",
@@ -205,8 +214,9 @@ export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
     level: "Manager",
     label: "Human Resources — Manager",
     description:
-      "Full HR access across Employees, Jobs, Departments, and Job History (including archive/restore) plus all HR reports.",
+      "Full HR access across Employees, Jobs, Departments, and Job History (including archive/restore), registration approvals, and all HR reports.",
     rights: [
+      "activity.access",
       "hr.access",
       "hr.job.add",
       "hr.job.edit",
@@ -233,7 +243,7 @@ export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
     level: "Employee",
     label: "Human Resources — Employee",
     description:
-      "Add and edit employees, view and record job history entries, and view Active Employees & Job History reports.",
+      "Add and edit employees, approve registrations, view and record job history entries, and view Active Employees & Job History reports.",
     rights: [
       "hr.access",
       "hr.employee.add",
@@ -253,6 +263,7 @@ export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
     description:
       "Manage customer payment terms, product pricing, sales & payment records, and access all 7 analytical reports.",
     rights: [
+      "activity.access",
       "customers.access",
       "customers.edit",
       "products.access",

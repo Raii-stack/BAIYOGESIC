@@ -1,0 +1,77 @@
+import { apiFailure } from "./api-errors"
+
+export type DashboardStats = {
+  customers: number
+  products: number
+  openOrders: number
+  revenue: number
+}
+
+type ApiResponse<T> = {
+  success: boolean
+  data?: T
+  error?: { message?: string }
+}
+
+const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
+
+export async function getDashboardStats(options?: {
+  signal?: AbortSignal
+  refresh?: boolean
+}): Promise<DashboardStats> {
+  const query = options?.refresh ? "?refresh=true" : ""
+  let response: Response
+  try {
+    response = await fetch(`${apiBase}/api/dashboard/stats${query}`, {
+      method: "GET",
+      credentials: "include",
+      signal: options?.signal,
+    })
+  } catch (error) {
+    if (options?.signal?.aborted) throw error
+    throw apiFailure(0)
+  }
+
+  const result = (await response.json().catch(() => null)) as
+    | (ApiResponse<DashboardStats> & Partial<DashboardStats>)
+    | null
+
+  if (!response.ok) {
+    throw apiFailure(response.status, result)
+  }
+
+  const payload = result?.data || result
+
+  return {
+    customers: Number(payload?.customers) || 0,
+    products: Number(payload?.products) || 0,
+    openOrders: Number(payload?.openOrders ?? (payload as { open_orders?: number })?.open_orders) || 0,
+    revenue: Number(payload?.revenue) || 0,
+  }
+}
+
+export function formatIntegerStat(value: number): string {
+  const num = Number(value)
+  return Number.isFinite(num) ? new Intl.NumberFormat("en-US").format(num) : "0"
+}
+
+export function formatCurrencyStat(amount: number): string {
+  const num = Number(amount)
+  if (!Number.isFinite(num)) return "$0"
+  const sign = num < 0 ? "-" : ""
+  const abs = Math.abs(num)
+  if (abs >= 999_950) {
+    return `${sign}$${(abs / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`
+  }
+  if (abs >= 1_000) {
+    return `${sign}$${(abs / 1_000).toFixed(1).replace(/\.0$/, "")}k`
+  }
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  })
+    .format(num)
+    .toLowerCase()
+}

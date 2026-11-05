@@ -15,6 +15,35 @@ export function DashboardIcon({
   className?: string
 }) {
   const paths: Record<DashboardIconName, ReactNode> = {
+    mail: (
+      <>
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m3 6 9 7 9-7" />
+      </>
+    ),
+    lock: (
+      <>
+        <rect x="4" y="10" width="16" height="11" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </>
+    ),
+    briefcase: (
+      <>
+        <rect x="3" y="7" width="18" height="14" rx="2" />
+        <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12a20 20 0 0 0 18 0M12 12v2" />
+      </>
+    ),
+    eye: (
+      <>
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+        <circle cx="12" cy="12" r="3" />
+      </>
+    ),
+    eyeOff: (
+      <>
+        <path d="m3 3 18 18M10.6 5.1 12 5c6.5 0 10 7 10 7a19 19 0 0 1-3 3.8M6.2 6.2A20 20 0 0 0 2 12s3.5 7 10 7a12 12 0 0 0 5.8-1.8M10 10a3 3 0 0 0 4 4" />
+      </>
+    ),
     dashboard: (
       <>
         <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10Z" />
@@ -45,6 +74,13 @@ export function DashboardIcon({
       </>
     ),
     menu: <path d="M4 7h16M4 12h16M4 17h16" />,
+    close: <path d="m6 6 12 12M18 6 6 18" />,
+    plus: <path d="M12 5v14M5 12h14" />,
+    currency: <path d="M12 3v18M16 7.5c0-1.7-1.8-3-4-3s-4 1.3-4 3 1.8 2.5 4 3 4 1.3 4 3-1.8 3-4 3-4-1.3-4-3" />,
+    edit: <path d="m14 5 5 5M4 20l3.5-.7L20 6.8a2.1 2.1 0 0 0-3-3L4.7 16.3 4 20Z" />,
+    archive: <path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" />,
+    restore: <path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" />,
+    history: <path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2" />,
     collapse: (
       <>
         <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -112,6 +148,7 @@ export const navigationItems: NavigationItem[] = [
   { label: "Products", icon: "inventory", href: "/inventory?view=products&page=1" },
   { label: "Customers", icon: "crm", href: "/customers?view=directory&page=1" },
   { label: "Employees", icon: "hr", href: "/employees?view=employees&page=1" },
+  { label: "Departments", icon: "briefcase", href: "/departments?page=1" },
   { label: "Reports", icon: "reports", href: "/reports?view=reports" },
   { label: "Users", icon: "userManagement", href: "/users?view=accounts&page=1" },
 ]

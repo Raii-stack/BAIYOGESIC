@@ -93,6 +93,13 @@ describe('standard user with granular rights (what the database provides)', () =
     deny(user, 'Reports', 'edit');
   });
 
+  test('report routes require the matching granular report right', () => {
+    const user = { role: 'employee', rights: ['reports.top-sales'] };
+    allow(user, 'Reports', 'top-sales');
+    deny(user, 'Reports', 'top-customers');
+    deny(user, 'Reports', 'job-history');
+  });
+
   test('HR salary is never granted by granular rights', () => {
     const user = { role: 'user', rights: ['hr.access', 'hr.employee.edit', 'hr.employee.delete'] };
     deny(user, 'HR', 'salary');

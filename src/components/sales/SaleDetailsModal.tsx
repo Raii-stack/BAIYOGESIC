@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 
 import { getSaleTotal } from "../../lib/sales"
 import type { SalePayment, SaleTransaction } from "../../types/sale"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 import RecordPaymentModal from "./RecordPaymentModal"
 import { StatusBadge } from "./SalesTable"
 
@@ -9,38 +10,6 @@ const currency = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",
 })
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
-}
-
-function AddIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 20 20"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="M10 4v12M4 10h12" />
-    </svg>
-  )
-}
 
 export default function SaleDetailsModal({
   sale,
@@ -53,7 +22,7 @@ export default function SaleDetailsModal({
 }: {
   sale: SaleTransaction | null
   onClose: () => void
-  onPaymentsChange: (transactionNo: string, payments: SalePayment[]) => void
+  onPaymentsChange: (transactionNo: string, payments: SalePayment[]) => Promise<SaleTransaction>
   canAdd?: boolean
   canEdit?: boolean
   canDelete?: boolean
@@ -88,16 +57,16 @@ export default function SaleDetailsModal({
   )
   const balance = Math.max(0, getSaleTotal(sale) - paymentTotal)
 
-  const updatePayments = (
+  const updatePayments = async (
     updater: (current: SalePayment[]) => SalePayment[],
   ) => {
     const next = updater(payments)
-    setPayments(next)
-    onPaymentsChange(sale.transactionNo, next)
+    const updated = await onPaymentsChange(sale.transactionNo, next)
+    setPayments(updated.payments)
   }
 
-  const savePayment = (payment: SalePayment) => {
-    updatePayments((current) =>
+  const savePayment = async (payment: SalePayment) => {
+    await updatePayments((current) =>
       current.some((entry) => entry.id === payment.id)
         ? current.map((entry) => (entry.id === payment.id ? payment : entry))
         : [...current, payment],
@@ -105,19 +74,19 @@ export default function SaleDetailsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center px-4 py-6">
+    <div className="workspace-modal-overlay z-[60]">
       <button
         type="button"
         aria-label="Close sale details"
         onClick={onClose}
-        className="absolute inset-0 bg-slate-950/70"
+        className="absolute inset-0 bg-black/45"
       />
 
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="sale-details-modal-title"
-        className="relative flex max-h-[90vh] w-full max-w-6xl flex-col workspace-panel shadow-xl"
+        className="workspace-modal workspace-panel relative w-full max-w-6xl shadow-xl"
       >
         <header className="workspace-drawer-header">
           <div>
@@ -145,7 +114,7 @@ export default function SaleDetailsModal({
             aria-label="Close sale details"
             className="workspace-icon-action"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 
@@ -159,7 +128,7 @@ export default function SaleDetailsModal({
           </div>
 
           <div className="workspace-panel workspace-table-scroll">
-            <table className="workspace-table min-w-[760px]">
+            <table role="table" className="workspace-table min-w-[760px]">
               <thead>
                 <tr className="border-b border-slate-300 bg-slate-100">
                   {[
@@ -189,7 +158,7 @@ export default function SaleDetailsModal({
                     key={line.id}
                     className={line.status === "Inactive" ? "is-muted" : ""}
                   >
-                    <td>
+                    <td data-label="Product">
                       <p className="font-mono text-xs font-medium text-neutral-600">
                         {line.productCode}
                       </p>
@@ -197,22 +166,22 @@ export default function SaleDetailsModal({
                         {line.productName}
                       </p>
                     </td>
-                    <td className="text-sm font-semibold tabular-nums text-slate-800">
+                    <td data-label="Qty" className="text-sm font-semibold tabular-nums text-slate-800">
                       {line.quantity}
                     </td>
-                    <td className="text-right text-sm tabular-nums text-slate-700">
+                    <td data-label="Unit price" className="text-right text-sm tabular-nums text-slate-700">
                       {currency.format(line.unitPrice)}
                     </td>
-                    <td className="text-right text-sm font-bold tabular-nums text-slate-950">
+                    <td data-label="Line total" className="text-right text-sm font-bold tabular-nums text-slate-950">
                       {currency.format(line.quantity * line.unitPrice)}
                     </td>
                     {showAdminAudit && (
-                      <td>
+                      <td data-label="Status">
                         <StatusBadge status={line.status} />
                       </td>
                     )}
                     {showAdminAudit && (
-                      <td className="max-w-52  font-mono text-[10px] leading-5 text-slate-500">
+                      <td data-label="Last change" className="max-w-52  font-mono text-[10px] leading-5 text-slate-500">
                         {line.stamp}
                       </td>
                     )}
@@ -245,19 +214,20 @@ export default function SaleDetailsModal({
                   }}
                   className="workspace-primary-action"
                 >
-                  <AddIcon />
+                  <DashboardIcon name="plus" className="h-4 w-4" />
                   Record Payment
                 </button>
               )}
             </div>
 
             <div className="workspace-panel workspace-table-scroll">
-              <table className="workspace-table min-w-[680px]">
+              <table role="table" className="workspace-table min-w-[680px]">
                 <thead>
                   <tr className="border-b border-slate-300 bg-slate-100">
                     {[
                       "OR No.",
                       "Date",
+                      "Method",
                       "Amount",
                       ...(showAdminAudit ? ["Last change"] : []),
                       ...(showDetailActions ? ["Actions"] : []),
@@ -279,22 +249,25 @@ export default function SaleDetailsModal({
                     <tr
                       key={payment.id}
                     >
-                      <td className="font-mono text-xs font-medium text-neutral-600">
+                      <td data-label="OR No." className="font-mono text-xs font-medium text-neutral-600">
                         {payment.orNo}
                       </td>
-                      <td className="font-mono text-xs text-slate-600">
+                      <td data-label="Date" className="font-mono text-xs text-slate-600">
                         {payment.date}
                       </td>
-                      <td className="text-right text-sm font-bold tabular-nums text-slate-950">
+                      <td data-label="Method" className="text-xs font-medium text-slate-700">
+                        {payment.paymentMethod ?? "Cash"}
+                      </td>
+                      <td data-label="Amount" className="text-right text-sm font-bold tabular-nums text-slate-950">
                         {currency.format(payment.amount)}
                       </td>
                       {showAdminAudit && (
-                        <td className="max-w-52  font-mono text-[10px] leading-5 text-slate-500">
+                        <td data-label="Last change" className="max-w-52  font-mono text-[10px] leading-5 text-slate-500">
                           {payment.stamp}
                         </td>
                       )}
                       {showDetailActions && (
-                        <td>
+                        <td data-label="Actions">
                           <div className="flex gap-3">
                             {canEdit && (
                               <button
@@ -311,13 +284,13 @@ export default function SaleDetailsModal({
                             {canDelete && (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  updatePayments((current) =>
+                                onClick={() => {
+                                  void updatePayments((current) =>
                                     current.filter(
                                       (entry) => entry.id !== payment.id,
                                     ),
-                                  )
-                                }
+                                  ).catch(() => {})
+                                }}
                                 className="workspace-text-action text-red-700"
                               >
                                 Delete
@@ -339,7 +312,7 @@ export default function SaleDetailsModal({
           </section>
         </div>
 
-        <footer className="grid shrink-0 grid-cols-3 gap-3 border-t border-neutral-200 bg-white px-6 py-4 text-right">
+        <footer className="workspace-summary workspace-summary--footer grid shrink-0 grid-cols-3 gap-3 border-t border-neutral-200 bg-white px-6 py-4 text-right">
           <div>
             <p className="text-xs font-medium text-neutral-500">
               Total

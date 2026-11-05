@@ -2,9 +2,14 @@ name: Project Board Automation
 
 on:
   issues:
-    types: [closed, reopened]
+    types: [opened, reopened, closed, labeled, edited]
   pull_request:
-    types: [opened, reopened, ready_for_review, closed]
+    types: [opened, reopened, ready_for_review, closed, edited]
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/project-automation.js'
+      - '.github/workflows/project-automation.yml'
 
 jobs:
   automate-project:

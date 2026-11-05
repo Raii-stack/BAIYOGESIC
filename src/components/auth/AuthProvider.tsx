@@ -40,6 +40,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("hope:session-expired", expire)
   }, [])
 
+  useEffect(() => {
+    if (!user || user.mustChangePassword) return
+    let lastActivity = Date.now()
+    let lastSent = 0
+    let pending = false
+    let disposed = false
+    const heartbeat = () => {
+      if (document.visibilityState === "hidden" || Date.now() - lastActivity > 120000 || Date.now() - lastSent < 30000 || pending) return
+      pending = true
+      lastSent = Date.now()
+      authApi.heartbeat(Date.now() - lastActivity).catch((error) => {
+        if (!disposed && error instanceof AuthApiError && error.status === 401) setUser(null)
+      }).finally(() => { pending = false })
+    }
+    const active = () => { lastActivity = Date.now() }
+    const focus = () => { active(); heartbeat() }
+    heartbeat()
+    const timer = window.setInterval(heartbeat, 60000)
+    window.addEventListener("pointermove", active, { passive: true })
+    window.addEventListener("pointerdown", active, { passive: true })
+    window.addEventListener("keydown", active)
+    window.addEventListener("scroll", active, { passive: true })
+    window.addEventListener("focus", focus)
+    document.addEventListener("visibilitychange", focus)
+    return () => {
+      disposed = true
+      window.clearInterval(timer)
+      window.removeEventListener("pointermove", active)
+      window.removeEventListener("pointerdown", active)
+      window.removeEventListener("keydown", active)
+      window.removeEventListener("scroll", active)
+      window.removeEventListener("focus", focus)
+      document.removeEventListener("visibilitychange", focus)
+    }
+  }, [user?.userId, user?.mustChangePassword])
+
   const login = async (email: string, password: string) => {
     const { user: signedInUser } = await authApi.login(email.trim().toLowerCase(), password)
     setUser(signedInUser)

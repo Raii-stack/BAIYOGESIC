@@ -2,15 +2,22 @@ const { requirePool } = require('../db');
 const { nextCustomerId } = require('../lib/customer-id');
 const { asyncHandler } = require('../middleware/error-handler');
 
-const PAYMENT_TERMS = new Set(['COD', '30D', '45D']);
+const PAYMENT_TERMS = new Set(['COD', '30D', '45D', '60D']);
 const DEFAULT_PAGE = 1;
 const DEFAULT_LIMIT = 25;
 const MAX_LIMIT = 100;
+const CUSTOMER_SORT_COLUMNS = { customerId: 'custno', customer: 'custname' };
+const SORT_ORDERS = new Set(['asc', 'desc']);
 
-function requestError(message, statusCode) {
+function requestError(message, statusCode, details) {
   const error = new Error(message);
   error.statusCode = statusCode;
+  if (details) error.details = details;
   return error;
+}
+
+function sanitizeText(value) {
+  return value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
 function parsePositiveInteger(value, fallback, maximum) {
@@ -25,22 +32,27 @@ function parsePositiveInteger(value, fallback, maximum) {
 function validateCustomerPayload(body) {
   const source = body || {};
   const custname = typeof source.custname === 'string'
-    ? source.custname.trim()
+    ? sanitizeText(source.custname)
     : typeof source.customerName === 'string'
-      ? source.customerName.trim()
+      ? sanitizeText(source.customerName)
       : '';
-  const address = typeof source.address === 'string' ? source.address.trim() : '';
+  const address = typeof source.address === 'string' ? sanitizeText(source.address) : '';
   const payterm = typeof source.payterm === 'string'
     ? source.payterm.trim().toUpperCase()
     : typeof source.paymentTerm === 'string'
       ? source.paymentTerm.trim().toUpperCase()
       : '';
 
-  if (!custname || !address || !PAYMENT_TERMS.has(payterm)) {
-    throw requestError('custname, address, and payterm are required; payterm must be COD, 30D, or 45D', 400);
+  const details = {};
+  if (!custname) details.custname = 'Customer Name is required';
+  else if (custname.length > 20) details.custname = 'Customer Name must be 20 characters or fewer';
+  if (!address) details.address = 'Address is required';
+  else if (address.length > 50) details.address = 'Address must be 50 characters or fewer';
+  if (!PAYMENT_TERMS.has(payterm)) {
+    details.payterm = 'Payment term must be one of: 30D, 45D, 60D, COD';
   }
-  if (custname.length > 20 || address.length > 50) {
-    throw requestError('Customer name must be at most 20 characters and address at most 50 characters', 400);
+  if (Object.keys(details).length) {
+    throw requestError('Validation failed', 400, details);
   }
 
   return { custname, address, payterm };
@@ -69,8 +81,18 @@ const listCustomers = asyncHandler(async (req, res) => {
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
   const payterm = typeof req.query.payterm === 'string' ? req.query.payterm.trim().toUpperCase() : '';
   const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
+  const sortBy = req.query.sortBy === undefined ? 'customer' : req.query.sortBy;
+  const sortOrder = req.query.sortOrder === undefined
+    ? 'asc'
+    : typeof req.query.sortOrder === 'string' ? req.query.sortOrder.toLowerCase() : '';
+  if (typeof sortBy !== 'string' || !Object.hasOwn(CUSTOMER_SORT_COLUMNS, sortBy)) {
+    throw requestError('sortBy must be customerId or customer', 400);
+  }
+  if (!SORT_ORDERS.has(sortOrder)) {
+    throw requestError('sortOrder must be asc or desc', 400);
+  }
   if (payterm && !PAYMENT_TERMS.has(payterm)) {
-    throw requestError('payterm must be COD, 30D, or 45D', 400);
+    throw requestError('payterm must be COD, 30D, 45D, or 60D', 400);
   }
   if (!['all', 'active', 'archived'].includes(status)) {
     throw requestError('status must be all, active, or archived', 400);
@@ -97,27 +119,34 @@ const listCustomers = asyncHandler(async (req, res) => {
   const limitParameter = values.length - 1;
   const offsetParameter = values.length;
   const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
-  const result = await requirePool().query(
-    `SELECT custno, custname, address, payterm, is_deleted, stamp
+  const secondarySort = sortBy === 'customer' ? ', custno ASC' : '';
+  const pool = requirePool();
+  const result = await pool.query(
+    `SELECT custno, custname, address, payterm, is_deleted, stamp,
+            count(*) OVER()::integer AS _total
      FROM public.customer
      ${whereClause}
-     ORDER BY custname ASC, custno ASC
+     ORDER BY ${CUSTOMER_SORT_COLUMNS[sortBy]} ${sortOrder.toUpperCase()}${secondarySort}
      LIMIT $${limitParameter} OFFSET $${offsetParameter}`,
     values
   );
 
-  const countResult = await requirePool().query(
-    `SELECT count(*)::integer AS total
-     FROM public.customer
-     ${whereClause}`,
-    filterValues
-  );
-  const total = countResult.rows[0].total;
+  let total = result.rows[0] ? result.rows[0]._total : 0;
+  if (result.rows.length === 0 && offset > 0) {
+    const countResult = await pool.query(
+      `SELECT count(*)::integer AS total
+       FROM public.customer
+       ${whereClause}`,
+      filterValues
+    );
+    total = countResult.rows[0].total;
+  }
+  const customers = result.rows.map(({ _total, ...row }) => row);
 
   res.json({
     success: true,
     data: {
-      customers: result.rows,
+      customers,
       pagination: {
         page,
         limit,
@@ -133,13 +162,28 @@ const createCustomer = asyncHandler(async (req, res) => {
   const { custname, address, payterm } = validateCustomerPayload(body);
   const requestedCustno = typeof body.custno === 'string' ? body.custno.trim() : '';
   if (requestedCustno.length > 5) {
-    throw requestError('Customer ID must be at most 5 characters', 400);
+    throw requestError('Validation failed', 400, {
+      custno: 'Customer ID must be 5 characters or fewer'
+    });
   }
 
   let customer;
   try {
-    customer = await withAuditContext(req.user.email, async (client) => {
+    customer = await withAuditContext(req.user?.email || 'system', async (client) => {
       const custno = requestedCustno || await nextCustomerId(client);
+      const duplicate = await client.query(
+        `SELECT 1
+         FROM public.customer
+         WHERE is_deleted = false
+           AND lower(trim(custname)) = lower(trim($1))
+         LIMIT 1`,
+        [custname]
+      );
+      if (duplicate.rows.length) {
+        throw requestError('A customer with that name already exists', 409, {
+          custname: 'An active customer with this name already exists'
+        });
+      }
       const result = await client.query(
         `INSERT INTO public.customer (custno, custname, address, payterm, is_deleted)
          VALUES ($1, $2, $3, $4, false)
@@ -163,10 +207,24 @@ const updateCustomer = asyncHandler(async (req, res) => {
   const custno = typeof req.params.custno === 'string' ? req.params.custno.trim() : '';
 
   if (!custno) {
-    throw requestError('custno is required', 400);
+    throw requestError('Validation failed', 400, { custno: 'Customer ID is required' });
   }
 
-  const customer = await withAuditContext(req.user.email, async (client) => {
+  const customer = await withAuditContext(req.user?.email || 'system', async (client) => {
+    const duplicate = await client.query(
+      `SELECT 1
+       FROM public.customer
+       WHERE is_deleted = false
+         AND custno <> $1
+         AND lower(trim(custname)) = lower(trim($2))
+       LIMIT 1`,
+      [custno, custname]
+    );
+    if (duplicate.rows.length) {
+      throw requestError('A customer with that name already exists', 409, {
+        custname: 'An active customer with this name already exists'
+      });
+    }
     const result = await client.query(
       `UPDATE public.customer
        SET custname = $1, address = $2, payterm = $3
@@ -191,9 +249,22 @@ const deleteCustomer = asyncHandler(async (req, res) => {
   if (!custno) {
     throw requestError('custno is required', 400);
   }
-
   try {
-    const customer = await withAuditContext(req.user.email, async (client) => {
+    const customer = await withAuditContext(req.user?.email || 'system', async (client) => {
+      const existing = await client.query(
+        'SELECT custno FROM public.customer WHERE custno = $1 AND is_deleted = false FOR UPDATE',
+        [custno]
+      );
+      if (!existing.rows.length) return null;
+
+      const activeSale = await client.query(
+        'SELECT 1 FROM public.sales WHERE custno = $1 AND is_deleted = false LIMIT 1',
+        [custno]
+      );
+      if (activeSale.rows.length) {
+        throw requestError('Cannot archive customer while active sales records exist.', 409);
+      }
+
       const result = await client.query(
         `UPDATE public.customer
          SET is_deleted = true
@@ -224,8 +295,7 @@ const restoreCustomer = asyncHandler(async (req, res) => {
   if (!custno) {
     throw requestError('custno is required', 400);
   }
-
-  const customer = await withAuditContext(req.user.email, async (client) => {
+  const customer = await withAuditContext(req.user?.email || 'system', async (client) => {
     const result = await client.query(
       `UPDATE public.customer
        SET is_deleted = false

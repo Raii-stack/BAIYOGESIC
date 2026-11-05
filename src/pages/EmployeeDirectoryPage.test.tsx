@@ -45,7 +45,7 @@ test("loads employees with skeletons, filters, and working server pagination", a
 test("debounces searches and keeps salary and editing hidden from ordinary users", async () => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), "http://localhost")
-    if (url.pathname === "/api/auth/session") return response({ user: auth("user") })
+    if (url.pathname === "/api/auth/session") return response({ user: { ...auth("user"), rights: ["hr.access"] } })
     if (url.pathname === "/api/employees/options") return response({ departments: [], jobs: [] })
     if (url.pathname === "/api/employees") return response({ employees: [row(1, null)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
     throw new Error(`Unexpected request ${url.pathname}`)
@@ -56,6 +56,7 @@ test("debounces searches and keeps salary and editing hidden from ordinary users
   expect(within(screen.getByRole("row", { name: /Person1 Example/ })).getByLabelText("Salary hidden due to permissions")).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: /Add employee/ })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: /Edit Person1/ })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: /job history for Person1/ })).not.toBeInTheDocument()
   const input = screen.getByRole("searchbox", { name: "Search employees" })
   fireEvent.change(input, { target: { value: "Per" } })
   fireEvent.change(input, { target: { value: "Person" } })
@@ -70,7 +71,7 @@ test("saves employee edits through the API and refreshes the directory", async (
     const url = new URL(String(input), "http://localhost")
     if (url.pathname === "/api/auth/session") return response({ user: auth("administrator") })
     if (url.pathname === "/api/employees/options") return response({ departments: [{ code: "IT", name: "Information Tech" }], jobs: [{ code: "DEV", name: "Developer" }] })
-    if (url.pathname === "/api/employees" && init?.method === "GET") return response({ employees: [{ ...row(1), firstname: updated ? "Updated" : "Person1" }], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees" && init?.method === "GET") return response({ employees: [{ ...row(1), firstname: updated ? "Updated" : "Person1", stamp: updated ? "EDIT admin 2026-11-02" : "ADD admin" }], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
     if (url.pathname === "/api/employees/00001" && init?.method === "PUT") {
       expect(init.credentials).toBe("include")
       expect(JSON.parse(String(init.body)).firstname).toBe("Updated")
@@ -90,6 +91,8 @@ test("saves employee edits through the API and refreshes the directory", async (
   await user.type(first, "Updated")
   await user.click(within(dialog).getByRole("button", { name: "Save changes" }))
   expect(await screen.findByText("Updated Example")).toBeInTheDocument()
+  expect(screen.getByText("EDIT admin 2026-11-02")).toBeInTheDocument()
+  expect(fetchMock.mock.calls.filter(([input, init]) => new URL(String(input), "http://localhost").pathname === "/api/employees" && init?.method === "GET")).toHaveLength(2)
   expect(screen.getByRole("status")).toHaveTextContent("Employee updated successfully")
 })
 
@@ -151,6 +154,36 @@ test("shows a clear archive error when an employee has active sales", async () =
   expect(screen.getByRole("alertdialog")).toBeInTheDocument()
 })
 
+test("archives an employee with separation date and updates directory status", async () => {
+  let archived = false
+  let capturedBody: any = null
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return response({ user: auth("administrator") })
+    if (url.pathname === "/api/employees/options") return response({ departments: [{ code: "IT", name: "Information Tech" }], jobs: [{ code: "DEV", name: "Developer" }] })
+    if (url.pathname === "/api/employees" && init?.method === "GET") return response({ employees: [{ ...row(1), is_deleted: archived, sepdate: archived ? "2026-10-31" : null }], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees/00001" && init?.method === "DELETE") {
+      expect(init.credentials).toBe("include")
+      capturedBody = init.body ? JSON.parse(String(init.body)) : null
+      archived = true
+      return response({ empno: "00001", sepdate: "2026-10-31" })
+    }
+    throw new Error(`Unexpected request ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+  render(<MemoryRouter><AuthProvider><EmployeeDirectoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Person1 Example")
+  await user.click(screen.getByRole("button", { name: "Archive Person1 Example" }))
+  const dateInput = screen.getByLabelText("Separation date")
+  await user.clear(dateInput)
+  await user.type(dateInput, "2026-10-31")
+  await user.click(screen.getByRole("button", { name: "Archive employee" }))
+  await waitFor(() => expect(within(screen.getByRole("row", { name: /Person1 Example/ })).getByText("Archived")).toBeInTheDocument())
+  expect(capturedBody).toEqual({ separation_date: "2026-10-31" })
+  expect(screen.getByRole("status")).toHaveTextContent("Employee archived successfully")
+})
+
 test("switches between Employees, Jobs, and Departments tabs and manages lookup records", async () => {
   let jobs = [{ jobcode: "DEV", jobdesc: "Developer", is_deleted: false, stamp: "ADD admin" }]
   let departments = [{ deptcode: "IT", deptname: "Information Tech", is_deleted: false, stamp: "ADD admin" }]
@@ -186,4 +219,78 @@ test("switches between Employees, Jobs, and Departments tabs and manages lookup 
 
   await user.click(screen.getByRole("tab", { name: "Departments" }))
   expect(await screen.findByText("Information Tech")).toBeInTheDocument()
+})
+
+test("supports keyboard tab navigation and contains focus in the job drawer", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return response({ user: auth("administrator") })
+    if (url.pathname === "/api/employees/options") return response({ departments: [], jobs: [] })
+    if (url.pathname === "/api/employees" && init?.method === "GET") return response({ employees: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } })
+    if (url.pathname === "/api/employees/jobs" && init?.method === "GET") return response({ jobs: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } })
+    if (url.pathname === "/api/employees/departments" && init?.method === "GET") return response({ departments: [], pagination: { page: 1, limit: 10, total: 0, totalPages: 0 } })
+    throw new Error(`Unexpected request ${url.pathname}`)
+  }))
+  const user = userEvent.setup()
+  render(<MemoryRouter><AuthProvider><EmployeeDirectoryPage /></AuthProvider></MemoryRouter>)
+  const employeesTab = await screen.findByRole("tab", { name: "Employees" })
+  employeesTab.focus()
+
+  fireEvent.keyDown(employeesTab, { key: "ArrowRight" })
+  const jobsTab = await screen.findByRole("tab", { name: "Jobs" })
+  expect(jobsTab).toHaveFocus()
+  expect(jobsTab).toHaveAttribute("aria-selected", "true")
+  expect(screen.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", jobsTab.id)
+
+  const addJob = await screen.findByRole("button", { name: "Add job" })
+  await user.click(addJob)
+  const dialog = screen.getByRole("dialog", { name: "Add job" })
+  const codeInput = within(dialog).getByRole("textbox", { name: "Job code" })
+  await waitFor(() => expect(codeInput).toHaveFocus())
+
+  const submit = within(dialog).getByRole("button", { name: "Create job" })
+  submit.focus()
+  await user.tab()
+  expect(within(dialog).getByRole("button", { name: "Close job form" })).toHaveFocus()
+
+  fireEvent.keyDown(window, { key: "Escape" })
+  expect(screen.queryByRole("dialog", { name: "Add job" })).not.toBeInTheDocument()
+  expect(addJob).toHaveFocus()
+})
+
+
+test("shows a clear archive error when a department or job has active job-history records", async () => {
+  const jobs = [{ jobcode: "DEV", jobdesc: "Developer", is_deleted: false, stamp: "ADD admin" }]
+  const departments = [{ deptcode: "IT", deptname: "Information Tech", is_deleted: false, stamp: "ADD admin" }]
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return response({ user: auth("administrator") })
+    if (url.pathname === "/api/employees/options") return response({ departments: [{ code: "IT", name: "Information Tech" }], jobs: [{ code: "DEV", name: "Developer" }] })
+    if (url.pathname === "/api/employees" && init?.method === "GET") return response({ employees: [row(1)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees/jobs" && init?.method === "GET") return response({ jobs, pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees/jobs/DEV" && init?.method === "DELETE") {
+      return new Response(JSON.stringify({ success: false, error: { message: "Cannot archive job while active job-history records exist." } }), { status: 409, headers: { "Content-Type": "application/json" } })
+    }
+    if (url.pathname === "/api/employees/departments" && init?.method === "GET") return response({ departments, pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees/departments/IT" && init?.method === "DELETE") {
+      return new Response(JSON.stringify({ success: false, error: { message: "Cannot archive department while active job-history records exist." } }), { status: 409, headers: { "Content-Type": "application/json" } })
+    }
+    throw new Error(`Unexpected request ${url.pathname}`)
+  }))
+  const user = userEvent.setup()
+  render(<MemoryRouter><AuthProvider><EmployeeDirectoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Person1 Example")
+
+  await user.click(screen.getByRole("tab", { name: "Jobs" }))
+  await screen.findByText("Developer")
+  await user.click(screen.getByRole("button", { name: "Archive Developer" }))
+  await user.click(screen.getByRole("button", { name: "Archive job" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("Cannot archive job while active job-history records exist.")
+  await user.click(screen.getByRole("button", { name: "Cancel" }))
+
+  await user.click(screen.getByRole("tab", { name: "Departments" }))
+  await screen.findByText("Information Tech")
+  await user.click(screen.getByRole("button", { name: "Archive Information Tech" }))
+  await user.click(screen.getByRole("button", { name: "Archive department" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("Cannot archive department while active job-history records exist.")
 })

@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { MemoryRouter } from "react-router"
+import { MemoryRouter, useLocation } from "react-router"
 import { afterEach, expect, test, vi } from "vitest"
 
 import { AuthProvider } from "../components/auth/AuthProvider"
@@ -36,6 +36,8 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+function Location() { return <output aria-label="URL">{useLocation().search}</output> }
+
 test("loads customer pages, shows skeletons, and applies server-side payment term filters", async () => {
   let releaseFirstPage: (() => void) | undefined
   const firstPageGate = new Promise<void>((resolve) => { releaseFirstPage = resolve })
@@ -69,7 +71,7 @@ test("loads customer pages, shows skeletons, and applies server-side payment ter
   expect(screen.getByText("Showing 1–10 of 23")).toBeInTheDocument()
   expect(within(screen.getByRole("row", { name: /Customer 1 / })).getByText("Net 30")).toBeInTheDocument()
   expect(within(screen.getByRole("row", { name: /Customer 2 / })).getByText("Net 45")).toBeInTheDocument()
-  expect(within(screen.getByRole("row", { name: /Customer 3 / })).getByText("Cash on delivery")).toBeInTheDocument()
+  expect(within(screen.getByRole("row", { name: /Customer 3 / })).getByText("COD")).toBeInTheDocument()
   expect(within(screen.getByRole("row", { name: /Customer 3 / })).getByText("Archived")).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Edit Customer 3" })).not.toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Next" }))
@@ -94,6 +96,44 @@ test("loads customer pages, shows skeletons, and applies server-side payment ter
   expect(fetchMock.mock.calls.some(([input]) => String(input).includes("status=archived"))).toBe(true)
 })
 
+test("syncs customer sorting and page size with the URL and API", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: admin })
+    if (url.pathname === "/api/customers") {
+      const page = Number(url.searchParams.get("page"))
+      const limit = Number(url.searchParams.get("limit"))
+      return success({
+        customers: [customer((page - 1) * limit + 1)],
+        pagination: { page, limit, total: 80, totalPages: Math.ceil(80 / limit) },
+      })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter initialEntries={["/customers?page=3&limit=25&sortBy=customerId&sortOrder=desc"]}><AuthProvider><CustomerManagementPage /><Location /></AuthProvider></MemoryRouter>)
+  expect(await screen.findByText("Customer 51")).toBeInTheDocument()
+  expect(screen.getByRole("columnheader", { name: /Customer ID/ })).toHaveAttribute("aria-sort", "descending")
+  expect(screen.getByRole("combobox", { name: "Customer rows per page" })).toHaveValue("25")
+
+  await user.click(screen.getByRole("button", { name: /Sort by Customer ID/ }))
+  await waitFor(() => expect(screen.getByLabelText("URL")).toHaveTextContent("page=1&limit=25&sortBy=customerId&sortOrder=asc"))
+  expect(screen.getByRole("columnheader", { name: /Customer ID/ })).toHaveAttribute("aria-sort", "ascending")
+
+  const pageSize = screen.getByRole("combobox", { name: "Customer rows per page" })
+  await waitFor(() => expect(pageSize).toBeEnabled())
+  await user.selectOptions(pageSize, "50")
+  await waitFor(() => expect(screen.getByLabelText("URL")).toHaveTextContent("page=1&limit=50&sortBy=customerId&sortOrder=asc"))
+  await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => {
+    const url = new URL(String(input), "http://localhost")
+    return url.pathname === "/api/customers" && url.searchParams.get("page") === "1"
+      && url.searchParams.get("limit") === "50" && url.searchParams.get("sortBy") === "customerId"
+      && url.searchParams.get("sortOrder") === "asc"
+  })).toBe(true))
+})
+
 test("waits for a pause in typing before searching customers", async () => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), "http://localhost")
@@ -113,7 +153,35 @@ test("waits for a pause in typing before searching customers", async () => {
   expect(String(fetchMock.mock.calls.at(-1)?.[0])).toContain("search=Customer")
 })
 
-test("sends customer edits to the API and reloads the directory after saving", async () => {
+test("explains filtered empty results and clears every customer filter", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: admin })
+    if (url.pathname === "/api/customers") {
+      const filtered = Boolean(url.searchParams.get("search") || url.searchParams.get("payterm"))
+      return success({
+        customers: filtered ? [] : [customer(1)],
+        pagination: { page: 1, limit: 10, total: filtered ? 0 : 1, totalPages: filtered ? 0 : 1 },
+      })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><CustomerManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Customer 1")
+  await user.selectOptions(screen.getByLabelText("Payment terms"), "60D")
+
+  expect(await screen.findByText("No customers match your filters")).toBeInTheDocument()
+  expect(screen.getByText("Clear the search and filters to see the full customer list.")).toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Clear filters" }))
+
+  expect(await screen.findByText("Customer 1")).toBeInTheDocument()
+  expect(screen.getByLabelText("Payment terms")).toHaveValue("")
+})
+
+test("sends customer edits to the API and updates the directory in-place without re-querying", async () => {
   let saved = false
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), "http://localhost")
@@ -143,8 +211,13 @@ test("sends customer edits to the API and reloads the directory after saving", a
 
   expect(await screen.findByText("Updated account")).toBeInTheDocument()
   expect(screen.getByRole("status")).toHaveTextContent("Customer updated successfully")
+  const getCustomerCalls = fetchMock.mock.calls.filter(([input, init]) => {
+    const url = new URL(String(input), "http://localhost")
+    return url.pathname === "/api/customers" && (!init?.method || init?.method === "GET")
+  })
+  expect(getCustomerCalls).toHaveLength(1)
   await user.click(screen.getByRole("button", { name: "Dismiss notification" }))
-  expect(screen.queryByRole("status")).not.toBeInTheDocument()
+  await waitFor(() => expect(screen.queryByRole("status")).not.toBeInTheDocument())
 })
 
 test("creates and archives customers through the API", async () => {
@@ -208,9 +281,19 @@ test("explains why a customer with active sales cannot be archived", async () =>
   const user = userEvent.setup()
   render(<MemoryRouter><AuthProvider><CustomerManagementPage /></AuthProvider></MemoryRouter>)
   await screen.findByText("Customer 1")
-  await user.click(screen.getByRole("button", { name: "Archive Customer 1" }))
+  const archiveTrigger = screen.getByRole("button", { name: "Archive Customer 1" })
+  await user.click(archiveTrigger)
+  const cancel = screen.getByRole("button", { name: "Cancel" })
+  const confirm = screen.getByRole("button", { name: "Yes, Archive Record" })
+  expect(cancel).toHaveFocus()
+  await user.tab({ shift: true })
+  expect(confirm).toHaveFocus()
+  await user.tab()
+  expect(cancel).toHaveFocus()
   await user.click(screen.getByRole("button", { name: "Yes, Archive Record" }))
   expect(await screen.findByRole("alert")).toHaveTextContent("active sales records")
-  expect(screen.getByRole("alertdialog")).toBeInTheDocument()
-  expect(screen.getByRole("button", { name: "Archive Customer 1" })).toBeInTheDocument()
+  expect(screen.getByRole("alertdialog")).toHaveAttribute("aria-describedby", "archive-dialog-description archive-customer-error")
+  await user.keyboard("{Escape}")
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
+  expect(archiveTrigger).toHaveFocus()
 })

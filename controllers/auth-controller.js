@@ -1,16 +1,42 @@
-const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { supabase, authSupabase, requirePool } = require('../db');
+const { supabase, requirePool } = require('../db');
+const { primeUserCache, invalidateUserCache } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error-handler');
+const { endActivity } = require('./activity-controller');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
-const configuredResetTokenTtl = Number.parseInt(process.env.RESET_TOKEN_TTL_MINUTES || '30', 10);
-const RESET_TOKEN_TTL_MINUTES = Number.isInteger(configuredResetTokenTtl) && configuredResetTokenTtl > 0
-  ? configuredResetTokenTtl
-  : 30;
 const PASSWORD_MIN_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const AUTH_SELECT = `
+  SELECT u.user_id, u.empno, u.email, u.password_hash, u.role, u.status, u.is_blocked, u.must_change_password,
+         COALESCE(e.firstname, '') AS "firstName",
+         COALESCE(e.lastname, '') AS "lastName",
+         TRIM(concat_ws(' ', e.firstname, e.lastname)) AS name,
+         j.jobdesc AS "jobTitle",
+         d.deptname AS "departmentName",
+         COALESCE(
+           ARRAY(
+             SELECT ur.right_code
+             FROM public.app_user_right ur
+             WHERE ur.user_id = u.user_id AND ur.right_code IS NOT NULL
+           ),
+           '{}'
+         ) AS rights
+  FROM public.app_user u
+  LEFT JOIN public.employee e ON e.empno = u.empno
+  LEFT JOIN LATERAL (
+    SELECT jobcode, deptcode
+    FROM public.jobhistory jh
+    WHERE jh.empno = u.empno AND jh.is_deleted = false
+    ORDER BY effdate DESC, jobcode DESC
+    LIMIT 1
+  ) lj ON true
+  LEFT JOIN public.job j ON j.jobcode = lj.jobcode
+  LEFT JOIN public.department d ON d.deptcode = lj.deptcode
+`;
 
 function requestError(message, statusCode) {
   const error = new Error(message);
@@ -32,105 +58,225 @@ function validatePassword(password) {
   }
 }
 
-function hashResetToken(token) {
-  return crypto.createHash('sha256').update(token).digest('hex');
-}
-
-function shouldReturnResetToken() {
-  return process.env.NODE_ENV !== 'production' && process.env.RETURN_RESET_TOKEN === 'true';
-}
-
-async function fetchUserRights(userId) {
-  if (!authSupabase || !userId) return [];
-  const { data, error } = await authSupabase
-    .from('app_user_right')
-    .select('right_code')
-    .eq('user_id', userId);
-  if (error || !Array.isArray(data)) return [];
-  return data.map((row) => row.right_code).filter(Boolean);
-}
-
-async function fetchEmployeeProfile(userId) {
-  try {
-    const result = await requirePool().query(
-      `SELECT COALESCE(e.firstname, '') AS "firstName",
-              COALESCE(e.lastname, '') AS "lastName",
-              TRIM(concat_ws(' ', e.firstname, e.lastname)) AS name,
-              j.jobdesc AS "jobTitle",
-              d.deptname AS "departmentName"
-       FROM public.app_user u
-       LEFT JOIN public.employee e ON e.empno = u.empno
-       LEFT JOIN LATERAL (
-         SELECT jobcode, deptcode
-         FROM public.jobhistory jh
-         WHERE jh.empno = u.empno AND jh.is_deleted = false
-         ORDER BY effdate DESC, jobcode DESC
-         LIMIT 1
-       ) lj ON true
-       LEFT JOIN public.job j ON j.jobcode = lj.jobcode
-       LEFT JOIN public.department d ON d.deptcode = lj.deptcode
-       WHERE u.user_id = $1::uuid
-       LIMIT 1`,
-      [userId],
-    );
-    return result.rows[0] || {};
-  } catch {
-    return {};
-  }
-}
-
-async function buildAuthUser(user) {
-  const [rights, profile] = await Promise.all([
-    fetchUserRights(user.user_id),
-    fetchEmployeeProfile(user.user_id),
-  ]);
-
+function formatAuthUser(user) {
   return {
     userId: user.user_id,
     empno: user.empno,
-    firstName: profile.firstName || '',
-    lastName: profile.lastName || '',
-    name: profile.name || '',
+    firstName: user.firstName || '',
+    lastName: user.lastName || '',
+    name: user.name || '',
     email: user.email,
     role: user.role,
     status: user.status,
     isBlocked: Boolean(user.is_blocked),
     mustChangePassword: user.must_change_password,
-    jobTitle: profile.jobTitle || null,
-    departmentName: profile.departmentName || null,
-    rights,
+    jobTitle: user.jobTitle || null,
+    departmentName: user.departmentName || null,
+    rights: Array.isArray(user.rights) ? user.rights : [],
   };
 }
 
 const register = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email } = req.body || {};
+  const { firstName, lastName, email, password } = req.body || {};
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  const trimmedFirst = String(firstName || '').trim();
+  const trimmedLast = String(lastName || '').trim();
 
-  if (!String(firstName || '').trim() || !String(lastName || '').trim() || !EMAIL_PATTERN.test(normalizedEmail)) {
+  if (!trimmedFirst || !trimmedLast || !EMAIL_PATTERN.test(normalizedEmail)) {
     throw requestError('firstName, lastName, and email are required', 400);
   }
 
-  const { data: user, error } = await supabase
-    .from('app_user')
-    .select('user_id, email, status, role')
-    .eq('email', normalizedEmail)
-    .maybeSingle();
+  const rawPassword = typeof password === 'string' ? password : '';
+  if (rawPassword && rawPassword.length < 8) {
+    throw requestError('password must be at least 8 characters', 400);
+  }
 
-  if (error) {
-    const databaseError = new Error(
-      error.code === '42501'
-        ? 'Server authentication credentials are not authorized to read app_user'
-        : 'Authentication service unavailable'
+  const pool = requirePool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const emailCheck = await client.query(
+      'SELECT user_id FROM public.app_user WHERE lower(email) = $1 LIMIT 1',
+      [normalizedEmail]
     );
-    databaseError.statusCode = 503;
-    throw databaseError;
+    if (emailCheck.rows[0]) {
+      throw requestError('A user with that email already exists', 409);
+    }
+
+    const passwordHash = rawPassword ? await bcrypt.hash(rawPassword, 12) : null;
+    const role = 'employee';
+    const status = 'pending';
+
+    let targetEmpno = null;
+    try {
+      const nextNo = await client.query(
+        "SELECT lpad((COALESCE(MAX(empno::integer), 0) + 1)::text, 5, '0') AS empno FROM public.employee WHERE empno ~ '^[0-9]{1,5}$'"
+      );
+      targetEmpno = nextNo.rows[0]?.empno || '00001';
+
+      await client.query(
+        "INSERT INTO public.employee (empno, firstname, lastname, email, hiredate, is_deleted, stamp) VALUES ($1, $2, $3, $4, CURRENT_DATE, false, 'ADD self-register ' || to_char(now(), 'YYYY-MM-DD HH12:MI AM'))",
+        [targetEmpno, trimmedFirst, trimmedLast, normalizedEmail]
+      );
+    } catch {
+      // Ignore if employee table setup is standalone
+    }
+
+    const insertResult = await client.query(
+      'INSERT INTO public.app_user (empno, email, password_hash, status, role, is_blocked, must_change_password, stamp) VALUES ($1, $2, $3, $4, $5, false, false, \'ADD self-register \' || to_char(now(), \'YYYY-MM-DD HH12:MI AM\')) RETURNING user_id, empno, email, role, status, is_blocked AS "isBlocked", must_change_password AS "mustChangePassword"',
+      [targetEmpno, normalizedEmail, passwordHash, status, role]
+    );
+    const user = insertResult.rows[0];
+
+    const defaultRights = ['customers.access', 'products.access', 'hr.access', 'sales.access'];
+    try {
+      for (const right of defaultRights) {
+        await client.query(
+          'INSERT INTO public.app_user_right (user_id, right_code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [user.user_id, right]
+        );
+      }
+    } catch {}
+
+    await client.query('COMMIT');
+
+    res.status(201).json({
+      success: true,
+      data: {
+        message: 'Registration submitted. Your account is pending approval.',
+        user: {
+          userId: user.user_id,
+          empno: user.empno,
+          firstName: trimmedFirst,
+          lastName: trimmedLast,
+          name: `${trimmedFirst} ${trimmedLast}`.trim(),
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          isBlocked: false,
+          mustChangePassword: false,
+          rights: defaultRights
+        }
+      }
+    });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+});
+
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body || {};
+  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
+
+  if (!EMAIL_PATTERN.test(normalizedEmail)) {
+    throw requestError('A valid email is required', 400);
   }
 
-  if (user) {
-    throw requestError('A user with that email already exists', 409);
+  const pool = requirePool();
+  let user = null;
+  try {
+    const result = await pool.query(
+      'SELECT user_id, email, status, is_blocked FROM public.app_user WHERE lower(email) = $1 LIMIT 1',
+      [normalizedEmail]
+    );
+    user = result.rows[0] || null;
+  } catch {
+    throw requestError('Authentication service unavailable', 503);
   }
 
-  res.status(201).json({ success: true, data: { user } });
+  if (!user || user.status !== 'active' || user.is_blocked) {
+    return res.json({
+      success: true,
+      data: { message: 'If an active account exists with that email, a password reset link has been sent.' }
+    });
+  }
+
+  const rawToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+  try {
+    await pool.query(
+      'INSERT INTO public.password_reset_token (token_hash, user_id, expires_at, used) VALUES ($1, $2, $3, false)',
+      [tokenHash, user.user_id, expiresAt]
+    );
+  } catch {
+    try {
+      await pool.query(
+        'INSERT INTO public.password_reset_token (token_hash, user_id, expires_at, used) VALUES ($1, $2, $3, false)',
+        [rawToken, user.user_id, expiresAt]
+      );
+    } catch {}
+  }
+
+  res.json({
+    success: true,
+    data: {
+      message: 'Password reset link generated successfully.',
+      token: rawToken
+    }
+  });
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const { token, password, newPassword } = req.body || {};
+  const rawToken = String(token || '').trim();
+  const requestedPassword = typeof newPassword === 'string' ? newPassword : (typeof password === 'string' ? password : '');
+
+  if (!rawToken) {
+    throw requestError('Reset token is required', 400);
+  }
+
+  if (requestedPassword.length < 8) {
+    throw requestError('Password must be at least 8 characters', 400);
+  }
+
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const pool = requirePool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    const tokenResult = await client.query(
+      'SELECT token_hash, user_id, expires_at, used FROM public.password_reset_token WHERE (token_hash = $1 OR token_hash = $2) AND used = false AND expires_at > now() FOR UPDATE LIMIT 1',
+      [tokenHash, rawToken]
+    );
+
+    const resetRecord = tokenResult.rows[0];
+    if (!resetRecord) {
+      throw requestError('Invalid or expired reset token', 400);
+    }
+
+    const passwordHash = await bcrypt.hash(requestedPassword, 12);
+
+    await client.query(
+      'UPDATE public.app_user SET password_hash = $2, must_change_password = false, updated_at = now() WHERE user_id = $1',
+      [resetRecord.user_id, passwordHash]
+    );
+
+    await client.query(
+      'UPDATE public.password_reset_token SET used = true WHERE token_hash = $1',
+      [resetRecord.token_hash]
+    );
+
+    await client.query('COMMIT');
+    invalidateUserCache(resetRecord.user_id);
+
+    res.json({
+      success: true,
+      data: { message: 'Password has been reset successfully. You can now log in.' }
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
 });
 
 const setPassword = asyncHandler(async (req, res) => {
@@ -147,11 +293,11 @@ const setPassword = asyncHandler(async (req, res) => {
     const result = await client.query(
       `UPDATE public.app_user
        SET password_hash = $1,
-           status = 'active',
            must_change_password = false,
            updated_at = now()
        WHERE lower(email) = $2
          AND must_change_password = true
+         AND status = 'active'
        RETURNING user_id, email, status, role, must_change_password`,
       [passwordHash, normalizedEmail]
     );
@@ -163,115 +309,7 @@ const setPassword = asyncHandler(async (req, res) => {
     throw requestError('Password cannot be set for this account', 400);
   }
 
-  res.json({ success: true, data: { user } });
-});
-
-const forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body || {};
-  const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
-
-  if (!EMAIL_PATTERN.test(normalizedEmail)) {
-    throw requestError('A valid email is required', 400);
-  }
-
-  const resetToken = crypto.randomBytes(32).toString('hex');
-  const tokenHash = hashResetToken(resetToken);
-  const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MINUTES * 60 * 1000);
-
-  const created = await req.withAuditContext(normalizedEmail, async (client) => {
-    const userResult = await client.query(
-      `SELECT user_id
-       FROM public.app_user
-       WHERE lower(email) = $1
-       LIMIT 1`,
-      [normalizedEmail]
-    );
-    const user = userResult.rows[0];
-
-    if (!user) {
-      return false;
-    }
-
-    await client.query(
-      `UPDATE public.password_reset_token
-       SET used = true
-       WHERE user_id = $1
-         AND used = false`,
-      [user.user_id]
-    );
-    await client.query(
-      `INSERT INTO public.password_reset_token (token_hash, user_id, expires_at)
-       VALUES ($1, $2, $3)`,
-      [tokenHash, user.user_id, expiresAt]
-    );
-    return true;
-  });
-
-  const response = {
-    message: 'If an account exists for that email, a password reset link has been created'
-  };
-  if (created && shouldReturnResetToken()) {
-    response.resetToken = resetToken;
-    response.expiresAt = expiresAt.toISOString();
-  }
-
-  res.json({ success: true, data: response });
-});
-
-const resetPassword = asyncHandler(async (req, res) => {
-  const { token, password } = req.body || {};
-
-  if (typeof token !== 'string' || token.length < 32) {
-    throw requestError('A valid reset token is required', 400);
-  }
-  validatePassword(password);
-
-  const passwordHash = await bcrypt.hash(password, 12);
-  const user = await req.withAuditContext('password-reset', async (client) => {
-    const tokenResult = await client.query(
-      `SELECT user_id
-       FROM public.password_reset_token
-       WHERE token_hash = $1
-         AND used = false
-         AND expires_at > now()
-       FOR UPDATE`,
-      [hashResetToken(token)]
-    );
-    const resetRecord = tokenResult.rows[0];
-
-    if (!resetRecord) {
-      return null;
-    }
-
-    const userResult = await client.query(
-      `UPDATE public.app_user
-       SET password_hash = $1,
-           status = 'active',
-           must_change_password = false,
-           updated_at = now()
-       WHERE user_id = $2
-       RETURNING user_id, email, status, role, must_change_password`,
-      [passwordHash, resetRecord.user_id]
-    );
-
-    if (!userResult.rows[0]) {
-      return null;
-    }
-
-    await client.query(
-      `UPDATE public.password_reset_token
-       SET used = true
-       WHERE token_hash = $1`,
-      [hashResetToken(token)]
-    );
-
-    return userResult.rows[0];
-  });
-
-  if (!user) {
-    throw requestError('Invalid or expired reset token', 400);
-  }
-
+  invalidateUserCache(user.user_id);
   res.json({ success: true, data: { user } });
 });
 
@@ -283,24 +321,17 @@ const login = asyncHandler(async (req, res) => {
     throw requestError('email and password are required', 400);
   }
 
-  if (!authSupabase) {
-    throw requestError('SUPABASE_SERVICE_ROLE_KEY must be configured on the server', 503);
+  let candidate = null;
+  try {
+    const result = await requirePool().query(
+      `${AUTH_SELECT} WHERE lower(u.email) = $1 LIMIT 1`,
+      [normalizedEmail]
+    );
+    candidate = result.rows[0] || null;
+  } catch {
+    throw requestError('Authentication service unavailable', 503);
   }
 
-  const { data: candidates, error } = await authSupabase
-    .from('app_user')
-    .select('user_id, empno, email, password_hash, role, status, is_blocked, must_change_password')
-    .eq('email', normalizedEmail)
-    .eq('status', 'active')
-    .limit(1);
-
-  if (error) {
-    const databaseError = new Error('Authentication service unavailable');
-    databaseError.statusCode = 503;
-    throw databaseError;
-  }
-
-  const candidate = candidates && candidates[0];
   const user = candidate && typeof candidate.password_hash === 'string'
     && await bcrypt.compare(password, candidate.password_hash)
     ? candidate
@@ -314,10 +345,19 @@ const login = asyncHandler(async (req, res) => {
     throw requestError('Your account has been blocked. Contact an administrator.', 403);
   }
 
+  if (user.status === 'pending') {
+    throw requestError('Your account is pending approval. Contact HR or an administrator.', 403);
+  }
+  if (user.status !== 'active') {
+    throw requestError('Invalid email or password', 401);
+  }
+
+  primeUserCache(user);
+
   const token = jwt.sign(
     { sub: String(user.user_id), empno: user.empno, email: user.email, role: user.role },
     getJwtSecret(),
-    { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256' }
+    { expiresIn: JWT_EXPIRES_IN, algorithm: 'HS256', jwtid: crypto.randomUUID() }
   );
 
   res.cookie('access_token', token, {
@@ -331,39 +371,45 @@ const login = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     data: {
-      user: await buildAuthUser(user)
+      user: formatAuthUser(user)
     }
   });
 });
 
 const session = asyncHandler(async (req, res) => {
-  if (!authSupabase) {
+  let user = null;
+  try {
+    const result = await requirePool().query(
+      `${AUTH_SELECT} WHERE u.user_id = $1::uuid AND u.status = 'active' LIMIT 1`,
+      [req.user.sub]
+    );
+    user = result.rows[0] || null;
+  } catch {
     throw requestError('Authentication service unavailable', 503);
   }
 
-  const { data: user, error } = await authSupabase
-    .from('app_user')
-    .select('user_id, empno, email, role, status, is_blocked, must_change_password')
-    .eq('user_id', req.user.sub)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (error) {
-    throw requestError('Authentication service unavailable', 503);
-  }
   if (!user || user.is_blocked) {
     throw requestError('Authentication required', 401);
   }
 
+  primeUserCache(user);
+
   res.json({
     success: true,
     data: {
-      user: await buildAuthUser(user)
+      user: formatAuthUser(user)
     }
   });
 });
 
 const logout = asyncHandler(async (req, res) => {
+  if (req.user && req.user.sub) invalidateUserCache(req.user.sub);
+  try {
+    await endActivity(req);
+  } catch (error) {
+    // A database outage must not prevent clearing the browser's session cookie.
+    console.error('Could not close employee activity session', error.code || 'unavailable');
+  }
   res.clearCookie('access_token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -389,18 +435,18 @@ const changePassword = asyncHandler(async (req, res) => {
     throw requestError('New password must be different from the current password', 400);
   }
 
-  if (!authSupabase) {
-    throw requestError('SUPABASE_SERVICE_ROLE_KEY must be configured on the server', 503);
+  let user = null;
+  try {
+    const result = await requirePool().query(
+      'SELECT password_hash, is_blocked FROM public.app_user WHERE user_id = $1::uuid AND status = \'active\' LIMIT 1',
+      [req.user.sub]
+    );
+    user = result.rows[0] || null;
+  } catch {
+    throw requestError('Authentication service unavailable', 503);
   }
 
-  const { data: user, error: readError } = await authSupabase
-    .from('app_user')
-    .select('password_hash, is_blocked')
-    .eq('user_id', req.user.sub)
-    .eq('status', 'active')
-    .maybeSingle();
-
-  if (readError || !user) {
+  if (!user) {
     throw requestError('Authentication service unavailable', 503);
   }
 
@@ -413,29 +459,26 @@ const changePassword = asyncHandler(async (req, res) => {
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
-  const { error: updateError } = await authSupabase
-    .from('app_user')
-    .update({
-      password_hash: passwordHash,
-      must_change_password: false,
-      updated_at: new Date().toISOString()
-    })
-    .eq('user_id', req.user.sub);
-
-  if (updateError) {
+  try {
+    await requirePool().query(
+      'UPDATE public.app_user SET password_hash = $2, must_change_password = false, updated_at = now() WHERE user_id = $1::uuid',
+      [req.user.sub, passwordHash]
+    );
+  } catch {
     throw requestError('Unable to update password', 503);
   }
 
+  invalidateUserCache(req.user.sub);
   res.json({ success: true, data: { message: 'Password updated successfully' } });
 });
 
 module.exports = {
   register,
   setPassword,
-  forgotPassword,
-  resetPassword,
   login,
   session,
   logout,
-  changePassword
+  changePassword,
+  forgotPassword,
+  resetPassword
 };

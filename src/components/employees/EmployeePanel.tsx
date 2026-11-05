@@ -1,6 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useRef, useState, type FormEvent } from "react"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 import type { EmployeeInput, Lookup } from "../../lib/employee-api"
 import type { Employee } from "../../types/employee"
+import useModalFocus from "../../hooks/useModalFocus"
 
 const field = "workspace-control"
 const empty: EmployeeInput = { firstname: "", lastname: "", email: "", gender: "", birthdate: "", hiredate: "", sepdate: "", jobcode: "", deptcode: "", effdate: "", salary: 0 }
@@ -18,6 +20,9 @@ export default function EmployeePanel({ employee, open, departments, jobs, onClo
   const [salaryText, setSalaryText] = useState("")
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState("")
+  const dialogRef = useRef<HTMLElement>(null)
+  const initialFocusRef = useRef<HTMLInputElement>(null)
+  useModalFocus(open, dialogRef, initialFocusRef, onClose, saving)
   useEffect(() => {
     if (!open) return
     setForm(employee ? {
@@ -28,11 +33,7 @@ export default function EmployeePanel({ employee, open, departments, jobs, onClo
     } : empty)
     setSalaryText(employee ? String(employee.salary) : "")
     setError("")
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") onClose() }
-    window.addEventListener("keydown", escape)
-    return () => window.removeEventListener("keydown", escape)
-  }, [employee, open, onClose])
-
+  }, [employee, open])
   if (!open) return null
   const set = <K extends keyof EmployeeInput>(key: K, value: EmployeeInput[K]) => setForm((current) => ({ ...current, [key]: value }))
   const submit = async (event: FormEvent) => {
@@ -46,11 +47,11 @@ export default function EmployeePanel({ employee, open, departments, jobs, onClo
     finally { setSaving(false) }
   }
 
-  return <div className="fixed inset-0 z-50"><button type="button" aria-label="Close employee form" onClick={onClose} className="absolute inset-0 bg-slate-950/50" /><aside role="dialog" aria-modal="true" aria-labelledby="employee-panel-title" className="absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col border-l border-neutral-200 bg-white shadow-xl workspace-drawer">
-    <header className="workspace-drawer-header"><div><h2 id="employee-panel-title" className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950">{employee ? "Edit employee" : "Add employee"}</h2><p className="mt-2 text-sm text-slate-600">Personnel details and current assignment</p></div><button type="button" onClick={onClose} aria-label="Close employee form" className="workspace-icon-action text-xl">×</button></header>
+  return <div className="fixed inset-0 z-50"><button type="button" aria-label="Close employee form" onClick={() => { if (!saving) onClose() }} className="absolute inset-0 bg-black/45" /><aside ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="employee-panel-title" className="absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col border-l border-neutral-200 bg-white shadow-xl workspace-drawer">
+    <header className="workspace-drawer-header"><div><h2 id="employee-panel-title" className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950">{employee ? "Edit employee" : "Add employee"}</h2><p className="mt-2 text-sm text-slate-600">Personnel details and current assignment</p></div><button type="button" onClick={() => { if (!saving) onClose() }} aria-label="Close employee form" disabled={saving} className="workspace-icon-action"><DashboardIcon name="close" className="h-5 w-5" /></button></header>
     <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col"><div className="workspace-drawer-body"><div className="grid gap-4 sm:grid-cols-2">
       <label className="sm:col-span-2"><Label>Employee ID</Label><input readOnly value={employee?.id ?? "Auto-generated on save"} className={`${field} bg-slate-100 text-slate-500`} /></label>
-      <label><Label>First name</Label><input required maxLength={15} value={form.firstname} onChange={(event) => set("firstname", event.target.value)} className={field} /></label>
+      <label><Label>First name</Label><input ref={initialFocusRef} required maxLength={15} value={form.firstname} onChange={(event) => set("firstname", event.target.value)} className={field} /></label>
       <label><Label>Last name</Label><input required maxLength={15} value={form.lastname} onChange={(event) => set("lastname", event.target.value)} className={field} /></label>
       <label className="sm:col-span-2"><Label>Work email</Label><input type="email" required value={form.email} onChange={(event) => set("email", event.target.value)} className={field} /></label>
       <label><Label>Gender (optional)</Label><select value={form.gender} onChange={(event) => set("gender", event.target.value as EmployeeInput["gender"])} className={field}><option value="">Not specified</option><option value="M">Male</option><option value="F">Female</option></select></label>
@@ -59,10 +60,10 @@ export default function EmployeePanel({ employee, open, departments, jobs, onClo
       <label><Label>Separation date (optional)</Label><input type="date" min={form.hiredate || undefined} value={form.sepdate} onChange={(event) => set("sepdate", event.target.value)} className={field} /></label>
       <label><Label>Department</Label><select required value={form.deptcode} onChange={(event) => set("deptcode", event.target.value)} className={field}><option value="">Select department</option>{departments.map((item) => <option key={item.code} value={item.code}>{item.name || item.code}</option>)}</select></label>
       <label><Label>Job title</Label><select required value={form.jobcode} onChange={(event) => set("jobcode", event.target.value)} className={field}><option value="">Select job title</option>{jobs.map((item) => <option key={item.code} value={item.code}>{item.name || item.code}</option>)}</select></label>
-      <label><Label>Salary</Label><input type="number" required min="0" step="0.01" value={salaryText} onChange={(event) => setSalaryText(event.target.value)} className={field} /></label>
+      <label><Label>Salary</Label><span className="relative block"><DashboardIcon name="currency" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" /><input type="number" required min="0" step="0.01" value={salaryText} onChange={(event) => setSalaryText(event.target.value)} className={`${field} workspace-control--currency`} /></span></label>
       <label><Label>Job effective date</Label><input type="date" required min={form.hiredate || undefined} value={form.effdate || form.hiredate} onChange={(event) => set("effdate", event.target.value)} className={field} /></label>
     </div>{employee && <p className="mt-5 text-xs leading-5 text-slate-500">Changing the department, job title, or salary records a new job-history entry on the effective date.</p>}{error && <p role="alert" className="mt-5 text-sm font-semibold text-red-700">{error}</p>}</div>
-    <footer className="workspace-drawer-footer"><button type="button" onClick={onClose} className="workspace-secondary-action">Cancel</button><button type="submit" disabled={saving || jobs.length === 0 || departments.length === 0} className="workspace-primary-action">{saving ? "Saving…" : employee ? "Save changes" : "Create employee"}</button></footer>
+    <footer className="workspace-drawer-footer"><button type="button" onClick={onClose} disabled={saving} className="workspace-secondary-action">Cancel</button><button type="submit" disabled={saving || jobs.length === 0 || departments.length === 0} className="workspace-primary-action">{saving ? "Saving…" : employee ? "Save changes" : "Create employee"}</button></footer>
     </form>
   </aside></div>
 }

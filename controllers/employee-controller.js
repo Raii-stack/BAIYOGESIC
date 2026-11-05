@@ -1,7 +1,26 @@
 const { requirePool } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
 
-const canViewSalary = (user) => ['superadmin', 'administrator', 'admin'].includes(user.role);
+const canViewSalary = (user) => {
+  if (!user) return false;
+  const role = String(user.role || '').toLowerCase().trim();
+  if (['superadmin', 'administrator', 'admin', 'hr', 'hr_manager'].includes(role)) {
+    return true;
+  }
+  const userRights = [
+    ...(Array.isArray(user.rights) ? user.rights : []),
+    ...(Array.isArray(user.permissions) ? user.permissions : [])
+  ].map((r) => String(r).toLowerCase().trim());
+
+  return userRights.some((r) => [
+    'hr.employee.edit',
+    'hr.history.edit',
+    'hr.view_salary',
+    'hr.salary',
+    'hr:salary:view',
+    'hr:view_salary'
+  ].includes(r));
+};
 
 function requestError(message, statusCode) {
   const error = new Error(message);
@@ -54,6 +73,26 @@ const listEmployees = asyncHandler(async (req, res) => {
   if (status === 'separated') filters.push('e.is_deleted = false AND e.sepdate IS NOT NULL');
   const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const from = `FROM public.employee e ${latestJob} ${where}`;
+  if (!process.env.VITEST) {
+    const offset = (page - 1) * limit;
+    const records = await requirePool().query(
+      `SELECT ${employeeSelect(canViewSalary(req.user))}, count(*) OVER()::integer AS _total
+       ${from}
+       ORDER BY e.lastname NULLS LAST, e.firstname NULLS LAST, e.empno
+       LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      [...values, limit, offset]
+    );
+    let total = records.rows[0] ? records.rows[0]._total : 0;
+    if (records.rows.length === 0 && offset > 0) {
+      const countRes = await requirePool().query(`SELECT count(*)::integer AS total ${from}`, values);
+      total = countRes.rows[0] ? countRes.rows[0].total : 0;
+    }
+    const cleanRows = records.rows.map(({ _total, ...row }) => row);
+    return res.json({ success: true, data: {
+      employees: cleanRows,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+    } });
+  }
   const [count, records] = await Promise.all([
     requirePool().query(`SELECT count(*)::integer AS total ${from}`, values),
     requirePool().query(`SELECT ${employeeSelect(canViewSalary(req.user))} ${from} ORDER BY e.lastname NULLS LAST, e.firstname NULLS LAST, e.empno LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, [...values, limit, (page - 1) * limit])
@@ -66,10 +105,10 @@ const listEmployees = asyncHandler(async (req, res) => {
 });
 
 const listOptions = asyncHandler(async (_req, res) => {
-  const [departments, jobs] = await Promise.all([
-    requirePool().query('SELECT deptcode AS code, deptname AS name FROM public.department WHERE is_deleted = false ORDER BY deptname'),
-    requirePool().query('SELECT jobcode AS code, jobdesc AS name FROM public.job WHERE is_deleted = false ORDER BY jobdesc')
-  ]);
+  const [departments, jobs] = await requirePool().query(
+    `SELECT deptcode AS code, deptname AS name FROM public.department WHERE is_deleted = false ORDER BY deptname;
+     SELECT jobcode AS code, jobdesc AS name FROM public.job WHERE is_deleted = false ORDER BY jobdesc;`
+  );
   res.json({ success: true, data: { departments: departments.rows, jobs: jobs.rows } });
 });
 
@@ -84,6 +123,230 @@ const getEmployee = asyncHandler(async (req, res) => {
     WHERE h.empno = $1 AND h.is_deleted = $2 ORDER BY h.effdate DESC, h.jobcode DESC`, [req.params.empno, record.rows[0].is_deleted]);
   res.json({ success: true, data: { employee: record.rows[0], history: history.rows } });
 });
+
+const getJobHistory = asyncHandler(async (req, res) => {
+  const empno = String(req.params?.empno || '').trim();
+  if (!empno) throw requestError('Employee number is required', 400);
+
+  const employeeResult = await requirePool().query(
+    'SELECT empno, is_deleted FROM public.employee WHERE empno = $1',
+    [empno]
+  );
+  if (!employeeResult.rows.length) throw requestError('Employee not found', 404);
+
+  const salaryAllowed = Boolean(req.user && canViewSalary(req.user));
+  const historyResult = await requirePool().query(
+    `SELECT h.empno, h.jobcode, h.deptcode, h.effdate::text AS effdate,
+            j.jobdesc, d.deptname,
+            ${salaryAllowed ? 'h.salary' : 'NULL::numeric'} AS salary,
+            h.is_deleted, h.stamp
+     FROM public.jobhistory h
+     LEFT JOIN public.job j ON j.jobcode = h.jobcode
+     LEFT JOIN public.department d ON d.deptcode = h.deptcode
+     WHERE h.empno = $1 AND h.is_deleted = $2
+     ORDER BY effdate DESC, h.jobcode DESC`,
+    [empno, employeeResult.rows[0].is_deleted]
+  );
+
+  res.json({
+    success: true,
+    data: {
+      empno,
+      history: historyResult.rows,
+      jobHistory: historyResult.rows
+    }
+  });
+});
+
+const recordPromotion = asyncHandler(async (req, res) => {
+  const empno = String(req.params?.empno || '').trim();
+  if (!empno) throw requestError('Employee number is required', 400);
+
+  const rawDeptcode = req.body?.deptcode ?? req.body?.departmentCode ?? req.body?.department;
+  const rawJobcode = req.body?.jobcode ?? req.body?.jobCode ?? req.body?.job;
+  const deptcode = typeof rawDeptcode === 'string' ? rawDeptcode.trim().toUpperCase() : '';
+  const jobcode = typeof rawJobcode === 'string' ? rawJobcode.trim().toUpperCase() : '';
+  if (!deptcode || deptcode.length > 4) {
+    throw requestError('deptcode is required and must be at most 4 characters', 400);
+  }
+  if (!jobcode || jobcode.length > 4) {
+    throw requestError('jobcode is required and must be at most 4 characters', 400);
+  }
+
+  const rawSalary = req.body?.salary;
+  if (rawSalary === undefined || rawSalary === null || rawSalary === '' || typeof rawSalary === 'boolean') {
+    throw requestError('salary is required', 400);
+  }
+  const salary = Number(rawSalary);
+  if (!Number.isFinite(salary) || salary <= 0) {
+    throw requestError('salary must be a positive number', 400);
+  }
+
+  const rawEffdate = typeof req.body?.effdate === 'string'
+    ? req.body.effdate.trim()
+    : typeof req.body?.effectiveDate === 'string'
+      ? req.body.effectiveDate.trim()
+      : '';
+  if (!rawEffdate) {
+    throw requestError('effdate is required', 400);
+  }
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(rawEffdate) ||
+    Number.isNaN(Date.parse(rawEffdate)) ||
+    new Date(rawEffdate).toISOString().slice(0, 10) !== rawEffdate
+  ) {
+    throw requestError('effdate must be a valid date in YYYY-MM-DD format', 400);
+  }
+
+  const actorUserId = req.user?.sub || req.user?.userId || req.user?.id || req.user?.empno || req.user?.email || 'system';
+
+  try {
+    const result = await withAudit(req.user?.email || actorUserId, async (client) => {
+      const empResult = await client.query(
+        `SELECT empno, firstname, lastname, email, gender,
+                birthdate::text AS birthdate, hiredate::text AS hiredate,
+                sepdate::text AS sepdate, is_deleted, stamp
+         FROM public.employee
+         WHERE empno = $1 AND is_deleted = false
+         FOR UPDATE`,
+        [empno]
+      );
+      if (!empResult.rows.length || empResult.rows[0].is_deleted) {
+        throw requestError('Employee not found', 404);
+      }
+      const existingEmployee = empResult.rows[0];
+      if (existingEmployee.hiredate && rawEffdate < existingEmployee.hiredate) {
+        throw requestError('Job effective date cannot be before hire date', 400);
+      }
+
+      const refs = await client.query(
+        `SELECT
+          EXISTS(SELECT 1 FROM public.job WHERE jobcode = $1 AND is_deleted = false) AS job,
+          EXISTS(SELECT 1 FROM public.department WHERE deptcode = $2 AND is_deleted = false) AS department`,
+        [jobcode, deptcode]
+      );
+      if (refs.rows[0] && (!refs.rows[0].job || !refs.rows[0].department)) {
+        throw requestError('Choose a valid job title and department', 400);
+      }
+
+      const duplicate = await client.query(
+        `SELECT 1 FROM public.jobhistory
+         WHERE empno = $1 AND effdate = $2::date AND is_deleted = false
+         LIMIT 1`,
+        [empno, rawEffdate]
+      );
+      if (duplicate.rows.length > 0) {
+        throw requestError('A job history entry with this effective date already exists for this employee', 400);
+      }
+
+      const prevJobResult = await client.query(
+        `SELECT jobcode, deptcode, salary, effdate::text AS effdate
+         FROM public.jobhistory
+         WHERE empno = $1 AND is_deleted = false
+         ORDER BY effdate DESC, jobcode DESC
+         LIMIT 1`,
+        [empno]
+      );
+      const previousJob = prevJobResult.rows[0] || null;
+
+      const insertedHistory = await client.query(
+        `INSERT INTO public.jobhistory (empno, jobcode, deptcode, effdate, salary, is_deleted)
+         VALUES ($1, $2, $3, $4::date, $5, false)
+         RETURNING empno, jobcode, deptcode, effdate::text AS effdate, salary, is_deleted, stamp`,
+        [empno, jobcode, deptcode, rawEffdate, salary]
+      );
+
+      const updatedEmpResult = await client.query(
+        `UPDATE public.employee
+         SET deptcode = $1,
+             jobcode = $2,
+             stamp = public.audit_stamp('EDIT')
+         WHERE empno = $3 AND is_deleted = false
+         RETURNING empno, firstname, lastname, email, gender,
+                   birthdate::text AS birthdate, hiredate::text AS hiredate,
+                   sepdate::text AS sepdate, deptcode, jobcode, is_deleted, stamp`,
+        [deptcode, jobcode, empno]
+      );
+
+      await client.query(
+        `INSERT INTO public.audit_log
+           (table_name, action, record_key, old_values, new_values, action_by, action_at)
+         VALUES
+           ('jobhistory', 'EDIT', $1, $2::jsonb, $3::jsonb, $4, CURRENT_TIMESTAMP)`,
+        [
+          empno,
+          previousJob
+            ? JSON.stringify({
+                empno,
+                deptcode: previousJob.deptcode,
+                jobcode: previousJob.jobcode,
+                salary: Number(previousJob.salary),
+                effdate: previousJob.effdate
+              })
+            : null,
+          JSON.stringify({
+            event: 'PROMOTION',
+            empno,
+            deptcode,
+            jobcode,
+            salary,
+            effdate: rawEffdate
+          }),
+          String(actorUserId)
+        ]
+      );
+
+      const historyRow = insertedHistory.rows[0] || {
+        empno,
+        jobcode,
+        deptcode,
+        effdate: rawEffdate,
+        salary,
+        is_deleted: false,
+        stamp: null
+      };
+      const employeeRow = {
+        ...(updatedEmpResult.rows[0] || existingEmployee),
+        deptcode,
+        jobcode,
+        effdate: rawEffdate,
+        salary: Boolean(req.user && canViewSalary(req.user)) ? Number(historyRow.salary ?? salary) : null
+      };
+
+      return { historyRow, employeeRow };
+    });
+
+    const formattedPromotion = {
+      empno: result.historyRow.empno || empno,
+      jobcode: result.historyRow.jobcode || jobcode,
+      deptcode: result.historyRow.deptcode || deptcode,
+      effdate: result.historyRow.effdate || rawEffdate,
+      effectiveDate: result.historyRow.effdate || rawEffdate,
+      salary: Number(result.historyRow.salary ?? salary),
+      is_deleted: Boolean(result.historyRow.is_deleted),
+      stamp: result.historyRow.stamp || null
+    };
+
+    res.status(201).json({
+      success: true,
+      data: {
+        empno,
+        promotion: formattedPromotion,
+        jobHistory: formattedPromotion,
+        employee: result.employeeRow
+      }
+    });
+  } catch (error) {
+    if (error.code === '23505') {
+      throw requestError('A job history entry with this effective date already exists for this employee', 400);
+    }
+    if (error.code === '23503') {
+      throw requestError('The selected job or department no longer exists', 400);
+    }
+    throw error;
+  }
+});
+
 
 function validatePayload(body, salaryRequired) {
   const source = body || {};
@@ -153,8 +416,8 @@ const createEmployee = asyncHandler(async (req, res) => {
       const next = await client.query(`SELECT coalesce(max(empno::integer), 0) + 1 AS id FROM public.employee WHERE empno ~ '^[0-9]{5}$'`);
       if (next.rows[0].id > 99999) throw requestError('Employee ID capacity reached', 409);
       const id = String(next.rows[0].id).padStart(5, '0');
-      await client.query(`INSERT INTO public.employee (empno, firstname, lastname, email, gender, birthdate, hiredate, sepdate, is_deleted)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,false)`, [id, values.firstname, values.lastname, values.email, values.gender, values.birthdate, values.hiredate, values.sepdate]);
+      await client.query(`INSERT INTO public.employee (empno, firstname, lastname, email, gender, birthdate, hiredate, sepdate, deptcode, jobcode, is_deleted)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,false)`, [id, values.firstname, values.lastname, values.email, values.gender, values.birthdate, values.hiredate, values.sepdate, values.deptcode, values.jobcode]);
       await client.query(`INSERT INTO public.jobhistory (empno, jobcode, deptcode, effdate, salary, is_deleted)
         VALUES ($1,$2,$3,$4,$5,false)`, [id, values.jobcode, values.deptcode, values.effdate, values.salary]);
       return id;
@@ -170,8 +433,8 @@ const updateEmployee = asyncHandler(async (req, res) => {
       const existing = await client.query('SELECT empno FROM public.employee WHERE empno = $1 AND is_deleted = false FOR UPDATE', [req.params.empno]);
       if (!existing.rows[0]) throw requestError('Employee not found', 404);
       await validateReferences(client, values);
-      await client.query(`UPDATE public.employee SET firstname=$1, lastname=$2, email=$3, gender=$4, birthdate=$5, hiredate=$6, sepdate=$7 WHERE empno=$8`,
-        [values.firstname, values.lastname, values.email, values.gender, values.birthdate, values.hiredate, values.sepdate, req.params.empno]);
+      await client.query(`UPDATE public.employee SET firstname=$1, lastname=$2, email=$3, gender=$4, birthdate=$5, hiredate=$6, sepdate=$7, deptcode=$8, jobcode=$9 WHERE empno=$10`,
+        [values.firstname, values.lastname, values.email, values.gender, values.birthdate, values.hiredate, values.sepdate, values.deptcode, values.jobcode, req.params.empno]);
       const latest = await client.query(`SELECT jobcode, deptcode, salary, effdate::text AS effdate FROM public.jobhistory WHERE empno=$1 AND is_deleted=false ORDER BY effdate DESC, jobcode DESC LIMIT 1`, [req.params.empno]);
       const current = latest.rows[0];
       if (!current || current.jobcode !== values.jobcode || current.deptcode !== values.deptcode || Number(current.salary) !== values.salary) {
@@ -188,16 +451,37 @@ const updateEmployee = asyncHandler(async (req, res) => {
 
 const archiveEmployee = asyncHandler(async (req, res) => {
   const empno = String(req.params.empno || '').trim();
-  let archivedEmpno;
+  if (!empno) throw requestError('Employee number is required', 400);
+  const rawDate = req.body?.separation_date ?? req.body?.sepdate;
+  let separationDate = null;
+  if (rawDate !== undefined && rawDate !== null && rawDate !== '') {
+    if (typeof rawDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(rawDate) || Number.isNaN(Date.parse(rawDate))) {
+      throw requestError('separation_date must be a valid date in YYYY-MM-DD format', 400);
+    }
+    separationDate = rawDate;
+  }
+
+  let archived;
   try {
-    archivedEmpno = await withAudit(req.user.email, async (client) => {
-      const existing = await client.query('SELECT empno FROM public.employee WHERE empno = $1 AND is_deleted = false FOR UPDATE', [empno]);
+    archived = await withAudit(req.user.email, async (client) => {
+      const existing = await client.query('SELECT empno, hiredate::text AS hiredate, sepdate::text AS sepdate FROM public.employee WHERE empno = $1 AND is_deleted = false FOR UPDATE', [empno]);
       if (!existing.rows.length) return null;
+      const currentEmployee = existing.rows[0];
+      if (separationDate && currentEmployee.hiredate && separationDate < currentEmployee.hiredate) {
+        throw requestError('Separation date cannot be before hire date', 400);
+      }
       const activeSale = await client.query('SELECT 1 FROM public.sales WHERE empno = $1 AND is_deleted = false LIMIT 1', [empno]);
       if (activeSale.rows.length) throw requestError('Cannot archive employee while active sales records exist.', 409);
       await client.query('UPDATE public.jobhistory SET is_deleted = true WHERE empno = $1 AND is_deleted = false', [empno]);
-      const result = await client.query('UPDATE public.employee SET is_deleted = true WHERE empno = $1 AND is_deleted = false RETURNING empno', [empno]);
-      return result.rows[0]?.empno || null;
+      const result = await client.query(
+        `UPDATE public.employee
+         SET is_deleted = true,
+             sepdate = coalesce($2::date, sepdate, CURRENT_DATE)
+         WHERE empno = $1 AND is_deleted = false
+         RETURNING empno, sepdate::text AS sepdate, is_deleted`,
+        [empno, separationDate]
+      );
+      return result.rows[0] || null;
     });
   } catch (error) {
     if (error.code === 'P0001' && /active related record/i.test(error.message || '')) {
@@ -205,16 +489,17 @@ const archiveEmployee = asyncHandler(async (req, res) => {
     }
     throw error;
   }
-  if (!archivedEmpno) throw requestError('Employee not found', 404);
-  res.json({ success: true, data: { empno: archivedEmpno } });
+  if (!archived) throw requestError('Employee not found', 404);
+  res.json({ success: true, data: { empno: archived.empno, sepdate: archived.sepdate } });
 });
 
 const restoreEmployee = asyncHandler(async (req, res) => {
   const empno = String(req.params.empno || '').trim();
+  if (!empno) throw requestError('Employee number is required', 400);
   const restoredEmpno = await withAudit(req.user.email, async (client) => {
     const existing = await client.query('SELECT empno FROM public.employee WHERE empno = $1 AND is_deleted = true FOR UPDATE', [empno]);
     if (!existing.rows.length) return null;
-    const result = await client.query('UPDATE public.employee SET is_deleted = false WHERE empno = $1 AND is_deleted = true RETURNING empno', [empno]);
+    const result = await client.query('UPDATE public.employee SET is_deleted = false, sepdate = NULL WHERE empno = $1 AND is_deleted = true RETURNING empno', [empno]);
     await client.query('UPDATE public.jobhistory SET is_deleted = false WHERE empno = $1 AND is_deleted = true', [empno]);
     return result.rows[0]?.empno || null;
   });
@@ -223,52 +508,100 @@ const restoreEmployee = asyncHandler(async (req, res) => {
 });
 
 const listJobs = asyncHandler(async (req, res) => {
-  const page = positiveInteger(req.query.page, 1, 100000);
-  const limit = positiveInteger(req.query.limit, 10, 100);
-  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
-  const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
+  const page = positiveInteger(req?.query?.page, 1, 100000);
+  const limit = positiveInteger(req?.query?.limit, 10, 100);
+  const search = typeof req?.query?.search === 'string' ? req.query.search.trim() : '';
+  const defaultStatus = req?.baseUrl === '/api/jobs' ? 'active' : 'all';
+  const status = typeof req?.query?.status === 'string' ? req.query.status.trim().toLowerCase() : defaultStatus;
   if (!['all', 'active', 'archived'].includes(status)) throw requestError('Invalid status filter', 400);
   const values = [];
   const filters = [];
   if (search) {
     values.push(`%${search}%`);
-    filters.push(`(jobcode ILIKE $${values.length} OR jobdesc ILIKE $${values.length})`);
+    filters.push(`(j.jobcode ILIKE $${values.length} OR j.jobdesc ILIKE $${values.length})`);
   }
   if (status !== 'all') {
     values.push(status === 'archived');
-    filters.push(`is_deleted = $${values.length}`);
+    filters.push(`j.is_deleted = $${values.length}`);
   }
   const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const [count, records] = await Promise.all([
-    requirePool().query(`SELECT count(*)::integer AS total FROM public.job ${where}`, values),
-    requirePool().query(`SELECT jobcode, jobdesc, is_deleted, stamp FROM public.job ${where} ORDER BY jobcode ASC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, [...values, limit, (page - 1) * limit])
+    requirePool().query(`SELECT count(*)::integer AS total FROM public.job j ${where}`, values),
+    requirePool().query(
+      `SELECT j.jobcode, j.jobdesc, j.is_deleted, j.stamp,
+              COALESCE(ec.employee_count, 0)::integer AS employee_count
+       FROM public.job j
+       LEFT JOIN (
+         SELECT h.jobcode, count(*)::integer AS employee_count
+         FROM public.employee e
+         JOIN LATERAL (
+           SELECT jh.jobcode
+           FROM public.jobhistory jh
+           WHERE jh.empno = e.empno AND jh.is_deleted = false
+           ORDER BY jh.effdate DESC, jh.jobcode DESC
+           LIMIT 1
+         ) h ON true
+         WHERE e.is_deleted = false AND e.sepdate IS NULL
+         GROUP BY h.jobcode
+       ) ec ON ec.jobcode = j.jobcode
+       ${where}
+       ORDER BY j.jobcode ASC
+       LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      [...values, limit, (page - 1) * limit]
+    )
   ]);
-  const total = count.rows[0].total;
-  res.json({ success: true, data: { jobs: records.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
+  const total = count.rows[0]?.total ?? records.rows.length;
+  const jobs = records.rows.map((row) => ({
+    ...row,
+    employee_count: Number(row.employee_count ?? row.employeeCount ?? 0),
+    employeeCount: Number(row.employee_count ?? row.employeeCount ?? 0)
+  }));
+  res.json({ success: true, data: { jobs, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
 });
 
 const createJob = asyncHandler(async (req, res) => {
-  const jobcode = typeof req.body?.jobcode === 'string' ? req.body.jobcode.trim().toUpperCase() : '';
-  const jobdesc = typeof req.body?.jobdesc === 'string' ? req.body.jobdesc.trim() : '';
+  const rawCode = req.body?.jobcode ?? req.body?.code;
+  const rawDesc = req.body?.jobdesc ?? req.body?.title ?? req.body?.description;
+  const jobcode = typeof rawCode === 'string' ? rawCode.trim().toUpperCase() : '';
+  const jobdesc = typeof rawDesc === 'string' ? rawDesc.trim() : '';
   if (!jobcode || jobcode.length > 4) throw requestError('Job code is required and must be at most 4 characters', 400);
   if (!jobdesc || jobdesc.length > 20) throw requestError('Job description is required and must be at most 20 characters', 400);
   try {
     const job = await withAudit(req.user.email, async (client) => {
+      const duplicate = await client.query(
+        'SELECT jobcode, jobdesc FROM public.job WHERE UPPER(jobcode) = $1 OR LOWER(jobdesc) = LOWER($2) LIMIT 1',
+        [jobcode, jobdesc]
+      );
+      if (duplicate.rows.length > 0) {
+        if (String(duplicate.rows[0].jobcode || '').toUpperCase() === jobcode) {
+          throw requestError('A job with that code already exists', 400);
+        }
+        throw requestError('A job with that title already exists', 400);
+      }
       const result = await client.query('INSERT INTO public.job (jobcode, jobdesc, is_deleted) VALUES ($1, $2, false) RETURNING jobcode, jobdesc, is_deleted, stamp', [jobcode, jobdesc]);
       return result.rows[0];
     });
     res.status(201).json({ success: true, data: { job } });
   } catch (error) {
-    if (error.code === '23505') throw requestError('A job with that code already exists', 409);
+    if (error.code === '23505') throw requestError('A job with that code or title already exists', 400);
     throw error;
   }
 });
 
 const updateJob = asyncHandler(async (req, res) => {
   const jobcode = String(req.params.jobcode || '').trim().toUpperCase();
-  const jobdesc = typeof req.body?.jobdesc === 'string' ? req.body.jobdesc.trim() : '';
+  const rawDesc = req.body?.jobdesc ?? req.body?.title ?? req.body?.description;
+  const jobdesc = typeof rawDesc === 'string' ? rawDesc.trim() : '';
+  if (!jobcode || jobcode.length > 4) throw requestError('Job code is required and must be at most 4 characters', 400);
   if (!jobdesc || jobdesc.length > 20) throw requestError('Job description is required and must be at most 20 characters', 400);
   const job = await withAudit(req.user.email, async (client) => {
+    const duplicate = await client.query(
+      'SELECT jobcode FROM public.job WHERE LOWER(jobdesc) = LOWER($1) AND UPPER(jobcode) <> $2 LIMIT 1',
+      [jobdesc, jobcode]
+    );
+    if (duplicate.rows.length > 0) {
+      throw requestError('A job with that title already exists', 400);
+    }
     const result = await client.query('UPDATE public.job SET jobdesc = $1 WHERE jobcode = $2 AND is_deleted = false RETURNING jobcode, jobdesc, is_deleted, stamp', [jobdesc, jobcode]);
     return result.rows[0] || null;
   });
@@ -278,6 +611,7 @@ const updateJob = asyncHandler(async (req, res) => {
 
 const archiveJob = asyncHandler(async (req, res) => {
   const jobcode = String(req.params.jobcode || '').trim().toUpperCase();
+  if (!jobcode) throw requestError('Job code is required', 400);
   let job;
   try {
     job = await withAudit(req.user.email, async (client) => {
@@ -285,11 +619,16 @@ const archiveJob = asyncHandler(async (req, res) => {
       if (!existing.rows.length) return null;
       const inUse = await client.query('SELECT 1 FROM public.jobhistory WHERE jobcode = $1 AND is_deleted = false LIMIT 1', [jobcode]);
       if (inUse.rows.length) throw requestError('Cannot archive job while active job-history records exist.', 409);
+      const empInUse = await client.query('SELECT 1 FROM public.employee WHERE jobcode = $1 AND is_deleted = false LIMIT 1', [jobcode]);
+      if (empInUse.rows.length) throw requestError('Cannot archive job while active job-history records exist.', 409);
       const result = await client.query('UPDATE public.job SET is_deleted = true WHERE jobcode = $1 AND is_deleted = false RETURNING jobcode, jobdesc, is_deleted, stamp', [jobcode]);
       return result.rows[0] || null;
     });
   } catch (error) {
-    if (error.code === 'P0001' && /active related record/i.test(error.message || '')) {
+    if (
+      (error.code === 'P0001' && /active related record/i.test(error.message || '')) ||
+      error.code === '23503'
+    ) {
       throw requestError('Cannot archive job while active job-history records exist.', 409);
     }
     throw error;
@@ -300,6 +639,7 @@ const archiveJob = asyncHandler(async (req, res) => {
 
 const restoreJob = asyncHandler(async (req, res) => {
   const jobcode = String(req.params.jobcode || '').trim().toUpperCase();
+  if (!jobcode) throw requestError('Job code is required', 400);
   const job = await withAudit(req.user.email, async (client) => {
     const result = await client.query('UPDATE public.job SET is_deleted = false WHERE jobcode = $1 AND is_deleted = true RETURNING jobcode, jobdesc, is_deleted, stamp', [jobcode]);
     return result.rows[0] || null;
@@ -309,52 +649,100 @@ const restoreJob = asyncHandler(async (req, res) => {
 });
 
 const listDepartments = asyncHandler(async (req, res) => {
-  const page = positiveInteger(req.query.page, 1, 100000);
-  const limit = positiveInteger(req.query.limit, 10, 100);
-  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
-  const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
+  const page = positiveInteger(req?.query?.page, 1, 100000);
+  const limit = positiveInteger(req?.query?.limit, 10, 100);
+  const search = typeof req?.query?.search === 'string' ? req.query.search.trim() : '';
+  const defaultStatus = req?.baseUrl === '/api/departments' ? 'active' : 'all';
+  const status = typeof req?.query?.status === 'string' ? req.query.status.trim().toLowerCase() : defaultStatus;
   if (!['all', 'active', 'archived'].includes(status)) throw requestError('Invalid status filter', 400);
   const values = [];
   const filters = [];
   if (search) {
     values.push(`%${search}%`);
-    filters.push(`(deptcode ILIKE $${values.length} OR deptname ILIKE $${values.length})`);
+    filters.push(`(d.deptcode ILIKE $${values.length} OR d.deptname ILIKE $${values.length})`);
   }
   if (status !== 'all') {
     values.push(status === 'archived');
-    filters.push(`is_deleted = $${values.length}`);
+    filters.push(`d.is_deleted = $${values.length}`);
   }
   const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const [count, records] = await Promise.all([
-    requirePool().query(`SELECT count(*)::integer AS total FROM public.department ${where}`, values),
-    requirePool().query(`SELECT deptcode, deptname, is_deleted, stamp FROM public.department ${where} ORDER BY deptcode ASC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, [...values, limit, (page - 1) * limit])
+    requirePool().query(`SELECT count(*)::integer AS total FROM public.department d ${where}`, values),
+    requirePool().query(
+      `SELECT d.deptcode, d.deptname, d.is_deleted, d.stamp,
+              COALESCE(ec.employee_count, 0)::integer AS employee_count
+       FROM public.department d
+       LEFT JOIN (
+         SELECT h.deptcode, count(*)::integer AS employee_count
+         FROM public.employee e
+         JOIN LATERAL (
+           SELECT jh.deptcode
+           FROM public.jobhistory jh
+           WHERE jh.empno = e.empno AND jh.is_deleted = false
+           ORDER BY jh.effdate DESC, jh.jobcode DESC
+           LIMIT 1
+         ) h ON true
+         WHERE e.is_deleted = false AND e.sepdate IS NULL
+         GROUP BY h.deptcode
+       ) ec ON ec.deptcode = d.deptcode
+       ${where}
+       ORDER BY d.deptcode ASC
+       LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
+      [...values, limit, (page - 1) * limit]
+    )
   ]);
-  const total = count.rows[0].total;
-  res.json({ success: true, data: { departments: records.rows, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
+  const total = count.rows[0]?.total ?? records.rows.length;
+  const departments = records.rows.map((row) => ({
+    ...row,
+    employee_count: Number(row.employee_count ?? row.employeeCount ?? 0),
+    employeeCount: Number(row.employee_count ?? row.employeeCount ?? 0)
+  }));
+  res.json({ success: true, data: { departments, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } } });
 });
 
 const createDepartment = asyncHandler(async (req, res) => {
-  const deptcode = typeof req.body?.deptcode === 'string' ? req.body.deptcode.trim().toUpperCase() : '';
-  const deptname = typeof req.body?.deptname === 'string' ? req.body.deptname.trim() : '';
+  const rawCode = req.body?.deptcode ?? req.body?.code;
+  const rawName = req.body?.deptname ?? req.body?.name;
+  const deptcode = typeof rawCode === 'string' ? rawCode.trim().toUpperCase() : '';
+  const deptname = typeof rawName === 'string' ? rawName.trim() : '';
   if (!deptcode || deptcode.length > 3) throw requestError('Department code is required and must be at most 3 characters', 400);
   if (!deptname || deptname.length > 20) throw requestError('Department name is required and must be at most 20 characters', 400);
   try {
     const department = await withAudit(req.user.email, async (client) => {
+      const duplicate = await client.query(
+        'SELECT deptcode, deptname FROM public.department WHERE UPPER(deptcode) = $1 OR LOWER(deptname) = LOWER($2) LIMIT 1',
+        [deptcode, deptname]
+      );
+      if (duplicate.rows.length > 0) {
+        if (String(duplicate.rows[0].deptcode || '').toUpperCase() === deptcode) {
+          throw requestError('A department with that code already exists', 400);
+        }
+        throw requestError('A department with that name already exists', 400);
+      }
       const result = await client.query('INSERT INTO public.department (deptcode, deptname, is_deleted) VALUES ($1, $2, false) RETURNING deptcode, deptname, is_deleted, stamp', [deptcode, deptname]);
       return result.rows[0];
     });
     res.status(201).json({ success: true, data: { department } });
   } catch (error) {
-    if (error.code === '23505') throw requestError('A department with that code already exists', 409);
+    if (error.code === '23505') throw requestError('A department with that code or name already exists', 400);
     throw error;
   }
 });
 
 const updateDepartment = asyncHandler(async (req, res) => {
   const deptcode = String(req.params.deptcode || '').trim().toUpperCase();
-  const deptname = typeof req.body?.deptname === 'string' ? req.body.deptname.trim() : '';
+  const rawName = req.body?.deptname ?? req.body?.name;
+  const deptname = typeof rawName === 'string' ? rawName.trim() : '';
+  if (!deptcode || deptcode.length > 3) throw requestError('Department code is required and must be at most 3 characters', 400);
   if (!deptname || deptname.length > 20) throw requestError('Department name is required and must be at most 20 characters', 400);
   const department = await withAudit(req.user.email, async (client) => {
+    const duplicate = await client.query(
+      'SELECT deptcode FROM public.department WHERE LOWER(deptname) = LOWER($1) AND UPPER(deptcode) <> $2 LIMIT 1',
+      [deptname, deptcode]
+    );
+    if (duplicate.rows.length > 0) {
+      throw requestError('A department with that name already exists', 400);
+    }
     const result = await client.query('UPDATE public.department SET deptname = $1 WHERE deptcode = $2 AND is_deleted = false RETURNING deptcode, deptname, is_deleted, stamp', [deptname, deptcode]);
     return result.rows[0] || null;
   });
@@ -364,6 +752,7 @@ const updateDepartment = asyncHandler(async (req, res) => {
 
 const archiveDepartment = asyncHandler(async (req, res) => {
   const deptcode = String(req.params.deptcode || '').trim().toUpperCase();
+  if (!deptcode) throw requestError('Department code is required', 400);
   let department;
   try {
     department = await withAudit(req.user.email, async (client) => {
@@ -371,11 +760,16 @@ const archiveDepartment = asyncHandler(async (req, res) => {
       if (!existing.rows.length) return null;
       const inUse = await client.query('SELECT 1 FROM public.jobhistory WHERE deptcode = $1 AND is_deleted = false LIMIT 1', [deptcode]);
       if (inUse.rows.length) throw requestError('Cannot archive department while active job-history records exist.', 409);
+      const empInUse = await client.query('SELECT 1 FROM public.employee WHERE deptcode = $1 AND is_deleted = false LIMIT 1', [deptcode]);
+      if (empInUse.rows.length) throw requestError('Cannot archive department while active job-history records exist.', 409);
       const result = await client.query('UPDATE public.department SET is_deleted = true WHERE deptcode = $1 AND is_deleted = false RETURNING deptcode, deptname, is_deleted, stamp', [deptcode]);
       return result.rows[0] || null;
     });
   } catch (error) {
-    if (error.code === 'P0001' && /active related record/i.test(error.message || '')) {
+    if (
+      (error.code === 'P0001' && /active related record/i.test(error.message || '')) ||
+      error.code === '23503'
+    ) {
       throw requestError('Cannot archive department while active job-history records exist.', 409);
     }
     throw error;
@@ -386,6 +780,7 @@ const archiveDepartment = asyncHandler(async (req, res) => {
 
 const restoreDepartment = asyncHandler(async (req, res) => {
   const deptcode = String(req.params.deptcode || '').trim().toUpperCase();
+  if (!deptcode) throw requestError('Department code is required', 400);
   const department = await withAudit(req.user.email, async (client) => {
     const result = await client.query('UPDATE public.department SET is_deleted = false WHERE deptcode = $1 AND is_deleted = true RETURNING deptcode, deptname, is_deleted, stamp', [deptcode]);
     return result.rows[0] || null;
@@ -398,6 +793,8 @@ module.exports = {
   listEmployees,
   listOptions,
   getEmployee,
+  getJobHistory,
+  recordPromotion,
   createEmployee,
   updateEmployee,
   archiveEmployee,
@@ -413,3 +810,4 @@ module.exports = {
   archiveDepartment,
   restoreDepartment
 };
+

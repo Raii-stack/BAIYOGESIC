@@ -7,11 +7,13 @@ import { safeErrorMessage } from "../lib/api-errors"
 import { getUserDisplayName, getUserInitials } from "../lib/auth"
 import { canAccessModule, type ErpModuleKey } from "../lib/rbac"
 import { notifyToast } from "../lib/toast"
+import RegistrationNotifications from "../components/dashboard/RegistrationNotifications"
 
 const HREF_MODULE_MAP: Record<string, ErpModuleKey> = {
   "/customers": "customers",
   "/inventory": "products",
   "/employees": "hr",
+  "/departments": "hr",
   "/sales": "sales",
   "/reports": "reports",
   "/users": "users",
@@ -46,8 +48,8 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
     return !moduleKey || canAccessModule(user, moduleKey)
   }), [user])
   const navigationGroups = [
-    { label: "Business", items: visibleNavigation.filter((item) => !["Employees", "Users"].includes(item.label)) },
-    { label: "Organization", items: visibleNavigation.filter((item) => ["Employees", "Users"].includes(item.label)) },
+    { label: "Business", items: visibleNavigation.filter((item) => !["Employees", "Departments", "Users"].includes(item.label)) },
+    { label: "Organization", items: visibleNavigation.filter((item) => ["Employees", "Departments", "Users"].includes(item.label)) },
   ].filter((group) => group.items.length > 0)
   const currentItem = visibleNavigation.find((item) => item.href && (pathname === pathnameFromHref(item.href) || pathname.startsWith(`${pathnameFromHref(item.href)}/`)))
   const isHome = pathname === "/dashboard"
@@ -123,7 +125,11 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
   }, [mobileSidebarOpen])
 
   return (
-    <div className="erp-workspace flex min-h-screen bg-[#1c1c1c] font-sans text-neutral-900 antialiased">
+    <div className="erp-workspace flex min-h-screen bg-[#1c1c1c] font-sans text-neutral-900 antialiased"
+      onKeyDown={(event) => {
+        // Let Escape dismiss an open select before a containing drawer handles it.
+        if (event.key === "Escape" && event.target instanceof Element && CSS.supports("appearance", "base-select") && event.target.closest("select")?.matches(":open")) event.stopPropagation()
+      }}>
       {mobileSidebarOpen && <button type="button" aria-label="Close navigation" onClick={closeMobileNavigation} className="fixed inset-0 z-30 bg-black/45 lg:hidden" />}
 
       <aside
@@ -159,7 +165,7 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
               aria-label={searchPlaceholder}
               aria-controls="workspace-search-results"
               aria-expanded={Boolean(search.trim())}
-              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 pl-12 pr-12 text-[13px] text-white outline-none transition placeholder:text-neutral-400 hover:bg-white/10 focus:border-neutral-400 focus:bg-white/10 focus:ring-2 focus:ring-blue-400"
+              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 pl-12 pr-3 text-[13px] text-white outline-none transition placeholder:text-neutral-400 hover:bg-white/10 focus:border-neutral-400 focus:bg-white/10 focus:ring-2 focus:ring-blue-400"
             />
             {!search && <kbd aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 font-sans text-[10px] text-neutral-500">Ctrl K</kbd>}
           </div>
@@ -225,6 +231,7 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
             </>}
           </nav>
           <button type="button" onClick={focusSearch} aria-label="Open search" title="Search (Ctrl+K)" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 lg:hidden"><DashboardIcon name="search" className="h-[18px] w-[18px]" /></button>
+          {canAccessModule(user, "users") && !user?.mustChangePassword && <RegistrationNotifications />}
           <details ref={accountRef} className="relative shrink-0" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false }} onKeyDown={(event) => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus() } }}>
             <summary aria-label="Account menu" className="flex cursor-pointer list-none items-center gap-2 rounded-lg p-1.5 transition hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 [&::-webkit-details-marker]:hidden">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#c5eed2] text-[11px] font-semibold text-[#163c25]">{getUserInitials(user)}</span>

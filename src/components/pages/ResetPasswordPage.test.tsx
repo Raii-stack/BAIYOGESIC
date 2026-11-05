@@ -11,6 +11,7 @@ test("does not claim a reset link is verified when no token is present", () => {
   render(<MemoryRouter><ResetPasswordPage /></MemoryRouter>)
   expect(screen.getByText(/valid password-reset link is required/)).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Update Password" })).not.toBeInTheDocument()
+  expect(screen.getByRole("link", { name: "Return to sign in" })).toHaveAttribute("href", "/login")
 })
 
 test("submits a reset token to the API and shows a real success toast", async () => {

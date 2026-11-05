@@ -2,28 +2,13 @@ import { useEffect, useState, type FormEvent } from "react"
 
 import type { Customer, PaymentTerm } from "../../types/customer"
 import type { CustomerInput } from "../../lib/customer-api"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 type CustomerPanelProps = {
   customer: Customer | null
   open: boolean
   onClose: () => void
   onSave: (input: CustomerInput) => Promise<void>
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
 }
 
 export default function CustomerPanel({
@@ -66,6 +51,7 @@ export default function CustomerPanel({
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
+    if (saving) return
 
     const nextNameError = !customerName.trim()
       ? "Customer Name is required."
@@ -109,7 +95,7 @@ export default function CustomerPanel({
         aria-label="Close customer details"
         onClick={() => { if (!saving) onClose() }}
         tabIndex={open ? 0 : -1}
-        className={`absolute inset-0 bg-slate-950/45 transition-opacity duration-200 ${
+        className={`absolute inset-0 bg-black/45 transition-opacity duration-200 ${
           open ? "opacity-100" : "opacity-0"
         }`}
       />
@@ -124,7 +110,6 @@ export default function CustomerPanel({
       >
         <header className="workspace-drawer-header">
           <div>
-
             <h2
               id="customer-panel-title"
               className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-950"
@@ -139,11 +124,12 @@ export default function CustomerPanel({
           </div>
           <button
             type="button"
+            disabled={saving}
             onClick={() => { if (!saving) onClose() }}
             aria-label="Close customer details"
-            className="workspace-icon-action"
+            className="workspace-icon-action disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 
@@ -171,6 +157,7 @@ export default function CustomerPanel({
                 <input
                   type="text"
                   readOnly
+                  disabled={saving}
                   value={customer?.id ?? "Auto-generated on save"}
                   className="workspace-control"
                 />
@@ -185,6 +172,7 @@ export default function CustomerPanel({
                   type="text"
                   value={customerName}
                   maxLength={20}
+                  disabled={saving}
                   onChange={(event) => {
                     setCustomerName(event.target.value)
                     if (nameError) setNameError("")
@@ -196,10 +184,11 @@ export default function CustomerPanel({
                     nameError
                       ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
                       : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
-                  }`}
+                  } disabled:bg-slate-100 disabled:cursor-not-allowed`}
                 />
                 <p
                   id="customer-name-error"
+                  role={nameError ? "alert" : undefined}
                   aria-live="polite"
                   className={nameError ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
                 >
@@ -214,6 +203,7 @@ export default function CustomerPanel({
                 <textarea
                   value={address}
                   maxLength={50}
+                  disabled={saving}
                   onChange={(event) => {
                     setAddress(event.target.value)
                     if (addressError) setAddressError("")
@@ -226,10 +216,11 @@ export default function CustomerPanel({
                     addressError
                       ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
                       : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
-                  }`}
+                  } disabled:bg-slate-100 disabled:cursor-not-allowed`}
                 />
                 <p
                   id="customer-address-error"
+                  role={addressError ? "alert" : undefined}
                   aria-live="polite"
                   className={addressError ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
                 >
@@ -247,6 +238,7 @@ export default function CustomerPanel({
                 <span className="relative block">
                   <select
                     value={paymentTerm}
+                    disabled={saving}
                     onChange={(event) => {
                       setPaymentTerm(event.target.value as PaymentTerm | "")
                       if (paymentTermError) setPaymentTermError("")
@@ -259,16 +251,18 @@ export default function CustomerPanel({
                       paymentTermError
                         ? "border-red-500 shadow-[0_0_0_3px] shadow-red-50"
                         : "border-slate-300 hover:border-slate-400 focus:border-blue-700 focus:bg-white focus:shadow-[0_0_0_3px] focus:shadow-blue-100"
-                    }`}
+                    } disabled:bg-slate-100 disabled:cursor-not-allowed`}
                   >
                     <option value="">Select payment terms</option>
                     <option value="30D">Net 30</option>
                     <option value="COD">COD</option>
                     <option value="45D">Net 45</option>
+                    <option value="60D">Net 60</option>
                   </select>
                 </span>
                 <p
                   id="customer-payment-term-error"
+                  role={paymentTermError ? "alert" : undefined}
                   aria-live="polite"
                   className={paymentTermError ? "mt-2 text-xs font-medium leading-4 text-red-600" : "sr-only"}
                 >
@@ -291,8 +285,14 @@ export default function CustomerPanel({
             <button
               type="submit"
               disabled={saving}
-              className="workspace-primary-action"
+              className="workspace-primary-action inline-flex items-center justify-center"
             >
+              {saving && (
+                <svg className="mr-2 h-4 w-4 animate-spin text-white" viewBox="0 0 24 24" fill="none" aria-hidden="true" data-testid="customer-saving-spinner">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+              )}
               {saving ? "Saving…" : customer ? "Save changes" : "Create customer"}
             </button>
           </footer>

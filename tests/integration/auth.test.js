@@ -125,21 +125,19 @@ describe('Change password and first-time setup', () => {
   );
 });
 
-describe('Removed features stay removed', () => {
-  test('post /api/auth/register is not exposed (404)', async () => {
+describe('Re-integrated registration and password recovery endpoints (Guide §3.1)', () => {
+  test('post /api/auth/register validates required fields', async () => {
     const res = await api.post('/api/auth/register').send({ email: 'x@test.com' });
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(400);
   });
 
-  // BLOCKED: BUG-002. These endpoints still respond (200 / 400) after the feature was dropped.
-  // Remove .skip when the routes are deleted, and the tests should pass.
-  test.skip('post /api/auth/forgot-password is not exposed (404)', async () => {
-    const res = await api.post('/api/auth/forgot-password').send({ email: 'x@test.com' });
-    expect(res.status).toBe(404);
+  test('post /api/auth/forgot-password requires valid email', async () => {
+    const res = await api.post('/api/auth/forgot-password').send({ email: 'invalid-email' });
+    expect(res.status).toBe(400);
   });
 
-  test.skip('post /api/auth/reset-password is not exposed (404)', async () => {
-    const res = await api.post('/api/auth/reset-password').send({ email: 'x@test.com' });
-    expect(res.status).toBe(404);
+  test('post /api/auth/reset-password requires token and minimum 8-char password', async () => {
+    const res = await api.post('/api/auth/reset-password').send({ token: '', password: 'short' });
+    expect(res.status).toBe(400);
   });
 });

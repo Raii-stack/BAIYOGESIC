@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react"
 import type { UserCreateInput, UserUpdateInput } from "../../lib/user-api"
 import { departmentPermissionPresets } from "../../lib/users"
 import type { AvailableEmployee, SystemUser, UserRole } from "../../types/user"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 type UserPanelProps = {
   user: SystemUser | null
@@ -13,22 +14,6 @@ type UserPanelProps = {
   onClose: () => void
   onCreate: (input: UserCreateInput) => Promise<void>
   onUpdate: (userId: string, input: UserUpdateInput) => Promise<void>
-}
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
 }
 
 function suggestPresetForEmployee(emp?: AvailableEmployee): string {
@@ -210,7 +195,7 @@ export default function UserPanel({
           if (!saving) onClose()
         }}
         tabIndex={open ? 0 : -1}
-        className={`absolute inset-0 bg-slate-950/45 transition-opacity duration-200 ${
+        className={`absolute inset-0 bg-black/45 transition-opacity duration-200 ${
           open ? "opacity-100" : "opacity-0"
         }`}
       />
@@ -246,7 +231,7 @@ export default function UserPanel({
             aria-label="Close user details"
             className="workspace-icon-action"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 

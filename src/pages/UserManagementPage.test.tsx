@@ -63,6 +63,63 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+test("notification links switch an open user directory to pending accounts and keep pagination working", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: adminSession })
+    if (url.pathname === "/api/auth/activity") return success({ message: "ok" })
+    if (url.pathname === "/api/auth/registration-notifications") return success({ total: 20, registrations: [{ userId: "5", name: "New applicant", email: "new@hope.inc", createdAt: "2026-11-02T10:00:00.000Z" }] })
+    if (url.pathname === "/api/users/options") return success({ availableEmployees: [] })
+    if (url.pathname === "/api/users") {
+      const page = Number(url.searchParams.get("page"))
+      return success({ users: Array.from({ length: 10 }, (_, i) => ({ ...makeUser((page - 1) * 10 + i + 1), status: url.searchParams.get("status") === "pending" ? "pending" : "active" })), pagination: { page, limit: 10, total: 20, totalPages: 2 } })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  }))
+  const user = userEvent.setup()
+  render(<MemoryRouter initialEntries={["/users?page=1"]}><AuthProvider><UserManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("User1 Account")
+  await user.click(screen.getByTitle("Registration notifications"))
+  await user.click(await screen.findByRole("link", { name: "View pending accounts (20)" }))
+  await waitFor(() => expect(screen.getByLabelText("Status")).toHaveValue("pending"))
+  await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeEnabled())
+  await user.click(screen.getByRole("button", { name: "Next" }))
+  expect(await screen.findByText("User11 Account")).toBeInTheDocument()
+  expect(screen.getByText("Showing 11–20 of 20")).toBeInTheDocument()
+})
+
+test("HR can approve pending employees without user-editing controls", async () => {
+  let pending = true
+  const applicant = { ...makeUser(5), status: "pending" as const }
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: { ...adminSession, role: "employee", rights: ["hr.employee.edit"] } })
+    if (url.pathname === "/api/auth/activity") return success({ message: "ok" })
+    if (url.pathname === "/api/users") {
+      expect(url.searchParams.get("role")).toBe("employee")
+      expect(url.searchParams.get("status")).toBe("pending")
+      return success({ users: pending ? [applicant] : [], pagination: { page: 1, limit: 10, total: pending ? 1 : 0, totalPages: pending ? 1 : 0 } })
+    }
+    if (url.pathname === `/api/users/${applicant.userId}/approve` && init?.method === "POST") {
+      pending = false
+      return success({ user: { ...applicant, status: "active" } })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+  render(<MemoryRouter><AuthProvider><UserManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("User5 Account")
+  expect(screen.getByRole("heading", { name: "Pending registrations" })).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Add user" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: /^(Edit|Block|Rights for)/ })).not.toBeInTheDocument()
+  expect(screen.getByLabelText("Role")).toBeDisabled()
+  expect(screen.getByLabelText("Status")).toHaveValue("pending")
+  await user.click(screen.getByRole("button", { name: "Accept User5 Account" }))
+  expect(await screen.findByText("No user accounts found")).toBeInTheDocument()
+  expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/users/options"))).toBe(false)
+})
+
 test("loads user accounts with skeletons, filters, and server pagination for superadmin", async () => {
   let releaseFirstPage: (() => void) | undefined
   const firstPageGate = new Promise<void>((resolve) => {
@@ -337,7 +394,7 @@ test("allows superadmin to edit rights of admin and other superadmin accounts an
   )
 
   expect(await screen.findByText("User2 Account")).toBeInTheDocument()
-  const otherSuperRow = screen.getByRole("row", { name: /User2 Account/ })
+  const otherSuperRow = await screen.findByRole("row", { name: /User2 Account/ })
   expect(within(otherSuperRow).getByText("Pending")).toBeInTheDocument()
   expect(within(otherSuperRow).getByRole("button", { name: "Rights for User2 Account" })).toBeInTheDocument()
 
@@ -346,8 +403,13 @@ test("allows superadmin to edit rights of admin and other superadmin accounts an
     expect(within(screen.getByRole("row", { name: /User2 Account/ })).getByText("Active")).toBeInTheDocument(),
   )
   expect(screen.getByRole("status")).toHaveTextContent("User2 Account has been accepted and activated.")
+  const getUserCallsAfterApprove = fetchMock.mock.calls.filter(([input, init]) => {
+    const url = new URL(String(input), "http://localhost")
+    return url.pathname === "/api/users" && (!init?.method || init?.method === "GET")
+  })
+  expect(getUserCallsAfterApprove).toHaveLength(1)
 
-  const adminRow = screen.getByRole("row", { name: /User3 Account/ })
+  const adminRow = await screen.findByRole("row", { name: /User3 Account/ })
   await user.click(within(adminRow).getByRole("button", { name: "Rights for User3 Account" }))
   const dialog = screen.getByRole("dialog", { name: /Rights — User3 Account/ })
   await user.click(within(dialog).getByRole("switch", { name: "Add Customer" }))
@@ -520,4 +582,47 @@ test("keeps the edited rights open when saving fails", async () => {
   expect(await within(dialog).findByRole("alert")).toHaveTextContent("Unable to save rights")
   expect(presetSelect).toHaveValue("inventory-employee")
   expect(within(dialog).getByRole("button", { name: "Save Rights" })).toBeEnabled()
+})
+
+test("displays Audit Logs tab for superadmin and toggles to AuditLogViewer", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: superAdminSession })
+    if (url.pathname === "/api/users/options") return success({ availableEmployees: [] })
+    if (url.pathname === "/api/users") return success({ users: [makeUser(1, "employee")], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/audit-logs") {
+      return success({
+        logs: [
+          {
+            auditId: "999",
+            tableName: "sales",
+            action: "UPDATE",
+            recordKey: "SO-1234",
+            oldValues: { total: 100 },
+            newValues: { total: 200 },
+            actionBy: "superadmin",
+            actionAt: "2026-11-02T12:00:00Z",
+          },
+        ],
+        pagination: { page: 1, limit: 15, total: 1, totalPages: 1 },
+      })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <UserManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  expect(await screen.findByRole("tab", { name: "Audit Logs" })).toBeInTheDocument()
+  await user.click(screen.getByRole("tab", { name: "Audit Logs" }))
+
+  expect(await screen.findByText(/Append-Only Audit Log/i)).toBeInTheDocument()
+  expect(await screen.findByText("SO-1234")).toBeInTheDocument()
 })

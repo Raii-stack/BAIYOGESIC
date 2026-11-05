@@ -2,22 +2,7 @@ import { useEffect, useState } from "react"
 
 import { departmentPermissionPresets, permissionGroups } from "../../lib/users"
 import type { PermissionGroup, SystemUser, UserRole } from "../../types/user"
-
-function CloseIcon() {
-  return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 24 24"
-      className="h-5 w-5"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-    >
-      <path d="m6 6 12 12M18 6 6 18" />
-    </svg>
-  )
-}
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 function getModulePresetValue(group: PermissionGroup, selectedRights: string[]): string {
   const actionIds = group.permissions.map((p) => p.id)
@@ -177,21 +162,21 @@ export default function RightsModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[60] grid place-items-center px-4 py-6">
+    <div className="workspace-modal-overlay z-[60]">
       <button
         type="button"
         aria-label="Close rights assignment"
         onClick={() => {
           if (!saving) onClose()
         }}
-        className="absolute inset-0 bg-slate-950/70"
+        className="absolute inset-0 bg-black/45"
       />
 
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="rights-modal-title"
-        className="relative flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden workspace-panel shadow-xl"
+        className="workspace-modal workspace-panel relative w-full max-w-5xl shadow-xl"
       >
         <header className="workspace-drawer-header">
           <div>
@@ -216,12 +201,12 @@ export default function RightsModal({
             aria-label="Close rights assignment"
             className="workspace-icon-action"
           >
-            <CloseIcon />
+            <DashboardIcon name="close" className="h-5 w-5" />
           </button>
         </header>
 
         <div className="workspace-drawer-body">
-          <div className="grid gap-4 rounded-lg border border-neutral-200 bg-slate-50 p-4 sm:grid-cols-[minmax(260px,1fr)_auto] sm:items-end">
+          <div className="grid gap-4 rounded-lg border border-neutral-200 bg-slate-50 p-4 md:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <label className="block">
               <span className="workspace-label">
                 Pre-selected Department &amp; Role Configuration
@@ -421,7 +406,7 @@ export default function RightsModal({
         </div>
 
         <footer className="workspace-drawer-footer">
-          <p className="hidden text-xs text-slate-500 sm:block">
+          <p className="text-xs text-slate-500">
             {actionRightsCount} action permissions selected · Role after save: {
               nextRole === "superadmin" ? "Superadmin" : nextRole === "admin" ? "Admin" : "Employee"
             }

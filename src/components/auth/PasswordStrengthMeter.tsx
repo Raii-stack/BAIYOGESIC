@@ -2,14 +2,16 @@ import { getPasswordStrength, strengthLevels } from "../../utils/password"
 
 export default function PasswordStrengthMeter({
   password,
+  className = "-mt-2 mb-5",
 }: {
   password: string
+  className?: string
 }) {
   const strength = getPasswordStrength(password)
   const level = strengthLevels[strength]
 
   return (
-    <div className="-mt-2 mb-5" aria-live="polite">
+    <div className={className} aria-live="polite">
       <div className="mb-2 flex items-center justify-between gap-4">
         <p className="text-xs font-semibold text-slate-600">
           Password strength

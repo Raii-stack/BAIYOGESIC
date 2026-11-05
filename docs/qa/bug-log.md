@@ -47,3 +47,41 @@
 **Evidence:** screenshots of the failing test output and the `password_reset_token` query.
 
 ![alt text](image.png)
+
+## BUG-003: Playwright E2E runner does not start the application
+**Severity:** Medium | **Status:** Resolved | **Found by:** Test Engineer | **Test:** `npm run test:e2e`
+
+**Environment:** local Windows development environment, Node.js 24.22.0
+
+**Steps to Reproduce:**
+1. Stop the frontend and API development servers.
+2. Run `npm run test:e2e`.
+
+**Expected:** Playwright starts the app and runs browser tests against its configured base URL.
+
+**Actual:** Browser tests failed with `net::ERR_CONNECTION_REFUSED` at `http://127.0.0.1:5173`; the Playwright configuration did not declare a `webServer`.
+
+**Fix:** Configure Playwright to use the existing `npm run dev` launcher and bind Vite to `127.0.0.1` so the readiness URL and server address match.
+
+**Verification:** `npx playwright test tests/e2e/ui-consistency.spec.js --config=playwright.config.js` passed all 10 tests. The full E2E suite was not green during this run; see the S1-TST-06 report.
+
+**Screenshot/log:** No browser screenshot applies because the failure occurred before a page loaded. The terminal failure was captured during the test run; Playwright's failure artifacts were cleared by the subsequent passing run.
+
+## BUG-004: UI consistency E2E mock omits registration notifications
+**Severity:** Low | **Status:** Resolved | **Found by:** Test Engineer | **Test:** `tests/e2e/ui-consistency.spec.js`
+
+**Environment:** local Playwright run against Vite
+
+**Steps to Reproduce:**
+1. Run the UI consistency Playwright spec with its API mock enabled.
+2. Load an authenticated workspace page.
+
+**Expected:** All API requests used by the page receive mocked responses, allowing the UI assertions to run.
+
+**Actual:** The mock threw `Unhandled API: /api/auth/registration-notifications`, causing the workspace and pagination tests to fail before completing their assertions.
+
+**Fix:** Add the endpoint to the shared E2E mock with an empty notifications response.
+
+**Verification:** The UI consistency spec passed all 10 tests after the mock was added.
+
+**Screenshot/log:** No screenshot was retained; Playwright cleared the failed-run artifacts after the passing rerun. The earlier failure message is recorded in the S1-TST-06 report.

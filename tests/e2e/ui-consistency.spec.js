@@ -21,6 +21,7 @@ async function mockApi(page) {
     const activityPath = new URL(route.request().url()).pathname;
     if (activityPath === '/api/auth/activity') return route.fulfill({ json: { success: true, data: { message: 'ok' } } });
     if (activityPath === '/api/auth/active-employees') return route.fulfill({ json: { success: true, data: { employees: [] } } });
+    if (activityPath === '/api/auth/registration-notifications') return route.fulfill({ json: { success: true, data: { total: 0, registrations: [] } } });
     expect(route.request().method()).toBe('GET');
     const url = new URL(route.request().url());
     let data;

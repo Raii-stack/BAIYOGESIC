@@ -1,0 +1,1 @@
+module.exports = require('../integration/setup/global-setup.js');

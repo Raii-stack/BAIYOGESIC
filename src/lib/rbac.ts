@@ -1,4 +1,4 @@
-import { isAdminRole, type AuthUser } from "./auth"
+import { hasUserRight, isAdminRole, type AuthUser } from "./auth"
 import type { ReportName } from "../components/reports/ReportTable"
 
 export type ErpModuleKey =
@@ -107,7 +107,7 @@ export function canAccessModule(
 ): boolean {
   if (!user) return false
   if (moduleKey === "users") {
-    return isAdminRole(user.role)
+    return hasUserRight(user, "hr.employee.edit")
   }
   return hasAnyRight(user, MODULE_RIGHTS[moduleKey])
 }

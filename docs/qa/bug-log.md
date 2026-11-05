@@ -35,7 +35,7 @@
 
 **Expected:** Both return 404, because the team removed forgot-password and registration from scope on 10/26/2026.
 
-**Actual:**
+**Actual:** 
 - `forgot-password` returns **200**.
 - `reset-password` returns **400** (it validates the request, so the route exists).
 - `register` correctly returns 404.
@@ -45,3 +45,5 @@
 **Suggested fix:** Remove the routes (and the unused controller code) or confirm they are intentionally kept.
 
 **Evidence:** screenshots of the failing test output and the `password_reset_token` query.
+
+![alt text](image.png)

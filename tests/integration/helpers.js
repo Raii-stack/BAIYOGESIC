@@ -19,7 +19,7 @@ const ROUTES = {
   login: '/api/auth/login',
   logout: '/api/auth/logout',
   changePassword: '/api/auth/change-password',
-  protected: '', // TODO: a real route that needs a fully set-up user. Leave blank to skip that test.
+  protected: '/api/customers', // TODO: a real route that needs a fully set-up user. Leave blank to skip that test.
 };
 
 const asLogin = (u) => ({ email: u.email, password: QA_PASSWORD });

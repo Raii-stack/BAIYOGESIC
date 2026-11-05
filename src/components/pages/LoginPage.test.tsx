@@ -24,6 +24,19 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+test("pending applicants see an approval message and stay signed out", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/login")
+    ? failure(403, "Your account is pending approval. Contact HR or an administrator.")
+    : failure(401, "Authentication required")))
+  const user = userEvent.setup()
+  render(<App />)
+  await user.type(await screen.findByLabelText("Work email"), "new@hope.inc")
+  await user.type(screen.getByLabelText("Password"), "SecurePass123!")
+  await user.click(screen.getByRole("button", { name: "Sign in", exact: true }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("Your account is pending approval. Contact HR or an administrator.")
+  expect(window.location.pathname).toBe("/login")
+})
+
 test("default-password users enter the dashboard and must change their password there", async () => {
   const pendingUser = {
     userId: 1,

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react"
-import { useSearchParams } from "react-router"
+import { useEffect, useRef, useState } from "react"
+import { useLocation, useSearchParams } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
 import SuccessToast from "../components/common/SuccessToast"
@@ -11,7 +11,7 @@ import AuditLogViewer from "../components/users/AuditLogViewer"
 import useDebouncedValue from "../hooks/useDebouncedValue"
 import usePageQuery from "../hooks/usePageQuery"
 import DashboardLayout from "../layouts/DashboardLayout"
-import { isSuperAdminRole } from "../lib/auth"
+import { isAdminRole, isSuperAdminRole } from "../lib/auth"
 import {
   userApi,
   type UserCreateInput,
@@ -26,7 +26,10 @@ const emptyPagination: UserPagination = { page: 1, limit: PAGE_SIZE, total: 0, t
 export default function UserManagementPage() {
   const { user: currentUser } = useAuth()
   const [searchParams] = useSearchParams()
+  const { state: navigationState } = useLocation()
+  const handledNotification = useRef<unknown>(null)
   const isSuperAdmin = isSuperAdminRole(currentUser?.role)
+  const approvalOnly = !isAdminRole(currentUser?.role)
   const currentUserId = String(currentUser?.userId ?? "")
   const [activeView, setActiveView] = useState<"users" | "audit">(() =>
     searchParams.get("view") === "audit" && isSuperAdmin ? "audit" : "users",
@@ -35,8 +38,8 @@ export default function UserManagementPage() {
   const [query, setQuery] = useState(() => searchParams.get("search") || "")
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
-  const [roleFilter, setRoleFilter] = useState<"all" | UserRole>("all")
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "blocked" | "pending">("all")
+  const [roleFilter, setRoleFilter] = useState<"all" | UserRole>(() => searchParams.get("status") === "pending" ? "employee" : "all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "blocked" | "pending">(() => searchParams.get("status") === "pending" ? "pending" : "all")
   const [page, setPage] = usePageQuery()
   const [users, setUsers] = useState<SystemUser[]>([])
   const [pagination, setPagination] = useState<UserPagination>(emptyPagination)
@@ -53,6 +56,16 @@ export default function UserManagementPage() {
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null)
 
   useEffect(() => {
+    if (navigationState === handledNotification.current || typeof navigationState?.registrationEmail !== "string") return
+    handledNotification.current = navigationState
+    setActiveView("users")
+    setQuery(navigationState.registrationEmail)
+    setRoleFilter("employee")
+    setStatusFilter("pending")
+    setPage(1)
+  }, [navigationState, setPage])
+
+  useEffect(() => {
     document.title = "User Management | HOPE, Inc."
     return () => {
       document.title = "Sign in | HOPE, Inc."
@@ -60,7 +73,7 @@ export default function UserManagementPage() {
   }, [])
 
   useEffect(() => {
-    if (activeView !== "users") return
+    if (activeView !== "users" || !currentUser || approvalOnly) return
     const controller = new AbortController()
     userApi
       .options(controller.signal)
@@ -73,10 +86,10 @@ export default function UserManagementPage() {
         // Optional lookup list
       })
     return () => controller.abort()
-  }, [refresh, activeView])
+  }, [refresh, activeView, approvalOnly, currentUser?.userId])
 
   useEffect(() => {
-    if (activeView !== "users") return
+    if (activeView !== "users" || !currentUser) return
     if (searchPending) {
       setLoading(true)
       setLoadError("")
@@ -91,8 +104,8 @@ export default function UserManagementPage() {
           page,
           limit: PAGE_SIZE,
           search: debouncedQuery,
-          role: roleFilter,
-          status: statusFilter,
+          role: approvalOnly ? "employee" : roleFilter,
+          status: approvalOnly ? "pending" : statusFilter,
         },
         controller.signal,
       )
@@ -116,7 +129,7 @@ export default function UserManagementPage() {
         if (!controller.signal.aborted) setLoading(false)
       })
     return () => controller.abort()
-  }, [page, roleFilter, statusFilter, debouncedQuery, searchPending, refresh, activeView])
+  }, [page, roleFilter, statusFilter, debouncedQuery, searchPending, refresh, activeView, approvalOnly, currentUser?.userId])
 
   const showNotice = (message: string) => {
     setNotice((current) => ({ id: (current?.id ?? 0) + 1, message }))
@@ -155,6 +168,8 @@ export default function UserManagementPage() {
         current.map((user) => (user.userId === updated.userId ? updated : user)),
       )
       showNotice(`${target.name} has been accepted and activated.`)
+      window.dispatchEvent(new Event("hope:registrations-changed"))
+      if (approvalOnly || statusFilter === "pending") setRefresh((current) => current + 1)
     } catch {
       // Shared error toast is emitted by apiFailure
     } finally {
@@ -198,7 +213,7 @@ export default function UserManagementPage() {
             <header className="workspace-page-header">
               <div>
                 <h1 className="workspace-page-title">Users</h1>
-                <p className="workspace-page-description">Manage who can sign in and what they can access.</p>
+                <p className="workspace-page-description">{approvalOnly ? "Review and approve pending employee registrations." : "Manage who can sign in and what they can access."}</p>
               </div>
             </header>
 
@@ -267,7 +282,8 @@ export default function UserManagementPage() {
                     <span className="workspace-label">Role</span>
                     <span className="relative block">
                       <select
-                        value={roleFilter}
+                        value={approvalOnly ? "employee" : roleFilter}
+                        disabled={approvalOnly}
                         onChange={(event) => {
                           setRoleFilter(event.target.value as "all" | UserRole)
                           setPage(1)
@@ -286,7 +302,8 @@ export default function UserManagementPage() {
                     <span className="workspace-label">Status</span>
                     <span className="relative block">
                       <select
-                        value={statusFilter}
+                        value={approvalOnly ? "pending" : statusFilter}
+                        disabled={approvalOnly}
                         onChange={(event) => {
                           setStatusFilter(
                             event.target.value as "all" | "active" | "blocked" | "pending",
@@ -303,14 +320,14 @@ export default function UserManagementPage() {
                     </span>
                   </label>
 
-                  <button
+                  {!approvalOnly && <button
                     type="button"
                     onClick={openAddPanel}
                     className="workspace-primary-action"
                   >
                     <DashboardIcon name="plus" className="h-4 w-4" />
                     Add user
-                  </button>
+                  </button>}
                 </section>
 
                 {loadError && (
@@ -335,6 +352,7 @@ export default function UserManagementPage() {
                   loading={loading}
                   error={Boolean(loadError)}
                   isSuperAdmin={isSuperAdmin}
+                  approvalOnly={approvalOnly}
                   currentUserId={currentUserId}
                   togglingId={togglingId}
                   approvingId={approvingId}

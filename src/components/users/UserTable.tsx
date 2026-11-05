@@ -22,6 +22,7 @@ export default function UserTable({
   loading,
   error,
   isSuperAdmin,
+  approvalOnly = false,
   currentUserId,
   togglingId,
   approvingId,
@@ -36,6 +37,7 @@ export default function UserTable({
   loading: boolean
   error: boolean
   isSuperAdmin: boolean
+  approvalOnly?: boolean
   currentUserId: string
   togglingId: string | null
   approvingId: string | null
@@ -55,13 +57,13 @@ export default function UserTable({
     >
       <div className="workspace-table-header">
         <div>
-          <h2 className="text-sm font-semibold text-neutral-900">User directory</h2>
+          <h2 className="text-sm font-semibold text-neutral-900">{approvalOnly ? "Pending registrations" : "User directory"}</h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            System roles, account status, and per-module user permissions
+            {approvalOnly ? "Approve employee accounts before they can sign in." : "System roles, account status, and per-module user permissions"}
           </p>
         </div>
         <span className="workspace-badge workspace-badge--neutral">
-          {loading ? "Loading…" : error ? "Unavailable" : `${pagination.total} accounts`}
+          {loading ? "Loading…" : error ? "Unavailable" : `${pagination.total} ${pagination.total === 1 ? "account" : "accounts"}`}
         </span>
       </div>
 
@@ -89,11 +91,11 @@ export default function UserTable({
               users.map((user) => {
                 const isSelf = String(user.userId) === String(currentUserId)
                 const canManageRow = isSuperAdmin || user.role === "employee"
-                const canBlockRow = canManageRow && !isSelf
-                const canAssignRights = isSuperAdmin
+                const canBlockRow = !approvalOnly && canManageRow && !isSelf
+                const canAssignRights = !approvalOnly && (isSuperAdmin
                   ? !isSelf
-                  : canManageRow && user.role === "employee"
-                const canApproveRow = canManageRow && user.status === "pending"
+                  : canManageRow && user.role === "employee")
+                const canApproveRow = canManageRow && user.status === "pending" && !user.isBlocked
 
                 const statusLabel = user.isBlocked
                   ? "Blocked"
@@ -192,14 +194,14 @@ export default function UserTable({
                               Rights
                             </button>
                           )}
-                          <button
+                          {!approvalOnly && <button
                             type="button"
                             onClick={() => onEdit(user)}
                             aria-label={`Edit ${user.name}`}
                             className="workspace-text-action"
                           >
                             Edit
-                          </button>
+                          </button>}
                         </div>
                       )}
                     </td>

@@ -66,7 +66,7 @@ beforeEach(() => {
               empno: '00100',
               email: params[1],
               role: 'employee',
-              status: 'active',
+              status: params[3],
               isBlocked: false,
               mustChangePassword: false,
             },
@@ -142,12 +142,14 @@ describe('User Self-Registration (POST /api/auth/register)', () => {
         email: 'jane@hope.inc',
         password: 'ValidPassword123!',
         role: 'superadmin', // Privilege escalation attempt
+        status: 'active',
       },
     });
 
     expect(res.statusCode).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.user.role).toBe('employee');
+    expect(res.body.data.user.status).toBe('pending');
     expect(res.body.data.user.email).toBe('jane@hope.inc');
     expect(res.body.data.user.name).toBe('Jane Doe');
 
@@ -157,6 +159,7 @@ describe('User Self-Registration (POST /api/auth/register)', () => {
     );
     expect(insertAppUserCall).toBeDefined();
     expect(insertAppUserCall[1][4]).toBe('employee'); // role parameter
+    expect(insertAppUserCall[1][3]).toBe('pending');
   });
 });
 

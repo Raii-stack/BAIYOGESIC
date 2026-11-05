@@ -7,6 +7,7 @@ import { safeErrorMessage } from "../lib/api-errors"
 import { getUserDisplayName, getUserInitials } from "../lib/auth"
 import { canAccessModule, type ErpModuleKey } from "../lib/rbac"
 import { notifyToast } from "../lib/toast"
+import RegistrationNotifications from "../components/dashboard/RegistrationNotifications"
 
 const HREF_MODULE_MAP: Record<string, ErpModuleKey> = {
   "/customers": "customers",
@@ -230,6 +231,7 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
             </>}
           </nav>
           <button type="button" onClick={focusSearch} aria-label="Open search" title="Search (Ctrl+K)" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 lg:hidden"><DashboardIcon name="search" className="h-[18px] w-[18px]" /></button>
+          {canAccessModule(user, "users") && !user?.mustChangePassword && <RegistrationNotifications />}
           <details ref={accountRef} className="relative shrink-0" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false }} onKeyDown={(event) => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus() } }}>
             <summary aria-label="Account menu" className="flex cursor-pointer list-none items-center gap-2 rounded-lg p-1.5 transition hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 [&::-webkit-details-marker]:hidden">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#c5eed2] text-[11px] font-semibold text-[#163c25]">{getUserInitials(user)}</span>

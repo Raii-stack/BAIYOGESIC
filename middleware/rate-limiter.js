@@ -13,7 +13,8 @@ const apiLimiter = rateLimit({
   skip: (req) => {
     // Ensure /health and /api/health endpoints are excluded from rate limits
     return req.path === '/health' || req.path === '/api/health'
-      || req.path === '/auth/activity' || req.path === '/auth/active-employees';
+      || req.path === '/auth/activity' || req.path === '/auth/active-employees'
+      || req.path === '/auth/registration-notifications';
   }
 });
 

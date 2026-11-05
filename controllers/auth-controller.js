@@ -106,7 +106,7 @@ const register = asyncHandler(async (req, res) => {
 
     const passwordHash = rawPassword ? await bcrypt.hash(rawPassword, 12) : null;
     const role = 'employee';
-    const status = 'active';
+    const status = 'pending';
 
     let targetEmpno = null;
     try {
@@ -144,7 +144,7 @@ const register = asyncHandler(async (req, res) => {
     res.status(201).json({
       success: true,
       data: {
-        message: 'Account created successfully',
+        message: 'Registration submitted. Your account is pending approval.',
         user: {
           userId: user.user_id,
           empno: user.empno,
@@ -293,11 +293,11 @@ const setPassword = asyncHandler(async (req, res) => {
     const result = await client.query(
       `UPDATE public.app_user
        SET password_hash = $1,
-           status = 'active',
            must_change_password = false,
            updated_at = now()
        WHERE lower(email) = $2
          AND must_change_password = true
+         AND status = 'active'
        RETURNING user_id, email, status, role, must_change_password`,
       [passwordHash, normalizedEmail]
     );
@@ -324,7 +324,7 @@ const login = asyncHandler(async (req, res) => {
   let candidate = null;
   try {
     const result = await requirePool().query(
-      `${AUTH_SELECT} WHERE lower(u.email) = $1 AND u.status = 'active' LIMIT 1`,
+      `${AUTH_SELECT} WHERE lower(u.email) = $1 LIMIT 1`,
       [normalizedEmail]
     );
     candidate = result.rows[0] || null;
@@ -343,6 +343,13 @@ const login = asyncHandler(async (req, res) => {
 
   if (user.is_blocked) {
     throw requestError('Your account has been blocked. Contact an administrator.', 403);
+  }
+
+  if (user.status === 'pending') {
+    throw requestError('Your account is pending approval. Contact HR or an administrator.', 403);
+  }
+  if (user.status !== 'active') {
+    throw requestError('Invalid email or password', 401);
   }
 
   primeUserCache(user);

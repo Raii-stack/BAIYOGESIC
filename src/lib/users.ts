@@ -57,7 +57,7 @@ export const permissionGroups: PermissionGroup[] = [
       { id: "hr.department.edit", label: "Edit Department" },
       { id: "hr.department.delete", label: "Delete Department" },
       { id: "hr.employee.add", label: "Add Employee" },
-      { id: "hr.employee.edit", label: "Edit Employee" },
+      { id: "hr.employee.edit", label: "Edit Employee / Approve Registrations" },
       { id: "hr.employee.delete", label: "Delete Employee" },
       { id: "hr.history.view", label: "View Job History" },
       { id: "hr.history.add", label: "Add Job History" },
@@ -214,7 +214,7 @@ export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
     level: "Manager",
     label: "Human Resources — Manager",
     description:
-      "Full HR access across Employees, Jobs, Departments, and Job History (including archive/restore) plus all HR reports.",
+      "Full HR access across Employees, Jobs, Departments, and Job History (including archive/restore), registration approvals, and all HR reports.",
     rights: [
       "activity.access",
       "hr.access",
@@ -243,7 +243,7 @@ export const departmentPermissionPresets: DepartmentPermissionPreset[] = [
     level: "Employee",
     label: "Human Resources — Employee",
     description:
-      "Add and edit employees, view and record job history entries, and view Active Employees & Job History reports.",
+      "Add and edit employees, approve registrations, view and record job history entries, and view Active Employees & Job History reports.",
     rights: [
       "hr.access",
       "hr.employee.add",

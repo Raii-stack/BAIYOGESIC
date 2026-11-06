@@ -2,6 +2,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
 
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-minimum-32-characters-required-for-ci';
+
 const mockClient = {
   query: vi.fn(),
   release: vi.fn()

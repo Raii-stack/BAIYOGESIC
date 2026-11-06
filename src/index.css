@@ -169,6 +169,9 @@ input.workspace-control[type="date"]:disabled::-webkit-calendar-picker-indicator
 .workspace-table tbody > tr:last-child > td { border-bottom: 0; }
 .workspace-table .workspace-table-actions { position: sticky; right: 0; z-index: 1; border-left: 1px solid #ededed; background: inherit; }
 .workspace-table th.workspace-table-actions { background: #f7f7f7; }
+.workspace-user-table :is(th, td) { padding-inline: 8px; }
+.workspace-user-table :is(th, td):is(:first-child, :last-child) { padding-inline: 12px; }
+.workspace-user-table .workspace-icon-action { width: 32px; height: 32px; }
 .workspace-table td.workspace-table-expansion { padding: 0; }
 .workspace-table-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #ebebeb; padding: 16px 20px; }
 .workspace-table-footer > p { color: #616161; font-size: 12px; line-height: 20px; }

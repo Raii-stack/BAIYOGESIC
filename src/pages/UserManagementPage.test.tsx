@@ -79,7 +79,13 @@ test("notification links switch an open user directory to pending accounts and k
   }))
   const user = userEvent.setup()
   render(<MemoryRouter initialEntries={["/users?page=1"]}><AuthProvider><UserManagementPage /></AuthProvider></MemoryRouter>)
-  await screen.findByText("User1 Account")
+  await screen.findByRole("row", { name: "User1 Account", exact: true })
+  expect(within(screen.getByRole("region", { name: "User account records" })).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Surname", "Name", "Email", "Role", "Access", "Actions"])
+  const firstRow = within(screen.getByRole("row", { name: "User1 Account", exact: true }))
+  expect(firstRow.getByText("Account", { exact: true })).toBeInTheDocument()
+  expect(firstRow.getByRole("cell", { name: "User1", exact: true })).toBeInTheDocument()
+  expect(firstRow.getByRole("cell", { name: "user1@hope.inc", exact: true })).toBeInTheDocument()
+  expect(firstRow.getByRole("cell", { name: "Active", exact: true })).toBeInTheDocument()
   expect(screen.queryByText("Last active")).not.toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Expand details for User1 Account" }))
   expect(screen.getByRole("region", { name: "Details for User1 Account" })).toHaveTextContent("Last active")
@@ -91,7 +97,7 @@ test("notification links switch an open user directory to pending accounts and k
   await waitFor(() => expect(screen.getByLabelText("Status")).toHaveValue("pending"))
   await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeEnabled())
   await user.click(screen.getByRole("button", { name: "Next" }))
-  expect(await screen.findByText("User11 Account")).toBeInTheDocument()
+  expect(await screen.findByRole("row", { name: "User11 Account", exact: true })).toBeInTheDocument()
   expect(screen.getByText("Showing 11–20 of 20")).toBeInTheDocument()
 })
 
@@ -116,7 +122,7 @@ test("HR can approve pending employees without user-editing controls", async () 
   vi.stubGlobal("fetch", fetchMock)
   const user = userEvent.setup()
   render(<MemoryRouter><AuthProvider><UserManagementPage /></AuthProvider></MemoryRouter>)
-  await screen.findByText("User5 Account")
+  await screen.findByRole("row", { name: "User5 Account", exact: true })
   expect(screen.getByRole("heading", { name: "Pending registrations" })).toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "Add user" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: /^(Edit|Block|Rights for)/ })).not.toBeInTheDocument()
@@ -142,7 +148,7 @@ test("HR can reject a registration without a block action and remove it from the
     throw new Error(`Unexpected request: ${url.pathname}`)
   }))
   render(<MemoryRouter><AuthProvider><UserManagementPage /></AuthProvider></MemoryRouter>)
-  await screen.findByText("User5 Account")
+  await screen.findByRole("row", { name: "User5 Account", exact: true })
   expect(screen.queryByRole("button", { name: "Block User5 Account" })).not.toBeInTheDocument()
   await userEvent.setup().click(screen.getByRole("button", { name: "Reject User5 Account" }))
   expect(await screen.findByText("No user accounts found")).toBeInTheDocument()
@@ -194,12 +200,12 @@ test("loads user accounts with skeletons, filters, and server pagination for sup
   expect(await screen.findByText("Loading user accounts…")).toBeInTheDocument()
   releaseFirstPage?.()
 
-  expect(await screen.findByText("User1 Account")).toBeInTheDocument()
+  expect(await screen.findByRole("row", { name: "User1 Account", exact: true })).toBeInTheDocument()
   expect(screen.getByText("Showing 1–10 of 14")).toBeInTheDocument()
   expect(within(screen.getByRole("row", { name: /User1 Account/ })).getByText("Superadmin")).toBeInTheDocument()
 
   await user.click(screen.getByRole("button", { name: "Next" }))
-  expect(await screen.findByText("User11 Account")).toBeInTheDocument()
+  expect(await screen.findByRole("row", { name: "User11 Account", exact: true })).toBeInTheDocument()
   expect(screen.getByText("Showing 11–14 of 14")).toBeInTheDocument()
 
   await user.selectOptions(screen.getByLabelText("Role"), "admin")
@@ -243,9 +249,10 @@ test("enforces Admin visibility and action rules (Admin rows show — while Empl
     </MemoryRouter>,
   )
 
-  expect(await screen.findByText("User2 Account")).toBeInTheDocument()
+  expect(await screen.findByRole("row", { name: "User2 Account", exact: true })).toBeInTheDocument()
   const adminRow = screen.getByRole("row", { name: /User2 Account/ })
-  expect(within(adminRow).getByLabelText("Privileged accounts cannot be modified")).toHaveTextContent("—")
+  expect(within(adminRow).queryByRole("button", { name: /^(Block|Unblock|Rights for|Edit) / })).not.toBeInTheDocument()
+  expect(within(adminRow).getByRole("button", { name: "Expand details for User2 Account" })).toBeInTheDocument()
 
   const employeeRow = screen.getByRole("row", { name: /User3 Account/ })
   await user.click(within(employeeRow).getByRole("button", { name: "Block User3 Account" }))
@@ -330,14 +337,14 @@ test("creates and edits a user account through the slide-over panel", async () =
     </MemoryRouter>,
   )
 
-  await screen.findByText("User1 Account")
+  await screen.findByRole("row", { name: "User1 Account", exact: true })
   await user.click(screen.getByRole("button", { name: /Add user/i }))
   const panel = screen.getByRole("dialog", { name: "Add User Account" })
   await user.selectOptions(within(panel).getByLabelText(/Link to Existing Employee/i), "00025")
   await user.type(within(panel).getByLabelText(/Temporary Password/i), "Secret123!")
   await user.click(within(panel).getByRole("button", { name: "Create user" }))
 
-  expect(await screen.findByText("Maria Santos")).toBeInTheDocument()
+  expect(await screen.findByRole("row", { name: "Maria Santos", exact: true })).toBeInTheDocument()
   expect(screen.getByRole("status")).toHaveTextContent("User account created successfully.")
 
   await user.click(screen.getByRole("button", { name: "Edit Maria Santos" }))
@@ -422,7 +429,7 @@ test("allows superadmin to edit rights of admin and other superadmin accounts an
     </MemoryRouter>,
   )
 
-  expect(await screen.findByText("User2 Account")).toBeInTheDocument()
+  expect(await screen.findByRole("row", { name: "User2 Account", exact: true })).toBeInTheDocument()
   const otherSuperRow = await screen.findByRole("row", { name: /User2 Account/ })
   expect(within(otherSuperRow).getByText("Pending")).toBeInTheDocument()
   expect(within(otherSuperRow).queryByRole("button", { name: "Block User2 Account" })).not.toBeInTheDocument()
@@ -484,7 +491,7 @@ test("applies department and module permission presets in the Rights modal", asy
     </MemoryRouter>,
   )
 
-  expect(await screen.findByText("User3 Account")).toBeInTheDocument()
+  expect(await screen.findByRole("row", { name: "User3 Account", exact: true })).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Rights for User3 Account" }))
   const dialog = screen.getByRole("dialog", { name: /Rights — User3 Account/ })
 
@@ -550,7 +557,7 @@ test("keeps the saved preset visible and the Rights modal stable while saving", 
     </MemoryRouter>,
   )
 
-  expect(await screen.findByText("User3 Account")).toBeInTheDocument()
+  expect(await screen.findByRole("row", { name: "User3 Account", exact: true })).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Rights for User3 Account" }))
   const dialog = screen.getByRole("dialog", { name: /Rights — User3 Account/ })
   const presetSelect = within(dialog).getByLabelText("Permission preset configuration")
@@ -603,7 +610,7 @@ test("keeps the edited rights open when saving fails", async () => {
     </MemoryRouter>,
   )
 
-  expect(await screen.findByText("User3 Account")).toBeInTheDocument()
+  expect(await screen.findByRole("row", { name: "User3 Account", exact: true })).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Rights for User3 Account" }))
   const dialog = screen.getByRole("dialog", { name: /Rights — User3 Account/ })
   const presetSelect = within(dialog).getByLabelText("Permission preset configuration")

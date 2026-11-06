@@ -87,26 +87,33 @@ test('user actions stay aligned and expandable details fit without horizontal sc
   test.setTimeout(60000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockApi(page);
-  const applicant = { userId: 'pending-user', name: 'Pending Employee', email: 'pending@example.com', role: 'employee', status: 'pending', isBlocked: false };
+  const applicant = { userId: 'pending-user', firstName: 'Pending', lastName: 'Employee', name: 'Pending Employee', email: 'pending@example.com', role: 'employee', status: 'pending', isBlocked: false };
   await page.route('**/api/users**', async route => {
     const url = new URL(route.request().url());
     if (url.pathname.endsWith('/options')) return route.fulfill({ json: { success: true, data: { availableEmployees: [] } } });
     if (url.pathname.endsWith('/reject')) return route.fulfill({ json: { success: true, data: { user: { ...applicant, status: 'disabled' } } } });
     const current = Number(url.searchParams.get('page') || 1);
-    const user = current === 1 ? applicant : { ...applicant, userId: 'active-user', name: 'Accepted Employee With A Much Longer Name', email: 'accepted.employee.with.a.long.email@example.com', status: 'active', isBlocked: true };
+    const user = current === 1 ? applicant : { ...applicant, userId: 'active-user', firstName: 'Accepted', lastName: 'Employee With A Much Longer Name', name: 'Accepted Employee With A Much Longer Name', email: 'accepted.employee.with.a.long.email@example.com', status: 'active', isBlocked: true };
     return route.fulfill({ json: { success: true, data: { users: [user], pagination: { page: current, limit: 10, total: 11, totalPages: 2 } } } });
   });
   await page.goto('/users');
   const records = page.getByRole('region', { name: 'User account records' });
   const actions = records.getByRole('columnheader', { name: 'Actions', exact: true });
+  await expect(records.getByRole('columnheader')).toHaveText(['Surname', 'Name', 'Email', 'Role', 'Access', 'Actions']);
   await expect(records.getByRole('button', { name: 'Reject Pending Employee' })).toBeVisible();
   await expect(records.getByRole('button', { name: 'Block Pending Employee' })).toHaveCount(0);
-  await expect(records.getByRole('button', { name: 'Accept Pending Employee' })).toHaveCSS('justify-content', 'center');
+  await expect(records.getByRole('button', { name: 'Accept Pending Employee' })).toHaveCSS('place-items', 'center');
+  await expect(records.getByRole('button', { name: 'Expand details for Pending Employee' })).toHaveCSS('width', '32px');
+  const buttonBoxes = await records.locator('td[data-label="Actions"] button').evaluateAll(buttons => buttons.map(button => {
+    const box = button.getBoundingClientRect();
+    return { x: box.x, right: box.right };
+  }));
+  expect(buttonBoxes.every((box, index) => index === 0 || box.x >= buttonBoxes[index - 1].right)).toBe(true);
   const before = await actions.boundingBox();
   const rightsX = (await records.getByRole('button', { name: 'Rights for Pending Employee' }).boundingBox()).x;
   await records.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(records.getByRole('button', { name: 'Unblock Accepted Employee With A Much Longer Name' })).toBeVisible();
-  await expect(records.getByRole('button', { name: 'Unblock Accepted Employee With A Much Longer Name' })).toHaveCSS('justify-content', 'center');
+  await expect(records.getByRole('button', { name: 'Unblock Accepted Employee With A Much Longer Name' })).toHaveCSS('place-items', 'center');
   const after = await actions.boundingBox();
   expect(after.x).toBeCloseTo(before.x, 0);
   expect(after.width).toBeCloseTo(before.width, 0);
@@ -117,7 +124,8 @@ test('user actions stay aligned and expandable details fit without horizontal sc
     await page.setViewportSize({ width, height: 900 });
     const expand = records.getByRole('button', { name: 'Expand details for Accepted Employee With A Much Longer Name' });
     await expand.click();
-    await expect(records.getByRole('region', { name: 'Details for Accepted Employee With A Much Longer Name' })).toContainText('accepted.employee.with.a.long.email@example.com');
+    await expect(records.locator('td[data-label="Email"]')).toHaveText('accepted.employee.with.a.long.email@example.com');
+    await expect(records.getByRole('region', { name: 'Details for Accepted Employee With A Much Longer Name' })).toContainText('No recorded activity');
     expect(await records.locator('.overflow-x-auto').evaluate(element => element.scrollWidth > element.clientWidth + 1), `table overflow at ${width}px`).toBe(false);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), `page overflow at ${width}px`).toBe(false);
     await records.getByRole('button', { name: 'Collapse details for Accepted Employee With A Much Longer Name' }).click();

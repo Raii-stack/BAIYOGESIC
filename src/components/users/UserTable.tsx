@@ -4,7 +4,7 @@ import { DashboardIcon } from "../dashboard/DashboardComponents"
 import type { UserPagination } from "../../lib/user-api"
 import type { SystemUser, UserRole } from "../../types/user"
 
-const headings = ["Name", "Role", "Status", "Actions"]
+const headings = ["Surname", "Name", "Email", "Role", "Access", "Actions"]
 
 const roleLabels: Record<UserRole, string> = {
   superadmin: "Superadmin",
@@ -77,7 +77,7 @@ export default function UserTable({
       <div className="overflow-x-auto" aria-busy={loading}>
         <table role="table" className="workspace-table workspace-user-table table-fixed">
           <colgroup>
-            {[undefined, 112, 104, 320].map((width, index) => <col key={headings[index]} style={{ width }} />)}
+            {[undefined, undefined, "26%", undefined, undefined, 200].map((width, index) => <col key={headings[index]} style={{ width }} />)}
           </colgroup>
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
@@ -124,25 +124,24 @@ export default function UserTable({
                 return (
                   <Fragment key={user.userId}>
                   <tr
+                    aria-label={user.name}
                     className={`border-b border-slate-100 transition-colors last:border-0 ${
                       user.isBlocked
                         ? "bg-red-50/40 hover:bg-red-50/70"
                         : "hover:bg-neutral-50"
                     }`}
                   >
-                    <td data-label="Name" className="[overflow-wrap:anywhere]">
-                      <p className="text-[13px] font-medium text-neutral-900">{user.name}</p>
-                      <button type="button" aria-expanded={expanded} aria-controls={`user-details-${user.userId}`} aria-label={`${expanded ? "Collapse" : "Expand"} details for ${user.name}`} onClick={() => setExpandedUser(expanded ? null : user.userId)} className="workspace-text-action mt-1 gap-1 text-neutral-500">
-                        <DashboardIcon name={expanded ? "close" : "plus"} className="h-3.5 w-3.5 shrink-0" />
-                        {expanded ? "Collapse" : "Expand"}
-                      </button>
+                    <td data-label="Surname" className="[overflow-wrap:anywhere]">
+                      <p className="text-[13px] font-medium text-neutral-900">{user.lastName || "—"}</p>
                     </td>
-                    <td data-label="Role" className="whitespace-nowrap">
-                      <span className="workspace-badge workspace-badge--neutral" data-role={user.role}>
+                    <td data-label="Name" className="[overflow-wrap:anywhere]">{user.firstName || (user.lastName ? "—" : user.name)}</td>
+                    <td data-label="Email" className="[overflow-wrap:anywhere]">{user.email}</td>
+                    <td data-label="Role" className="[overflow-wrap:anywhere]">
+                      <span className="font-medium" data-role={user.role}>
                         {roleLabels[user.role]}
                       </span>
                     </td>
-                    <td data-label="Status" className="whitespace-nowrap">
+                    <td data-label="Access" className="whitespace-nowrap">
                       <span
                         className={`workspace-badge ${statusBadgeStyle}`}
                       >
@@ -154,29 +153,25 @@ export default function UserTable({
                         user.isBlocked ? "bg-red-50/60" : "bg-white"
                       }`}
                     >
-                      {!canManageRow ? (
-                        <span
-                          aria-label="Privileged accounts cannot be modified"
-                          className="text-sm text-slate-400"
-                        >
-                          —
-                        </span>
-                      ) : (
-                        <div className="grid grid-cols-2 items-center gap-2 md:grid-cols-4">
+                        <div className="flex flex-wrap items-center gap-1 md:grid md:grid-cols-5">
+                          <button type="button" aria-expanded={expanded} aria-controls={`user-details-${user.userId}`} aria-label={`${expanded ? "Collapse" : "Expand"} details for ${user.name}`} title={expanded ? "Hide details" : "Show details"} onClick={() => setExpandedUser(expanded ? null : user.userId)} className="workspace-icon-action h-8 w-8">
+                            <DashboardIcon name="eye" className="h-4 w-4" />
+                          </button>
                           {canApproveRow ? (
                             <button
                               type="button"
                               disabled={deciding}
                               onClick={() => onApprove(user)}
                               aria-label={`Accept ${user.name}`}
-                              className="workspace-text-action justify-center bg-emerald-50 text-emerald-800"
+                              title="Accept registration"
+                              className="workspace-icon-action h-8 w-8 text-emerald-700"
                             >
-                              {approvingId === user.userId ? <span role="status" aria-label="Accepting registration">…</span> : "Accept"}
+                              {approvingId === user.userId ? <span role="status" aria-label="Accepting registration">…</span> : <DashboardIcon name="check" className="h-4 w-4" />}
                             </button>
                           ) : <span aria-hidden="true" className="hidden md:block" />}
                           {canRejectRow ? (
-                            <button type="button" disabled={deciding} onClick={() => onReject(user)} aria-label={`Reject ${user.name}`} className="workspace-text-action justify-center text-red-700 focus-visible:ring-red-600">
-                              {rejectingId === user.userId ? <span role="status" aria-label="Rejecting registration">…</span> : "Reject"}
+                            <button type="button" disabled={deciding} onClick={() => onReject(user)} aria-label={`Reject ${user.name}`} title="Reject registration" className="workspace-icon-action workspace-icon-action--danger h-8 w-8 text-red-700">
+                              {rejectingId === user.userId ? <span role="status" aria-label="Rejecting registration">…</span> : <DashboardIcon name="close" className="h-4 w-4" />}
                             </button>
                           ) : canBlockRow ? (
                             <button
@@ -184,13 +179,14 @@ export default function UserTable({
                               disabled={togglingId === user.userId}
                               onClick={() => onToggleBlock(user)}
                               aria-label={`${user.isBlocked ? "Unblock" : "Block"} ${user.name}`}
-                              className={`workspace-text-action justify-center ${
+                              title={user.isBlocked ? "Unblock account" : "Block account"}
+                              className={`workspace-icon-action h-8 w-8 ${
                                 user.isBlocked
                                   ? "text-emerald-700 focus-visible:ring-emerald-600"
                                   : "text-red-700 focus-visible:ring-red-600"
                               }`}
                             >
-                              {user.isBlocked ? "Unblock" : "Block"}
+                              <DashboardIcon name={user.isBlocked ? "restore" : "lock"} className="h-4 w-4" />
                             </button>
                           ) : <span aria-hidden="true" className="hidden md:block" />}
                           {canAssignRights ? (
@@ -198,21 +194,22 @@ export default function UserTable({
                               type="button"
                               onClick={() => onOpenRights(user)}
                               aria-label={`Rights for ${user.name}`}
-                              className="workspace-text-action justify-center"
+                              title="Manage access rights"
+                              className="workspace-icon-action h-8 w-8"
                             >
-                              Rights
+                              <DashboardIcon name="settings" className="h-4 w-4" />
                             </button>
                           ) : <span aria-hidden="true" className="hidden md:block" />}
-                          {!approvalOnly ? <button
+                          {!approvalOnly && canManageRow ? <button
                             type="button"
                             onClick={() => onEdit(user)}
                             aria-label={`Edit ${user.name}`}
-                            className="workspace-text-action justify-center"
+                            title="Edit account"
+                            className="workspace-icon-action h-8 w-8"
                           >
-                            Edit
+                            <DashboardIcon name="edit" className="h-4 w-4" />
                           </button> : <span aria-hidden="true" className="hidden md:block" />}
                         </div>
-                      )}
                     </td>
                   </tr>
                   {expanded && (
@@ -221,7 +218,6 @@ export default function UserTable({
                         <div id={`user-details-${user.userId}`} role="region" aria-label={`Details for ${user.name}`} className="workspace-history">
                           <dl className="grid gap-4 text-[13px] [overflow-wrap:anywhere] sm:grid-cols-2 lg:grid-cols-3">
                             <div><dt className="text-xs text-neutral-500">Employee no.</dt><dd className="mt-1">{user.empno || "—"}</dd></div>
-                            <div><dt className="text-xs text-neutral-500">Email</dt><dd className="mt-1">{user.email}</dd></div>
                             <div><dt className="text-xs text-neutral-500">Job title</dt><dd className="mt-1">{user.jobTitle || "—"}</dd></div>
                             <div><dt className="text-xs text-neutral-500">Department</dt><dd className="mt-1">{user.departmentName || "—"}</dd></div>
                             <div><dt className="text-xs text-neutral-500">Last active</dt><dd className="mt-1">

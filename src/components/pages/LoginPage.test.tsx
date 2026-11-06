@@ -100,7 +100,7 @@ test("default-password users enter the dashboard and must change their password 
   await user.click(screen.getByRole("button", { name: "Update password" }))
 
   await waitFor(() => expect(screen.queryByRole("dialog", { name: "Set a new password" })).not.toBeInTheDocument())
-  expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
+  expect(fetchMock.mock.calls.map(([input]) => String(input)).filter((path) => !path.startsWith("/api/me/"))).toEqual([
     "/api/auth/session",
     "/api/auth/login",
     "/api/auth/session",

@@ -6,7 +6,7 @@ import PasswordStrengthMeter from "./PasswordStrengthMeter"
 import { useAuth } from "./AuthProvider"
 import { notifyToast } from "../../lib/toast"
 
-export default function ChangePasswordModal() {
+export default function ChangePasswordModal({ onClose }: { onClose?: () => void } = {}) {
   const { changePassword, logout } = useAuth()
   const dialogRef = useRef<HTMLDivElement>(null)
   const [currentPassword, setCurrentPassword] = useState("")
@@ -21,6 +21,7 @@ export default function ChangePasswordModal() {
   }, [])
 
   const trapFocus = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape" && onClose && !saving) { event.preventDefault(); onClose(); return }
     if (event.key !== "Tab") return
     const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
       'input, button:not([disabled])',
@@ -55,6 +56,7 @@ export default function ChangePasswordModal() {
       setNewPassword("")
       setConfirmPassword("")
       notifyToast("Password changed successfully.")
+      onClose?.()
     } catch (error) {
       setServerError(error instanceof Error ? error.message : "Unable to update your password.")
     } finally {
@@ -79,10 +81,10 @@ export default function ChangePasswordModal() {
               Account security
             </p>
             <h2 id="change-password-title" className="mt-3 text-xl font-semibold tracking-[-0.4px] text-neutral-900">
-              Set a new password
+              {onClose ? "Change password" : "Set a new password"}
             </h2>
             <p id="change-password-description" className="mt-2 text-[13px] leading-5 text-neutral-500">
-              You’re signed in with a temporary password. Create a personal password to secure your account.
+              {onClose ? "Choose a new password to secure your account." : "You’re signed in with a temporary password. Create a personal password to secure your account."}
             </p>
           </div>
         </header>
@@ -94,7 +96,7 @@ export default function ChangePasswordModal() {
               label="Current password"
               type="password"
               autoComplete="current-password"
-              placeholder="Enter your default password"
+              placeholder="Enter your current password"
               icon="lock"
               passwordToggle
               value={currentPassword}
@@ -130,6 +132,7 @@ export default function ChangePasswordModal() {
           </div>
           <footer className="workspace-drawer-footer">
             <Submit loading={saving} loadingLabel="Updating password…">Update password</Submit>
+            {onClose ? <button type="button" disabled={saving} onClick={onClose} className="workspace-secondary-action w-full">Cancel</button> :
             <button
               type="button"
               onClick={() => logout().catch((error: unknown) => {
@@ -138,7 +141,7 @@ export default function ChangePasswordModal() {
               className="workspace-secondary-action w-full"
             >
               Sign out
-            </button>
+            </button>}
           </footer>
         </form>
       </div>

@@ -65,6 +65,15 @@ test("shows final values immediately with reduced motion", () => {
   expect(requestFrame).not.toHaveBeenCalled()
 })
 
+test("respects the employee's disabled-motion setting", () => {
+  document.documentElement.dataset.workspaceMotion = "off"
+  try {
+    const { container } = render(<CountUpValue value="1,248" />)
+    expect(container.querySelector('[aria-hidden="true"]')).toHaveTextContent("1,248")
+    expect(requestFrame).not.toHaveBeenCalled()
+  } finally { delete document.documentElement.dataset.workspaceMotion }
+})
+
 test("shows cached metrics without restarting the animation", () => {
   const { container } = render(<CountUpValue value="$84.2k" animate={false} />)
   expect(container.querySelector('[aria-hidden="true"]')).toHaveTextContent("$84.2k")

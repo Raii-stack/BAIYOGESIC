@@ -6,9 +6,14 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { useAuth } from "../components/auth/AuthProvider"
 import { employeeApi } from "../lib/employee-api"
 import EmployeeProfilePage from "./EmployeeProfilePage"
+import { WorkspaceProvider } from "../components/common/WorkspaceProvider"
 
 vi.mock("../components/auth/AuthProvider", () => ({ useAuth: vi.fn() }))
 vi.mock("../lib/employee-api", () => ({ employeeApi: { get: vi.fn() } }))
+vi.mock("../lib/workspace-api", async () => {
+  const actual = await vi.importActual<typeof import("../lib/workspace-api")>("../lib/workspace-api")
+  return { ...actual, workspaceApi: { ...actual.workspaceApi, preferences: async () => actual.defaultPreferences, inbox: async () => actual.emptyInbox } }
+})
 
 const employee = {
   id: "00001",
@@ -49,9 +54,11 @@ function renderPage(user = admin) {
   vi.mocked(useAuth).mockReturnValue({ user, loading: false, login: vi.fn(), changePassword: vi.fn(), logout: vi.fn() })
   render(
     <MemoryRouter initialEntries={["/employees/00001"]}>
+      <WorkspaceProvider user={user}>
       <Routes>
         <Route path="/employees/:employeeId" element={<EmployeeProfilePage />} />
       </Routes>
+      </WorkspaceProvider>
     </MemoryRouter>,
   )
 }

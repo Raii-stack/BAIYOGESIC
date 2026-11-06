@@ -31,6 +31,7 @@ async function request<T>(path: string, method = "GET", body?: object, signal?: 
   }
   const result = await response.json().catch(() => null) as { success: boolean; data?: T; error?: { message?: string } } | null
   if (!response.ok || !result?.success || !result.data) throw apiFailure(response.status, result)
+  if (method !== "GET") window.dispatchEvent(new Event("hope:notifications-changed"))
   return result.data
 }
 

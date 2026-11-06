@@ -92,7 +92,7 @@ test("notification links switch an open user directory to pending accounts and k
   expect(document.querySelector('time[datetime="2026-11-06T09:10:00.000Z"]')).toBeInTheDocument()
   await user.click(screen.getByRole("button", { name: "Collapse details for User1 Account" }))
   expect(screen.queryByRole("region", { name: "Details for User1 Account" })).not.toBeInTheDocument()
-  await user.click(screen.getByTitle("Registration notifications"))
+  await user.click(screen.getByTitle("Notifications"))
   await user.click(await screen.findByRole("link", { name: "View pending accounts (20)" }))
   await waitFor(() => expect(screen.getByLabelText("Status")).toHaveValue("pending"))
   await waitFor(() => expect(screen.getByRole("button", { name: "Next" })).toBeEnabled())

@@ -7,7 +7,7 @@ import { safeErrorMessage } from "../lib/api-errors"
 import { getUserDisplayName, getUserInitials } from "../lib/auth"
 import { canAccessModule, type ErpModuleKey } from "../lib/rbac"
 import { notifyToast } from "../lib/toast"
-import RegistrationNotifications from "../components/dashboard/RegistrationNotifications"
+import WorkspaceNotifications from "../components/dashboard/WorkspaceNotifications"
 
 const HREF_MODULE_MAP: Record<string, ErpModuleKey> = {
   "/customers": "customers",
@@ -54,7 +54,7 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
   const currentItem = visibleNavigation.find((item) => item.href && (pathname === pathnameFromHref(item.href) || pathname.startsWith(`${pathnameFromHref(item.href)}/`)))
   const isHome = pathname === "/dashboard"
   const isSubPage = currentItem?.href && pathname !== pathnameFromHref(currentItem.href)
-  const pageLabel = pathname === "/profile" ? "My account" : pathname === "/sales/new" ? "Create sale" : isSubPage ? "Employee details" : currentItem?.label || activeNavigation
+  const pageLabel = pathname === "/settings" ? "Settings" : pathname === "/notifications" ? "Notifications" : pathname === "/profile" ? "My account" : pathname === "/sales/new" ? "Create sale" : isSubPage ? "Employee details" : currentItem?.label || activeNavigation
   const searchResults = useMemo(() => {
     const query = search.trim().toLowerCase()
     if (!query) return []
@@ -232,7 +232,7 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
             </>}
           </nav>
           <button type="button" onClick={focusSearch} aria-label="Open search" title="Search (Ctrl+K)" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-neutral-500 hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 lg:hidden"><DashboardIcon name="search" className="h-[18px] w-[18px]" /></button>
-          {canAccessModule(user, "users") && !user?.mustChangePassword && <RegistrationNotifications />}
+          {!user?.mustChangePassword && <WorkspaceNotifications canApprove={canAccessModule(user, "users")} />}
           <details ref={accountRef} className="relative shrink-0" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false }} onKeyDown={(event) => { if (event.key === "Escape") { event.currentTarget.open = false; event.currentTarget.querySelector("summary")?.focus() } }}>
             <summary aria-label="Account menu" className="flex cursor-pointer list-none items-center gap-2 rounded-lg p-1.5 transition hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 [&::-webkit-details-marker]:hidden">
               <span className="grid h-8 w-8 place-items-center rounded-lg bg-[#c5eed2] text-[11px] font-semibold text-[#163c25]">{getUserInitials(user)}</span>
@@ -242,6 +242,7 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
             <div className="absolute right-0 top-13 z-50 w-64 overflow-hidden rounded-xl border border-neutral-200 bg-white p-1.5 shadow-lg">
               <div className="mb-1 border-b border-neutral-100 px-3 py-3"><p className="truncate text-[13px] font-semibold">{displayName}</p><p className="mt-1 truncate text-xs text-neutral-500">{user?.email}</p><p className="mt-1 text-xs capitalize text-neutral-500">{user?.role}</p></div>
               <Link to="/profile?view=account" onClick={() => { if (accountRef.current) accountRef.current.open = false }} className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"><DashboardIcon name="profile" className="h-4 w-4" />My account</Link>
+              <Link to="/settings" onClick={() => { if (accountRef.current) accountRef.current.open = false }} className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[13px] hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"><DashboardIcon name="settings" className="h-4 w-4" />Settings</Link>
               <button type="button" onClick={handleLogout} className="w-full rounded-lg px-3 py-2.5 text-left text-[13px] text-neutral-600 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600">Log out</button>
             </div>
           </details>

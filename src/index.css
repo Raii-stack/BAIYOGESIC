@@ -1,5 +1,22 @@
 @import 'tailwindcss';
 
+@keyframes workspace-enter {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.workspace-feedback, .erp-workspace :is(.workspace-modal, .workspace-history), .erp-workspace details[open] > :not(summary), .erp-workspace [aria-label="Notification center"]:not([hidden]) {
+  animation: workspace-enter 180ms ease-out;
+}
+@media screen and (min-width: 768px) {
+  html[data-workspace-density="compact"] .workspace-table :is(th, td):not(.workspace-table-expansion) { padding-block: 8px; }
+}
+html[data-workspace-motion="off"] .workspace-feedback, html[data-workspace-motion="off"] .erp-workspace *, html[data-workspace-motion="off"] .erp-workspace *::before {
+  animation: none !important; transition: none !important; scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-feedback, .erp-workspace *, .erp-workspace *::before { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
 :root { --workspace-control-height: 40px; }
 
 html:has(.erp-workspace, .hope-landing), .erp-workspace > aside :is(nav, [role="listbox"]), .workspace-scrollbar { scrollbar-width: none; }

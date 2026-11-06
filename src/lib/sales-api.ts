@@ -133,6 +133,7 @@ async function request<T>(
   if (!response.ok || !result?.success || !result.data) {
     throw apiFailure(response.status, result)
   }
+  if (method !== "GET") window.dispatchEvent(new Event("hope:notifications-changed"))
   return result.data
 }
 

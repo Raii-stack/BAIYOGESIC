@@ -7,7 +7,7 @@ export default function CountUpValue({ value, animate: shouldAnimate = true }: {
     const element = numberRef.current
     const parts = value.match(/^(.*?)(\d[\d,]*(?:\.\d+)?)([^\d]*)$/)
     const motion = window.matchMedia?.("(prefers-reduced-motion: reduce)")
-    if (!shouldAnimate || !element || !parts || motion?.matches) return
+    if (!shouldAnimate || !element || !parts || motion?.matches || document.documentElement.dataset.workspaceMotion === "off") return
 
     const [, prefix, number, suffix] = parts
     const target = Number(number.replaceAll(",", ""))
@@ -57,10 +57,12 @@ export default function CountUpValue({ value, animate: shouldAnimate = true }: {
       observer.observe(element)
     }
     motion?.addEventListener("change", finish)
+    window.addEventListener("hope:motion-change", finish)
     return () => {
       cancelAnimationFrame(frame)
       observer?.disconnect()
       motion?.removeEventListener("change", finish)
+      window.removeEventListener("hope:motion-change", finish)
     }
   }, [value, shouldAnimate])
 

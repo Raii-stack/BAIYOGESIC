@@ -12,6 +12,8 @@ import LandingPage from "./components/pages/LandingPage"
 import LoginPage from "./components/pages/LoginPage"
 import RegisterPage from "./components/pages/RegisterPage"
 import ProfilePage from "./components/pages/ProfilePage"
+import SettingsPage from "./components/pages/SettingsPage"
+import NotificationsPage from "./components/pages/NotificationsPage"
 import ResetPasswordPage from "./components/pages/ResetPasswordPage"
 import CustomerManagementPage from "./pages/CustomerManagementPage"
 import CreateSalePage from "./pages/CreateSalePage"
@@ -70,6 +72,8 @@ const router = createBrowserRouter([
   { path: "/reset-password", Component: ResetPasswordPage },
   { path: "/dashboard", element: protectedPage(<DashboardPage />) },
   { path: "/profile", element: protectedPage(<ProfilePage />) },
+  { path: "/settings", element: protectedPage(<SettingsPage />) },
+  { path: "/notifications", element: protectedPage(<NotificationsPage />) },
   { path: "/customers", element: protectedPage(<CustomerManagementPage />, { module: "customers" }) },
   { path: "/inventory", element: protectedPage(<InventoryPage />, { module: "products" }) },
   { path: "/reports", element: protectedPage(<ReportsPage />, { module: "reports" }) },

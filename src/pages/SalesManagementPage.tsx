@@ -19,7 +19,7 @@ const emptyPagination: SalePagination = { page: 1, limit: 10, total: 0, totalPag
 
 export default function SalesManagementPage() {
   const { user } = useAuth()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const {
     canAddSale,
     canDeleteSale,
@@ -44,6 +44,15 @@ export default function SalesManagementPage() {
   const [saleToArchive, setSaleToArchive] = useState<SaleTransaction | null>(null)
   const [archiveError, setArchiveError] = useState("")
   const [archiving, setArchiving] = useState(false)
+  const notificationSale = searchParams.get("notificationSale")
+  useEffect(() => {
+    if (!notificationSale || !canViewDetails) return
+    const controller = new AbortController()
+    salesApi.get(notificationSale, controller.signal)
+      .then((sale) => { if (!controller.signal.aborted) setSelectedSale(sale) })
+      .catch((error) => { if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "Unable to open sale.") })
+    return () => controller.abort()
+  }, [notificationSale, canViewDetails])
 
   const effectiveStatusView: StatusView = canViewAudit ? statusView : "Active"
 
@@ -269,7 +278,13 @@ export default function SalesManagementPage() {
 
         <SaleDetailsModal
           sale={selectedSale}
-          onClose={() => setSelectedSale(null)}
+          onClose={() => {
+            setSelectedSale(null)
+            if (notificationSale) {
+              const next = new URLSearchParams(searchParams); next.delete("notificationSale")
+              setSearchParams(next, { replace: true })
+            }
+          }}
           onPaymentsChange={updatePayments}
           canAdd={canAddDetail}
           canEdit={canEditDetail}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react"
+import { useSearchParams } from "react-router"
 
 import SuccessToast from "../components/common/SuccessToast"
 import { useAuth } from "../components/auth/AuthProvider"
@@ -18,6 +19,7 @@ const PRODUCT_SORTS: ProductSortBy[] = ["productCode", "description", "unitPrice
 const emptyPagination = (limit: number): ProductPagination => ({ page: 1, limit, total: 0, totalPages: 0 })
 
 export default function InventoryPage() {
+  const [, setSearchParams] = useSearchParams()
   const { user } = useAuth()
   const { searchParams, page, limit, sortBy, sortOrder, setPage, setLimit, toggleSort } = useDirectoryTableQuery(PRODUCT_SORTS, "description")
   const { canAdd, canEdit, canDelete, canViewAudit } = getProductPermissions(user)
@@ -39,6 +41,20 @@ export default function InventoryPage() {
   const [archiveError, setArchiveError] = useState("")
   const [archiving, setArchiving] = useState(false)
   const [restoringCode, setRestoringCode] = useState<string | null>(null)
+  const notificationProduct = searchParams.get("notificationProduct")
+  useEffect(() => {
+    if (!notificationProduct) return
+    const controller = new AbortController()
+    productApi.list({ page: 1, limit: 100, search: notificationProduct, unit: "", status: "all", sortBy: "productCode", sortOrder: "asc" }, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) {
+          const product = result.products.find((item) => item.code === notificationProduct)
+          if (product) setPriceModalProduct(product)
+          else setLoadError("This product is no longer available.")
+        }
+      }).catch((error) => { if (!controller.signal.aborted) setLoadError(error instanceof Error ? error.message : "Unable to open product.") })
+    return () => controller.abort()
+  }, [notificationProduct])
 
   useEffect(() => {
     document.title = "Products | HOPE, Inc."
@@ -202,7 +218,13 @@ export default function InventoryPage() {
       </main>
 
       {(canAdd || canEdit) && <ProductPanel product={selectedProduct} open={panelOpen} onClose={() => setPanelOpen(false)} onSave={saveProduct} />}
-      <PriceHistoryModal product={priceModalProduct} open={Boolean(priceModalProduct)} onClose={() => setPriceModalProduct(null)} canAddPrice={canEdit} canViewAudit={canViewAudit} onPriceAdded={() => setRefresh((current) => current + 1)} />
+      <PriceHistoryModal product={priceModalProduct} open={Boolean(priceModalProduct)} onClose={() => {
+        setPriceModalProduct(null)
+        if (notificationProduct) {
+          const next = new URLSearchParams(searchParams); next.delete("notificationProduct")
+          setSearchParams(next, { replace: true })
+        }
+      }} canAddPrice={canEdit} canViewAudit={canViewAudit} onPriceAdded={() => setRefresh((current) => current + 1)} />
       {canDelete && <ArchiveProductModal productName={productToArchive?.description ?? ""} open={Boolean(productToArchive)} onCancel={() => setProductToArchive(null)} onConfirm={archiveProduct} loading={archiving} error={archiveError} />}
       {notice && <SuccessToast key={notice.id} message={notice.message} onClose={() => setNotice((current) => current?.id === notice.id ? null : current)} />}
     </DashboardLayout>

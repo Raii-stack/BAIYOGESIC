@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 
 import { authApi, AuthApiError, type AuthUser } from "../../lib/auth"
 import { clearDashboardStats } from "../../lib/dashboard-api"
+import { WorkspaceProvider } from "../common/WorkspaceProvider"
 
 type AuthContextValue = {
   user: AuthUser | null
@@ -9,6 +10,7 @@ type AuthContextValue = {
   login: (email: string, password: string) => Promise<AuthUser>
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>
   logout: () => Promise<void>
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -87,7 +89,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const changePassword = async (currentPassword: string, newPassword: string) => {
     await authApi.changePassword(currentPassword, newPassword)
+    window.dispatchEvent(new Event("hope:notifications-changed"))
     setUser((current) => current ? { ...current, mustChangePassword: false } : current)
+  }
+
+  const refreshUser = async () => {
+    const { user: next } = await authApi.session()
+    setUser((current) => current && next && String(current.userId) === String(next.userId) ? next : current)
   }
 
   const logout = async () => {
@@ -101,8 +109,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, changePassword, logout }}>
-      {children}
+    <AuthContext.Provider value={{ user, loading, login, changePassword, logout, refreshUser }}>
+      <WorkspaceProvider user={user}>{children}</WorkspaceProvider>
     </AuthContext.Provider>
   )
 }

@@ -27,6 +27,19 @@ function setup(overrides: { changePassword?: ReturnType<typeof vi.fn>; logout?: 
   return { changePassword, logout }
 }
 
+test("only the optional password dialog can be dismissed", () => {
+  setup()
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })
+  expect(screen.getByRole("dialog")).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument()
+  cleanup()
+  const onClose = vi.fn()
+  render(<ChangePasswordModal onClose={onClose} />)
+  fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+  expect(onClose).toHaveBeenCalledTimes(2)
+})
+
 test("validates required, minimum-length, same-password, and confirmation rules", async () => {
   const user = userEvent.setup()
   const { changePassword } = setup()

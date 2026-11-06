@@ -22,6 +22,8 @@ async function mockApi(page) {
     if (activityPath === '/api/auth/activity') return route.fulfill({ json: { success: true, data: { message: 'ok' } } });
     if (activityPath === '/api/auth/active-employees') return route.fulfill({ json: { success: true, data: { employees: [] } } });
     if (activityPath === '/api/auth/registration-notifications') return route.fulfill({ json: { success: true, data: { registrations: [], total: 0 } } });
+    if (activityPath === '/api/me/preferences') return route.fulfill({ json: { success: true, data: { preferences: { density: 'comfortable', motion: true, employment: true, sales: true, payments: true, products: true, popups: true } } } });
+    if (activityPath === '/api/me/notifications') return route.fulfill({ json: { success: true, data: { items: [], unreadCount: 0, total: 0, page: 1, totalPages: 1 } } });
     expect(route.request().method()).toBe('GET');
     const url = new URL(route.request().url());
     let data;
@@ -65,7 +67,7 @@ test('dashboard keeps metrics on return and fetches again on browser refresh', a
   await expect(values.first()).toHaveText('23');
   const initialRequests = requests;
   await expect(page.getByRole('region', { name: 'Active employees' })).toContainText('No employees are currently online.');
-  await expect(page.getByLabel('Registration notifications: 0 pending')).toBeVisible();
+  await expect(page.getByLabel('Notifications: 0 unread, 0 pending registrations')).toBeVisible();
   const initialNotifications = notifications;
   const initialActivity = activity;
   expect(initialRequests).toBeGreaterThan(0);
@@ -221,7 +223,8 @@ for (const width of [320, 375, 768, 1024, 1440]) {
         for (const control of controls) {
           if (!control.getClientRects().length || control.closest('[inert]')) continue;
           const rect = control.getBoundingClientRect();
-          if (Math.abs(rect.height - height) > 1) problems.push(`${control.tagName} ${control.textContent.trim()}: height ${rect.height}`);
+          const expectedHeight = width >= 768 && control.matches('.workspace-user-table .workspace-icon-action') ? 32 : height;
+          if (Math.abs(rect.height - expectedHeight) > 1) problems.push(`${control.tagName} ${control.textContent.trim()}: height ${rect.height}`);
           if (control.closest('.workspace-filters') && (rect.x < box.x || rect.right > box.right || rect.bottom > box.bottom)) problems.push('Filter control escapes panel');
           if (control.scrollWidth > control.clientWidth + 1) problems.push(`Clipped control: ${control.textContent.trim()}`);
         }

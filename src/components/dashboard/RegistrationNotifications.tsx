@@ -7,7 +7,7 @@ import { registrationCache } from "../../lib/dashboard-live-cache"
 
 const queueUrl = "/users?view=accounts&status=pending&page=1"
 
-export default function RegistrationNotifications() {
+export default function RegistrationNotifications({ embedded = false, onPendingCount, popups = true }: { embedded?: boolean; onPendingCount?: (count: number) => void; popups?: boolean } = {}) {
   const details = useRef<HTMLDetailsElement>(null)
   const cache = registrationCache
   const seen = useRef(cache.seen)
@@ -15,6 +15,7 @@ export default function RegistrationNotifications() {
   const [error, setError] = useState("")
   const [retry, setRetry] = useState(0)
   const [open, setOpen] = useState(false)
+  useEffect(() => { onPendingCount?.(data?.total ?? 0) }, [data?.total, onPendingCount])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -25,7 +26,7 @@ export default function RegistrationNotifications() {
       try {
         const result = await authApi.registrationNotifications(controller.signal)
         if (controller.signal.aborted) return
-        if (seen.current && result.registrations.some((item) => !seen.current!.ids.has(item.userId) && Date.parse(item.createdAt) >= seen.current!.cutoff)) {
+        if (popups && seen.current && result.registrations.some((item) => !seen.current!.ids.has(item.userId) && Date.parse(item.createdAt) >= seen.current!.cutoff)) {
           notifyToast("A new employee registration is awaiting approval.", "info")
         }
         seen.current ??= { cutoff: result.registrations.length ? Date.parse(result.registrations[0].createdAt) : 0, ids: new Set() }
@@ -64,9 +65,22 @@ export default function RegistrationNotifications() {
       document.removeEventListener("visibilitychange", visible)
       document.removeEventListener("pointerdown", outside)
     }
-  }, [retry])
+  }, [retry, popups])
 
   const close = () => { if (details.current) details.current.open = false; setOpen(false) }
+  const content = (
+      <section aria-label="Registration inbox" className={embedded ? "border-t border-neutral-200" : "fixed inset-x-4 top-20 z-50 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-80"}>
+        <div className="border-b border-neutral-100 px-4 py-3"><h2 className="text-sm font-semibold">Registration notifications</h2><p className="mt-1 text-xs text-neutral-500">Review accounts waiting for approval.</p></div>
+        {error ? <div role="alert" className="p-4 text-sm text-red-700"><p>{error}</p><button type="button" onClick={() => { details.current?.querySelector("summary")?.focus(); setRetry((value) => value + 1) }} className="workspace-secondary-action mt-3">Try again</button></div>
+          : !data ? <p role="status" className="p-4 text-sm text-neutral-500">Loading notifications…</p>
+            : data.total === 0 ? <p className="p-4 text-sm text-neutral-500">No registrations are waiting for approval.</p>
+              : <ul className="workspace-scrollbar max-h-[min(20rem,calc(100dvh-14rem))] divide-y divide-neutral-100 overflow-y-auto">
+                {data.registrations.map((item) => <li key={item.userId}><Link to={`${queueUrl}&search=${encodeURIComponent(item.email)}`} state={{ registrationEmail: item.email }} onClick={close} className="block px-4 py-3 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"><p className="text-[13px] font-semibold text-neutral-900">{item.name}</p><p className="mt-1 break-all text-xs text-neutral-500">{item.email}</p><p className="mt-1 text-xs text-neutral-500">Awaiting approval · {new Date(item.createdAt).toLocaleDateString()}</p></Link></li>)}
+              </ul>}
+        <Link to={queueUrl} state={{ registrationEmail: "" }} onClick={close} className="block border-t border-neutral-100 px-4 py-3 text-center text-[13px] font-semibold text-neutral-700 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600">View pending accounts{data ? ` (${data.total})` : ""}</Link>
+      </section>
+  )
+  if (embedded) return content
   return (
     <details ref={details} className="relative shrink-0"
       onToggle={(event) => setOpen(event.currentTarget.open)}
@@ -77,16 +91,7 @@ export default function RegistrationNotifications() {
         <DashboardIcon name="bell" className="h-5 w-5" />
         {Boolean(data?.total) && <span aria-hidden="true" className="absolute -right-1 -top-1 min-w-5 rounded-full bg-red-600 px-1 text-center text-[10px] font-semibold leading-5 text-white">{data!.total > 99 ? "99+" : data!.total}</span>}
       </summary>
-      {open && <section aria-label="Registration inbox" className="fixed inset-x-4 top-20 z-50 overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-lg sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-80">
-        <div className="border-b border-neutral-100 px-4 py-3"><h2 className="text-sm font-semibold">Registration notifications</h2><p className="mt-1 text-xs text-neutral-500">Review accounts waiting for approval.</p></div>
-        {error ? <div role="alert" className="p-4 text-sm text-red-700"><p>{error}</p><button type="button" onClick={() => { details.current?.querySelector("summary")?.focus(); setRetry((value) => value + 1) }} className="workspace-secondary-action mt-3">Try again</button></div>
-          : !data ? <p role="status" className="p-4 text-sm text-neutral-500">Loading notifications…</p>
-            : data.total === 0 ? <p className="p-4 text-sm text-neutral-500">No registrations are waiting for approval.</p>
-              : <ul className="workspace-scrollbar max-h-[min(20rem,calc(100dvh-14rem))] divide-y divide-neutral-100 overflow-y-auto">
-                {data.registrations.map((item) => <li key={item.userId}><Link to={`${queueUrl}&search=${encodeURIComponent(item.email)}`} state={{ registrationEmail: item.email }} onClick={close} className="block px-4 py-3 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600"><p className="text-[13px] font-semibold text-neutral-900">{item.name}</p><p className="mt-1 break-all text-xs text-neutral-500">{item.email}</p><p className="mt-1 text-xs text-neutral-500">Awaiting approval · {new Date(item.createdAt).toLocaleDateString()}</p></Link></li>)}
-              </ul>}
-        <Link to={queueUrl} state={{ registrationEmail: "" }} onClick={close} className="block border-t border-neutral-100 px-4 py-3 text-center text-[13px] font-semibold text-neutral-700 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-600">View pending accounts{data ? ` (${data.total})` : ""}</Link>
-      </section>}
+      {open && content}
     </details>
   )
 }

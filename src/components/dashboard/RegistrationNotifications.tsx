@@ -3,13 +3,15 @@ import { Link } from "react-router"
 import { authApi, type RegistrationNotifications as NotificationData } from "../../lib/auth"
 import { notifyToast } from "../../lib/toast"
 import { DashboardIcon } from "./DashboardComponents"
+import { registrationCache } from "../../lib/dashboard-live-cache"
 
 const queueUrl = "/users?view=accounts&status=pending&page=1"
 
 export default function RegistrationNotifications() {
   const details = useRef<HTMLDetailsElement>(null)
-  const seen = useRef<{ cutoff: number; ids: Set<string> } | null>(null)
-  const [data, setData] = useState<NotificationData | null>(null)
+  const cache = registrationCache
+  const seen = useRef(cache.seen)
+  const [data, setData] = useState<NotificationData | null>(() => cache.data)
   const [error, setError] = useState("")
   const [retry, setRetry] = useState(0)
   const [open, setOpen] = useState(false)
@@ -17,8 +19,8 @@ export default function RegistrationNotifications() {
   useEffect(() => {
     const controller = new AbortController()
     let pending = false
-    const load = async () => {
-      if (pending || document.visibilityState === "hidden") return
+    const load = async (force = false) => {
+      if (pending || document.visibilityState === "hidden" || (!force && cache.data && Date.now() - cache.checkedAt < 30000)) return
       pending = true
       try {
         const result = await authApi.registrationNotifications(controller.signal)
@@ -28,7 +30,12 @@ export default function RegistrationNotifications() {
         }
         seen.current ??= { cutoff: result.registrations.length ? Date.parse(result.registrations[0].createdAt) : 0, ids: new Set() }
         result.registrations.forEach((item) => seen.current!.ids.add(item.userId))
-        setData(result)
+        cache.seen = seen.current
+        cache.checkedAt = Date.now()
+        if (JSON.stringify(cache.data) !== JSON.stringify(result)) {
+          cache.data = result
+          setData(result)
+        }
         setError("")
       } catch (reason) {
         if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Unable to load notifications.")
@@ -40,19 +47,21 @@ export default function RegistrationNotifications() {
         setOpen(false)
       }
     }
-    void load()
+    void load(retry > 0)
+    const visible = () => void load()
+    const changed = () => { cache.checkedAt = 0; void load(true) }
     // shortcut: poll visible sessions every 30s; use push delivery if instant alerts become necessary.
     const timer = window.setInterval(() => void load(), 30000)
-    window.addEventListener("focus", load)
-    window.addEventListener("hope:registrations-changed", load)
-    document.addEventListener("visibilitychange", load)
+    window.addEventListener("focus", visible)
+    window.addEventListener("hope:registrations-changed", changed)
+    document.addEventListener("visibilitychange", visible)
     document.addEventListener("pointerdown", outside)
     return () => {
       controller.abort()
       window.clearInterval(timer)
-      window.removeEventListener("focus", load)
-      window.removeEventListener("hope:registrations-changed", load)
-      document.removeEventListener("visibilitychange", load)
+      window.removeEventListener("focus", visible)
+      window.removeEventListener("hope:registrations-changed", changed)
+      document.removeEventListener("visibilitychange", visible)
       document.removeEventListener("pointerdown", outside)
     }
   }, [retry])

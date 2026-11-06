@@ -130,7 +130,7 @@ test("shows a failed login as inline error text", async () => {
   expect(screen.getByLabelText("Password").parentElement?.parentElement).toHaveClass("mb-0")
 })
 
-test("allows user to open Forgot password and Register modals from login page", async () => {
+test("opens password recovery and navigates between registration and sign in", async () => {
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
     const path = String(input)
     if (path.endsWith("/session")) return failure(401, "Authentication required")
@@ -146,10 +146,11 @@ test("allows user to open Forgot password and Register modals from login page", 
     expect(screen.queryByRole("dialog", { name: "Reset password" })).not.toBeInTheDocument()
   })
 
-  await user.click(screen.getByRole("button", { name: "Register" }))
-  expect(await screen.findByRole("dialog", { name: "Create your account" })).toBeInTheDocument()
-  await user.click(screen.getByRole("button", { name: "Close registration dialog" }))
-  await waitFor(() => {
-    expect(screen.queryByRole("dialog", { name: "Create your account" })).not.toBeInTheDocument()
-  })
+  await user.click(screen.getByRole("link", { name: "Register" }))
+  expect(await screen.findByRole("heading", { name: "Create your account" })).toBeInTheDocument()
+  expect(window.location.pathname).toBe("/register")
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  await user.click(screen.getByRole("link", { name: "Sign in" }))
+  expect(await screen.findByRole("heading", { name: "Log in to HOPE, Inc." })).toBeInTheDocument()
+  expect(window.location.pathname).toBe("/login")
 })

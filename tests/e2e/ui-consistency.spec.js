@@ -21,6 +21,7 @@ async function mockApi(page) {
     const activityPath = new URL(route.request().url()).pathname;
     if (activityPath === '/api/auth/activity') return route.fulfill({ json: { success: true, data: { message: 'ok' } } });
     if (activityPath === '/api/auth/active-employees') return route.fulfill({ json: { success: true, data: { employees: [] } } });
+    if (activityPath === '/api/auth/registration-notifications') return route.fulfill({ json: { success: true, data: { registrations: [], total: 0 } } });
     expect(route.request().method()).toBe('GET');
     const url = new URL(route.request().url());
     let data;
@@ -45,6 +46,97 @@ async function mockApi(page) {
       data = { [key]: records.slice((pageNumber - 1) * limit, pageNumber * limit), pagination: { page: pageNumber, limit, total: records.length, totalPages: Math.ceil(records.length / limit) } };
     }
     await route.fulfill({ json: { success: true, data } });
+  });
+}
+
+test('dashboard keeps metrics on return and fetches again on browser refresh', async ({ page }) => {
+  await mockApi(page);
+  let requests = 0;
+  let notifications = 0;
+  let activity = 0;
+  page.on('request', request => {
+    if (new URL(request.url()).pathname === '/api/dashboard/stats') requests++;
+    if (new URL(request.url()).pathname === '/api/auth/registration-notifications') notifications++;
+    if (new URL(request.url()).pathname === '/api/auth/active-employees') activity++;
+  });
+  await page.goto('/dashboard');
+  const kpis = page.getByRole('region', { name: 'Key performance indicators' });
+  const values = kpis.locator('.tabular-nums > span[aria-hidden="true"]');
+  await expect(values.first()).toHaveText('23');
+  const initialRequests = requests;
+  await expect(page.getByRole('region', { name: 'Active employees' })).toContainText('No employees are currently online.');
+  await expect(page.getByLabel('Registration notifications: 0 pending')).toBeVisible();
+  const initialNotifications = notifications;
+  const initialActivity = activity;
+  expect(initialRequests).toBeGreaterThan(0);
+  await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Users', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
+  await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('link', { name: 'Home', exact: true }).click();
+  await expect(kpis).toBeVisible();
+  expect(await values.allTextContents()).toEqual(['23', '23', '23', '$5k']);
+  expect(requests).toBe(initialRequests);
+  expect(notifications).toBe(initialNotifications);
+  expect(activity).toBe(initialActivity);
+  await expect(page.getByRole('region', { name: 'Active employees' })).not.toContainText('Loading');
+  await page.reload();
+  await expect(values.first()).toHaveText('23');
+  expect(requests).toBeGreaterThan(initialRequests);
+});
+
+test('registration page submits pending applications and its sign-in link works', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/auth/session', route => route.fulfill({ status: 401, json: { success: false, error: { message: 'Authentication required' } } }));
+  await page.route('**/api/auth/register', async route => {
+    expect(route.request().postDataJSON()).toEqual({ firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', password: 'SecurePass123!' });
+    await route.fulfill({ json: { success: true, data: { message: 'Pending approval', user: { status: 'pending' } } } });
+  });
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'Register', exact: true }).click();
+  await expect(page).toHaveURL(/\/register$/);
+  await expect(page.getByRole('heading', { name: 'Create your account' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await page.getByLabel('First name').fill('Jane');
+  await page.getByLabel('Last name').fill('Doe');
+  await page.getByLabel('Work email').fill('jane@example.com');
+  await page.getByLabel('Password', { exact: true }).fill('SecurePass123!');
+  await page.getByLabel('Confirm password', { exact: true }).fill('SecurePass123!');
+  await page.getByRole('button', { name: 'Register account' }).click();
+  await expect(page.getByRole('region', { name: 'Create your account' }).getByRole('status')).toContainText('Your account is pending approval.');
+  await page.getByRole('link', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await expect(page.getByRole('heading', { name: 'Log in to HOPE, Inc.' })).toBeVisible();
+});
+
+for (const width of [390, 1440]) {
+  test(`top bar stays fixed while user records scroll at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 500 });
+    await mockApi(page);
+    await page.goto('/users');
+    const header = page.locator('.erp-workspace > div > header');
+    await expect(page.getByRole('heading', { name: 'Users', exact: true })).toBeVisible();
+    await expect(header).toHaveCSS('position', 'fixed');
+    await expect(header).toHaveCSS('top', '0px');
+    if (width >= 1024) {
+      await expect(header).toHaveCSS('padding-top', '8px');
+      await expect(header).toHaveCSS('background-color', 'rgb(28, 28, 28)');
+    }
+    const before = await header.boundingBox();
+    await page.mouse.move(width - 30, 400);
+    await page.mouse.wheel(0, 600);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    expect(await header.boundingBox()).toEqual(before);
+    await page.getByLabel('Account menu').click();
+    await expect(page.getByRole('link', { name: 'My account', exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    if (width >= 1024) {
+      await page.getByRole('button', { name: 'Collapse sidebar' }).click();
+      await expect.poll(async () => (await header.boundingBox()).x).toBe(80);
+      await page.getByRole('button', { name: 'Expand sidebar' }).click();
+      await expect.poll(async () => (await header.boundingBox()).x).toBe(240);
+    } else {
+      await page.getByRole('button', { name: 'Open navigation' }).click();
+      await expect(page.getByRole('button', { name: 'Close navigation' })).toBeVisible();
+    }
   });
 }
 

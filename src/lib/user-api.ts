@@ -80,6 +80,7 @@ export function normalizeUserRow(raw: Partial<SystemUser> & { userId: string; em
     jobTitle: raw.jobTitle ?? null,
     departmentName: raw.departmentName ?? null,
     stamp: raw.stamp ?? null,
+    lastActiveAt: raw.lastActiveAt ?? null,
     rights: Array.isArray(raw.rights) ? raw.rights : [],
   }
 }

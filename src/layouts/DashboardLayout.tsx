@@ -219,8 +219,9 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
         </div>
       </aside>
 
-      <div className={`flex min-h-screen min-w-0 flex-1 flex-col bg-[#f6f6f7] transition-[margin] duration-300 ease-in-out motion-reduce:transition-none lg:mt-2 lg:min-h-[calc(100vh-0.5rem)] lg:rounded-tl-2xl ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-60"}`}>
-        <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center gap-3 border-b border-neutral-200/70 bg-[#f6f6f7] px-4 sm:px-8 lg:rounded-tl-2xl xl:px-12">
+      <div className={`flex min-h-screen min-w-0 flex-1 flex-col bg-[#f6f6f7] pt-16 transition-[margin] duration-300 ease-in-out motion-reduce:transition-none lg:mt-2 lg:min-h-[calc(100vh-0.5rem)] lg:rounded-tl-2xl ${sidebarCollapsed ? "lg:ml-20" : "lg:ml-60"}`}>
+        <header className={`fixed inset-x-0 top-0 z-20 bg-[#1c1c1c] transition-[left] duration-300 ease-in-out motion-reduce:transition-none lg:pt-2 ${sidebarCollapsed ? "lg:left-20" : "lg:left-60"}`}>
+          <div className="flex h-16 items-center gap-3 border-b border-neutral-200/70 bg-[#f6f6f7] px-4 sm:px-8 lg:rounded-tl-2xl xl:px-12">
           <button ref={menuButtonRef} type="button" onClick={() => setMobileSidebarOpen(true)} aria-label="Open navigation" aria-expanded={mobileSidebarOpen} aria-controls="workspace-navigation" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-neutral-600 hover:bg-neutral-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 lg:hidden"><DashboardIcon name="menu" /></button>
           <nav aria-label="Breadcrumb" className="flex min-w-0 flex-1 items-center gap-2 text-[13px] text-neutral-500">
             {isHome ? <span aria-current="page" className="font-medium text-neutral-700">Home</span> : <>
@@ -244,6 +245,7 @@ export default function DashboardLayout({ children, activeNavigation = "Home", s
               <button type="button" onClick={handleLogout} className="w-full rounded-lg px-3 py-2.5 text-left text-[13px] text-neutral-600 hover:bg-neutral-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600">Log out</button>
             </div>
           </details>
+          </div>
         </header>
         {children}
       </div>

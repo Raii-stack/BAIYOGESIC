@@ -2,7 +2,7 @@ import { TableSkeletonRows } from "../common/TableSkeleton"
 import type { UserPagination } from "../../lib/user-api"
 import type { SystemUser, UserRole } from "../../types/user"
 
-const headings = ["Emp No", "Name", "Email", "Role", "Status", "Last change", "Actions"]
+const headings = ["Emp No", "Name", "Email", "Role", "Status", "Last active", "Last change", "Actions"]
 
 const roleLabels: Record<UserRole, string> = {
   superadmin: "Superadmin",
@@ -140,6 +140,11 @@ export default function UserTable({
                       >
                         {statusLabel}
                       </span>
+                    </td>
+                    <td data-label="Last active" className="whitespace-nowrap text-xs text-slate-500">
+                      {user.lastActiveAt && !Number.isNaN(Date.parse(user.lastActiveAt))
+                        ? <time dateTime={user.lastActiveAt}>{new Date(user.lastActiveAt).toLocaleString()}</time>
+                        : "No recorded activity"}
                     </td>
                     <td data-label="Last change" className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">
                       {user.stamp || "—"}

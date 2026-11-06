@@ -54,6 +54,7 @@ function makeUser(
     jobTitle: role === "admin" ? "Manager" : "Sales Agent",
     departmentName: "Sales Branch 1",
     stamp: "ADD system 2026-10-21 09:00 AM",
+    lastActiveAt: "2026-11-06T09:10:00.000Z",
     rights: role === "employee" ? ["customers.access", "sales.access"] : [],
   }
 }
@@ -79,6 +80,8 @@ test("notification links switch an open user directory to pending accounts and k
   const user = userEvent.setup()
   render(<MemoryRouter initialEntries={["/users?page=1"]}><AuthProvider><UserManagementPage /></AuthProvider></MemoryRouter>)
   await screen.findByText("User1 Account")
+  expect(screen.getByRole("columnheader", { name: "Last active" })).toBeInTheDocument()
+  expect(document.querySelector('time[datetime="2026-11-06T09:10:00.000Z"]')).toBeInTheDocument()
   await user.click(screen.getByTitle("Registration notifications"))
   await user.click(await screen.findByRole("link", { name: "View pending accounts (20)" }))
   await waitFor(() => expect(screen.getByLabelText("Status")).toHaveValue("pending"))

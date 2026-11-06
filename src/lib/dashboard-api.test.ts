@@ -2,12 +2,15 @@ import { describe, expect, test, vi, beforeEach } from "vitest"
 import {
   formatCurrencyStat,
   formatIntegerStat,
-  getDashboardStats
+  getDashboardStats,
+  getCachedDashboardStats,
+  clearDashboardStats,
 } from "./dashboard-api"
 
 describe("dashboard-api client and helpers", () => {
   beforeEach(() => {
     vi.restoreAllMocks()
+    clearDashboardStats()
   })
 
   test("formatCurrencyStat formats currency compactly", () => {
@@ -64,6 +67,32 @@ describe("dashboard-api client and helpers", () => {
 
     await getDashboardStats({ refresh: true })
     expect(fetchSpy.mock.calls[0][0]).toContain("/api/dashboard/stats?refresh=true")
+  })
+
+  test("reuses metrics until refresh or session reset", async () => {
+    const data = { customers: 10, products: 20, openOrders: 5, revenue: 100 }
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify({ success: true, data })))
+    await getDashboardStats()
+    expect(getCachedDashboardStats()).toEqual(data)
+    await getDashboardStats()
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    await getDashboardStats({ refresh: true })
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    clearDashboardStats()
+    expect(getCachedDashboardStats()).toBeNull()
+    await getDashboardStats()
+    expect(fetchSpy).toHaveBeenCalledTimes(3)
+  })
+
+  test("a request from a previous session cannot repopulate the cache", async () => {
+    let resolve!: (response: Response) => void
+    vi.spyOn(globalThis, "fetch").mockReturnValue(new Promise((done) => { resolve = done }))
+    const pending = getDashboardStats()
+    clearDashboardStats()
+    resolve(new Response(JSON.stringify({ success: true, data: { customers: 10 } })))
+    await pending
+    expect(getCachedDashboardStats()).toBeNull()
   })
 
   test("getDashboardStats throws on non-200 response", async () => {

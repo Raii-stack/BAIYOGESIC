@@ -20,8 +20,16 @@ const recordActivity = asyncHandler(async (req, res) => {
     error.statusCode = 400;
     throw error;
   }
+  // Retain each user's latest activity so it remains visible after session expiry.
   await requirePool().query(
-    `WITH expired AS (DELETE FROM public.app_user_presence WHERE expires_at <= now())
+    `WITH expired AS (
+       DELETE FROM public.app_user_presence p WHERE expires_at <= now()
+       AND EXISTS (
+         SELECT 1 FROM public.app_user_presence newer
+         WHERE newer.user_id = p.user_id
+           AND (newer.last_seen_at, newer.session_id) > (p.last_seen_at, p.session_id)
+       )
+     )
      INSERT INTO public.app_user_presence (session_id, user_id, expires_at, last_seen_at)
      VALUES ($1, $2::uuid, to_timestamp($3), now() - $4::integer * interval '1 millisecond')
      ON CONFLICT (session_id) DO UPDATE SET last_seen_at = GREATEST(app_user_presence.last_seen_at, EXCLUDED.last_seen_at)

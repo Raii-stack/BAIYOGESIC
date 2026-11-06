@@ -82,10 +82,10 @@ test("displays the 4 KPI metric cards with live formatted values", async () => {
 
   render(<MemoryRouter><DashboardPage /></MemoryRouter>)
 
-  expect(await screen.findByText("1,248")).toBeInTheDocument()
-  expect(screen.getByText("386")).toBeInTheDocument()
-  expect(screen.getByText("94")).toBeInTheDocument()
-  expect(screen.getByText("$84.2k")).toBeInTheDocument()
+  expect(await screen.findByText("1,248", { selector: ".sr-only" })).toBeInTheDocument()
+  expect(screen.getByText("386", { selector: ".sr-only" })).toBeInTheDocument()
+  expect(screen.getByText("94", { selector: ".sr-only" })).toBeInTheDocument()
+  expect(screen.getByText("$84.2k", { selector: ".sr-only" })).toBeInTheDocument()
 })
 
 test("shows permitted module links without a redundant quick-action toolbar", () => {
@@ -209,6 +209,6 @@ test("displays error alert and supports retry when stats loading fails", async (
   const retryButton = screen.getByRole("button", { name: "Try again" })
   fireEvent.click(retryButton)
 
-  expect(await screen.findByText("50")).toBeInTheDocument()
+  expect(await screen.findByText("50", { selector: ".sr-only" })).toBeInTheDocument()
   expect(getDashboardStatsSpy).toHaveBeenCalledTimes(2)
 })

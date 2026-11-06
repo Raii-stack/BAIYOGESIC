@@ -10,6 +10,7 @@ import { canAccessModule, hasRight, type ErpModuleKey } from "./lib/rbac"
 import DashboardPage from "./components/pages/DashboardPage"
 import LandingPage from "./components/pages/LandingPage"
 import LoginPage from "./components/pages/LoginPage"
+import RegisterPage from "./components/pages/RegisterPage"
 import ProfilePage from "./components/pages/ProfilePage"
 import ResetPasswordPage from "./components/pages/ResetPasswordPage"
 import CustomerManagementPage from "./pages/CustomerManagementPage"
@@ -64,6 +65,7 @@ const protectedPage = (
 const router = createBrowserRouter([
   { path: "/", Component: LandingPage },
   { path: "/login", Component: LoginPage },
+  { path: "/register", Component: RegisterPage },
   { path: "/create-account", element: <Navigate to="/login" replace /> },
   { path: "/reset-password", Component: ResetPasswordPage },
   { path: "/dashboard", element: protectedPage(<DashboardPage />) },

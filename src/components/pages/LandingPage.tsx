@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { Link, Navigate } from "react-router"
 
 import { Logo } from "../auth/AuthComponents"
 import { useAuth } from "../auth/AuthProvider"
-import RegisterModal from "../auth/RegisterModal"
 import "./LandingPage.css"
 
 const modules = [
@@ -14,7 +13,6 @@ const modules = [
 
 export default function LandingPage() {
   const { user, loading } = useAuth()
-  const [registerOpen, setRegisterOpen] = useState(false)
 
   useEffect(() => { document.title = "HOPE, Inc. | ERP Workspace" }, [])
 
@@ -32,13 +30,12 @@ export default function LandingPage() {
             <nav aria-label="Main navigation" className="hope-navigation">
               <a href="#workspace" className="hope-nav-detail">The workspace</a>
               <a href="#access" className="hope-nav-detail">Team access</a>
-              <button
-                type="button"
-                onClick={() => setRegisterOpen(true)}
+              <Link
+                to="/register"
                 className="hope-button hope-button-outline"
               >
                 Register
-              </button>
+              </Link>
               <Link to="/login" className="hope-button hope-button-light">Sign in<span aria-hidden="true">↗</span></Link>
             </nav>
           </header>
@@ -53,13 +50,12 @@ export default function LandingPage() {
             <p className="hope-hero-description">Bring your people, products, and everyday operations together. One place to keep work moving.</p>
             <div className="hope-hero-actions">
               <Link to="/login" className="hope-button hope-button-light">Sign in to your workspace<span aria-hidden="true">↗</span></Link>
-              <button
-                type="button"
-                onClick={() => setRegisterOpen(true)}
+              <Link
+                to="/register"
                 className="hope-button hope-button-outline"
               >
                 Register for an account<span aria-hidden="true">→</span>
-              </button>
+              </Link>
             </div>
             <a href="#workspace" className="hope-text-link">Explore the workspace<span aria-hidden="true">↓</span></a>
           </div>
@@ -93,13 +89,12 @@ export default function LandingPage() {
               <p>Already part of HOPE? Your workspace is ready when you are.</p>
               <div className="hope-access-buttons">
                 <Link to="/login" className="hope-button hope-button-dark">Open your workspace<span aria-hidden="true">↗</span></Link>
-                <button
-                  type="button"
-                  onClick={() => setRegisterOpen(true)}
+                <Link
+                  to="/register"
                   className="hope-button hope-button-outline"
                 >
                   Register
-                </button>
+                </Link>
               </div>
               <p className="hope-access-note">Need elevated access? Contact your administrator.</p>
             </div>
@@ -113,7 +108,6 @@ export default function LandingPage() {
         <a href="#main-content">Back to top<span aria-hidden="true">↑</span></a>
       </footer>
 
-      <RegisterModal open={registerOpen} onClose={() => setRegisterOpen(false)} />
     </div>
   )
 }

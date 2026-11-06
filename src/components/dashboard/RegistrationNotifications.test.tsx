@@ -5,11 +5,23 @@ import { afterEach, expect, test, vi } from "vitest"
 import { authApi } from "../../lib/auth"
 import { notifyToast } from "../../lib/toast"
 import RegistrationNotifications from "./RegistrationNotifications"
+import { clearDashboardLiveCache } from "../../lib/dashboard-live-cache"
 
 vi.mock("../../lib/auth", () => ({ authApi: { registrationNotifications: vi.fn() } }))
 vi.mock("../../lib/toast", () => ({ notifyToast: vi.fn() }))
 const notice = (userId: string, createdAt = "2026-11-02T10:00:00.000Z") => ({ userId, createdAt, name: `Applicant ${userId}`, email: `applicant${userId}@hope.inc` })
-afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.useRealTimers() })
+afterEach(() => { cleanup(); clearDashboardLiveCache(); vi.restoreAllMocks(); vi.clearAllMocks(); vi.useRealTimers() })
+
+test("keeps the notification count on remount without fetching again", async () => {
+  vi.mocked(authApi.registrationNotifications).mockResolvedValue({ total: 1, registrations: [notice("1")] })
+  const { unmount } = render(<MemoryRouter><RegistrationNotifications /></MemoryRouter>)
+  await screen.findByLabelText("Registration notifications: 1 pending")
+  unmount()
+  render(<MemoryRouter><RegistrationNotifications /></MemoryRouter>)
+  expect(screen.getByLabelText("Registration notifications: 1 pending")).toBeInTheDocument()
+  expect(authApi.registrationNotifications).toHaveBeenCalledTimes(1)
+  expect(notifyToast).not.toHaveBeenCalled()
+})
 function Location() { const location = useLocation(); return <output aria-label="Destination">{location.search}|{location.state?.registrationEmail}</output> }
 
 test("shows existing pending accounts and links directly to the selected applicant", async () => {

@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 
 import { authApi, AuthApiError, type AuthUser } from "../../lib/auth"
+import { clearDashboardStats } from "../../lib/dashboard-api"
 
 type AuthContextValue = {
   user: AuthUser | null
@@ -17,6 +18,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    clearDashboardStats()
     let active = true
     authApi.session()
       .then(({ user: currentUser }) => {
@@ -35,7 +37,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const expire = () => setUser(null)
+    const expire = () => { clearDashboardStats(); setUser(null) }
     window.addEventListener("hope:session-expired", expire)
     return () => window.removeEventListener("hope:session-expired", expire)
   }, [])
@@ -51,7 +53,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       pending = true
       lastSent = Date.now()
       authApi.heartbeat(Date.now() - lastActivity).catch((error) => {
-        if (!disposed && error instanceof AuthApiError && error.status === 401) setUser(null)
+        if (!disposed && error instanceof AuthApiError && error.status === 401) { clearDashboardStats(); setUser(null) }
       }).finally(() => { pending = false })
     }
     const active = () => { lastActivity = Date.now() }
@@ -78,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (email: string, password: string) => {
     const { user: signedInUser } = await authApi.login(email.trim().toLowerCase(), password)
+    clearDashboardStats()
     setUser(signedInUser)
     return signedInUser
   }
@@ -93,6 +96,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       if (!(error instanceof AuthApiError && error.status === 401)) throw error
     }
+    clearDashboardStats()
     setUser(null)
   }
 

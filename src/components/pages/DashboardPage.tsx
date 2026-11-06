@@ -3,6 +3,7 @@ import { useAuth } from "../auth/AuthProvider"
 import ChangePasswordModal from "../auth/ChangePasswordModal"
 import { DashboardIcon, ModuleTile, modules } from "../dashboard/DashboardComponents"
 import ActiveEmployees from "../dashboard/ActiveEmployees"
+import CountUpValue from "../dashboard/CountUpValue"
 import DashboardLayout from "../../layouts/DashboardLayout"
 import { getUserDisplayName, hasUserRight } from "../../lib/auth"
 import {
@@ -13,6 +14,7 @@ import {
   formatCurrencyStat,
   formatIntegerStat,
   getDashboardStats,
+  getCachedDashboardStats,
   type DashboardStats,
 } from "../../lib/dashboard-api"
 
@@ -27,8 +29,9 @@ const MODULE_KEY_MAP: Record<string, ErpModuleKey> = {
 
 export default function DashboardPage() {
   const { user } = useAuth()
-  const [stats, setStats] = useState<DashboardStats | null>(null)
-  const [statsLoading, setStatsLoading] = useState(true)
+  const [stats, setStats] = useState<DashboardStats | null>(getCachedDashboardStats)
+  const [animateStats] = useState(() => !getCachedDashboardStats())
+  const [statsLoading, setStatsLoading] = useState(() => !getCachedDashboardStats())
   const [statsError, setStatsError] = useState("")
   const [refreshCount, setRefreshCount] = useState(0)
 
@@ -37,6 +40,7 @@ export default function DashboardPage() {
       setStatsLoading(false)
       return
     }
+    if (refreshCount === 0 && getCachedDashboardStats()) return
 
     const controller = new AbortController()
     setStatsLoading(true)
@@ -44,7 +48,7 @@ export default function DashboardPage() {
 
     getDashboardStats({
       signal: controller.signal,
-      refresh: refreshCount > 0,
+      refresh: true,
     })
       .then((data) => {
         setStats(data)
@@ -152,7 +156,7 @@ export default function DashboardPage() {
                         {card.label}
                       </span>
                       <span className="grid h-8 w-8 place-items-center rounded-lg border border-neutral-200 bg-neutral-50 text-neutral-600">
-                        <DashboardIcon name={card.icon} className="h-4 w-4" />
+                        <DashboardIcon name={card.icon} className="h-[18px] w-[18px]" />
                       </span>
                     </div>
                     <div className="mt-3">
@@ -164,7 +168,7 @@ export default function DashboardPage() {
                         />
                       ) : (
                         <div className="text-2xl font-bold tracking-tight text-neutral-900 tabular-nums">
-                          {card.value}
+                          <CountUpValue value={card.value} animate={animateStats} />
                         </div>
                       )}
                     </div>

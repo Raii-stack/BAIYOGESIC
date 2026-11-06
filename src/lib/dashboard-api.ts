@@ -1,4 +1,5 @@
 import { apiFailure } from "./api-errors"
+import { clearDashboardLiveCache } from "./dashboard-live-cache"
 
 export type DashboardStats = {
   customers: number
@@ -14,11 +15,25 @@ type ApiResponse<T> = {
 }
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
+let cachedStats: DashboardStats | null = null
+let cacheVersion = 0
+
+export function getCachedDashboardStats() {
+  return cachedStats
+}
+
+export function clearDashboardStats() {
+  clearDashboardLiveCache()
+  cachedStats = null
+  cacheVersion++
+}
 
 export async function getDashboardStats(options?: {
   signal?: AbortSignal
   refresh?: boolean
 }): Promise<DashboardStats> {
+  if (cachedStats && !options?.refresh) return cachedStats
+  const version = cacheVersion
   const query = options?.refresh ? "?refresh=true" : ""
   let response: Response
   try {
@@ -42,12 +57,14 @@ export async function getDashboardStats(options?: {
 
   const payload = result?.data || result
 
-  return {
+  const stats = {
     customers: Number(payload?.customers) || 0,
     products: Number(payload?.products) || 0,
     openOrders: Number(payload?.openOrders ?? (payload as { open_orders?: number })?.open_orders) || 0,
     revenue: Number(payload?.revenue) || 0,
   }
+  if (version === cacheVersion && !options?.signal?.aborted) cachedStats = stats
+  return stats
 }
 
 export function formatIntegerStat(value: number): string {

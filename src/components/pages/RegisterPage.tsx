@@ -1,21 +1,17 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react"
+import { useEffect, useState, type FormEvent } from "react"
+import { Link, Navigate } from "react-router"
+import { useAuth } from "../auth/AuthProvider"
 
 import { authApi } from "../../lib/auth"
 import { safeErrorMessage } from "../../lib/api-errors"
 import { notifyToast } from "../../lib/toast"
 import type { Errors } from "../../types/auth"
 import { emailOk } from "../../utils/validation"
-import { Field, Logo, Submit } from "./AuthComponents"
-import PasswordStrengthMeter from "./PasswordStrengthMeter"
+import { AuthShell, Field, Submit } from "../auth/AuthComponents"
+import PasswordStrengthMeter from "../auth/PasswordStrengthMeter"
 
-interface RegisterModalProps {
-  open: boolean
-  onClose: () => void
-  onSuccess?: () => void
-}
-
-export default function RegisterModal({ open, onClose, onSuccess }: RegisterModalProps) {
-  const dialogRef = useRef<HTMLDivElement>(null)
+export default function RegisterPage() {
+  const { user, loading } = useAuth()
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -37,39 +33,8 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
   }
 
   useEffect(() => {
-    if (open) {
-      setIsSuccess(false)
-      setServerError("")
-      setErrors({})
-      if (!dialogRef.current?.contains(document.activeElement)) {
-        document.getElementById("register-first-name")?.focus()
-      }
-    }
-  }, [open])
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape") {
-      event.preventDefault()
-      onClose()
-      return
-    }
-    if (event.key !== "Tab") return
-
-    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), a[href]',
-    )
-    if (!focusable?.length) return
-    const first = focusable[0]
-    const last = focusable[focusable.length - 1]
-
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault()
-      last.focus()
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault()
-      first.focus()
-    }
-  }
+    document.title = "Register | HOPE, Inc."
+  }, [])
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
@@ -95,8 +60,8 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
         password: form.password,
       })
       setIsSuccess(true)
+      setForm((current) => ({ ...current, password: "", confirmPassword: "" }))
       notifyToast("Registration submitted. Your account is pending approval.")
-      onSuccess?.()
     } catch (err) {
       setServerError(safeErrorMessage(err))
     } finally {
@@ -104,42 +69,11 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
     }
   }
 
-  if (!open) return null
+  if (loading) return <div role="status" className="grid min-h-screen place-items-center">Checking your session…</div>
+  if (user) return <Navigate to="/dashboard" replace />
 
   return (
-    <div className="workspace-modal-overlay z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="register-modal-title"
-        aria-describedby="register-modal-description"
-        onKeyDown={handleKeyDown}
-        className="workspace-modal workspace-panel w-full max-w-[480px] p-6 sm:p-8 max-h-[92vh] overflow-y-auto"
-      >
-        <div className="flex items-center justify-between">
-          <Logo />
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close registration dialog"
-            className="rounded-md p-1.5 text-neutral-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
-          >
-            ✕
-          </button>
-        </div>
-
-        <div className="mt-6">
-          <p className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-            User Self-Registration
-          </p>
-          <h2 id="register-modal-title" className="mt-1 text-2xl font-bold tracking-tight text-neutral-900">
-            Create your account
-          </h2>
-          <p id="register-modal-description" className="mt-1.5 text-xs text-neutral-500">
-            New accounts start pending. HR, an admin, or a superadmin must approve your account before you can sign in.
-          </p>
-        </div>
+    <AuthShell page="create" title="Create your account" subtitle="New accounts start pending. HR, an admin, or a superadmin must approve your account before you can sign in.">
 
         {isSuccess ? (
           <div className="mt-6 space-y-4">
@@ -157,13 +91,12 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
+            <Link
+              to="/login"
               className="workspace-primary-action w-full"
             >
-              Done
-            </button>
+              Sign in
+            </Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} noValidate className="mt-6 flex flex-col gap-4">
@@ -254,17 +187,15 @@ export default function RegisterModal({ open, onClose, onSuccess }: RegisterModa
 
             <p className="text-center text-xs text-neutral-500">
               Already have an account?{" "}
-              <button
-                type="button"
-                onClick={onClose}
+              <Link
+                to="/login"
                 className="font-medium text-blue-700 underline underline-offset-2 hover:text-blue-900 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-700"
               >
                 Sign in
-              </button>
+              </Link>
             </p>
           </form>
         )}
-      </div>
-    </div>
+    </AuthShell>
   )
 }

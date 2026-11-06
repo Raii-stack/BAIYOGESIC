@@ -15,6 +15,7 @@ export type SystemUser = {
   jobTitle: string | null
   departmentName: string | null
   stamp: string | null
+  lastActiveAt?: string | null
   rights: string[]
 }
 

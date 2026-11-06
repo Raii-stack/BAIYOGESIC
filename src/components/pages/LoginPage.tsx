@@ -10,7 +10,6 @@ import {
   Submit,
 } from "../auth/AuthComponents"
 import ForgotPasswordModal from "../auth/ForgotPasswordModal"
-import RegisterModal from "../auth/RegisterModal"
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -21,7 +20,6 @@ export default function LoginPage() {
   const [authenticationError, setAuthenticationError] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [forgotOpen, setForgotOpen] = useState(false)
-  const [registerOpen, setRegisterOpen] = useState(false)
 
   useEffect(() => { document.title = "Sign in | HOPE, Inc." }, [])
 
@@ -89,13 +87,12 @@ export default function LoginPage() {
           />
           {authenticationError && <p role="alert" className="mt-2 text-xs font-medium leading-4 text-red-600">{authenticationError}</p>}
           <div className="my-4 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setRegisterOpen(true)}
+            <Link
+              to="/register"
               className="rounded text-[13px] font-medium text-neutral-600 underline-offset-4 transition hover:text-neutral-900 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
             >
               Register
-            </button>
+            </Link>
             <button
               type="button"
               onClick={() => setForgotOpen(true)}
@@ -111,7 +108,6 @@ export default function LoginPage() {
       </AuthShell>
 
       <ForgotPasswordModal open={forgotOpen} onClose={() => setForgotOpen(false)} />
-      <RegisterModal open={registerOpen} onClose={() => setRegisterOpen(false)} />
     </>
   )
 }

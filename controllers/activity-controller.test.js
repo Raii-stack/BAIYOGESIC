@@ -23,6 +23,8 @@ test('records the authenticated session using a hash, with a bounded update freq
   expect(sql).toContain('closed_at IS NULL');
   expect(sql).toContain("interval '30 seconds'");
   expect(sql).toContain('expires_at <= now()');
+  expect(sql).toContain('newer.user_id = p.user_id');
+  expect(sql).toContain('(newer.last_seen_at, newer.session_id) > (p.last_seen_at, p.session_id)');
 });
 
 test.each([-1, 120001, '10'])('rejects an invalid client activity interval: %s', async (idleMs) => {

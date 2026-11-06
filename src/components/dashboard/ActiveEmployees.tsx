@@ -1,21 +1,30 @@
 import { useEffect, useState } from "react"
 import { authApi, type ActiveEmployee } from "../../lib/auth"
+import { activityCache } from "../../lib/dashboard-live-cache"
 
 export default function ActiveEmployees() {
-  const [employees, setEmployees] = useState<ActiveEmployee[]>([])
-  const [loading, setLoading] = useState(true)
+  const cache = activityCache
+  const [employees, setEmployees] = useState<ActiveEmployee[]>(() => cache.data ?? [])
+  const [loading, setLoading] = useState(() => !cache.data)
   const [error, setError] = useState("")
   const [refresh, setRefresh] = useState(0)
 
   useEffect(() => {
     const controller = new AbortController()
     let pending = false
-    const load = async () => {
-      if (pending || document.visibilityState === "hidden") return
+    const load = async (force = false) => {
+      if (pending || document.visibilityState === "hidden" || (!force && cache.data && Date.now() - cache.checkedAt < 60000)) return
       pending = true
       try {
         const result = await authApi.activeEmployees(controller.signal)
-        if (!controller.signal.aborted) { setEmployees(result.employees); setError("") }
+        if (!controller.signal.aborted) {
+          cache.checkedAt = Date.now()
+          if (JSON.stringify(cache.data) !== JSON.stringify(result.employees)) {
+            cache.data = result.employees
+            setEmployees(result.employees)
+          }
+          setError("")
+        }
       } catch (reason) {
         if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "Unable to load active employees.")
       } finally {
@@ -23,11 +32,11 @@ export default function ActiveEmployees() {
         if (!controller.signal.aborted) setLoading(false)
       }
     }
-    setLoading(true)
-    void load()
+    void load(refresh > 0)
     const timer = window.setInterval(() => void load(), 60000)
-    document.addEventListener("visibilitychange", load)
-    return () => { controller.abort(); window.clearInterval(timer); document.removeEventListener("visibilitychange", load) }
+    const visible = () => void load()
+    document.addEventListener("visibilitychange", visible)
+    return () => { controller.abort(); window.clearInterval(timer); document.removeEventListener("visibilitychange", visible) }
   }, [refresh])
 
   return (

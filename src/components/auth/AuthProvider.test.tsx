@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 
 import { AuthApiError, authApi } from "../../lib/auth"
+import { getCachedDashboardStats, getDashboardStats } from "../../lib/dashboard-api"
 import { AuthProvider, useAuth } from "./AuthProvider"
 
 vi.mock("../../lib/auth", async () => {
@@ -59,8 +60,14 @@ test("restores a session and clears it when the session-expired event fires", as
   render(<AuthProvider><Harness /></AuthProvider>)
 
   expect(await screen.findByLabelText("state")).toHaveTextContent("user@example.com")
+  vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(JSON.stringify({
+    success: true, data: { customers: 10, products: 20, openOrders: 5, revenue: 100 },
+  })))
+  await getDashboardStats()
+  expect(getCachedDashboardStats()).not.toBeNull()
   window.dispatchEvent(new Event("hope:session-expired"))
   await waitFor(() => expect(screen.getByLabelText("state")).toHaveTextContent("signed out"))
+  expect(getCachedDashboardStats()).toBeNull()
 })
 
 test("normalizes login input and updates mustChangePassword after changing password", async () => {

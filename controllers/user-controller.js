@@ -67,6 +67,7 @@ const userSelectFields = `
   j.jobdesc AS "jobTitle",
   d.deptname AS "departmentName",
   u.stamp,
+  (SELECT max(p.last_seen_at) FROM public.app_user_presence p WHERE p.user_id = u.user_id) AS "lastActiveAt",
   u.created_at AS "createdAt",
   u.updated_at AS "updatedAt",
   COALESCE(

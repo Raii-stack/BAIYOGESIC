@@ -143,6 +143,10 @@ export const userApi = {
     )
     return normalizeUserRow(data.user)
   },
+  async reject(userId: string) {
+    const data = await request<{ user: SystemUser }>(`/${encodeURIComponent(userId)}/reject`, "POST")
+    return normalizeUserRow(data.user)
+  },
   async updateRights(userId: string, rights: string[], role: UserRole) {
     const data = await request<{ user: SystemUser }>(
       `/${encodeURIComponent(userId)}/rights`,

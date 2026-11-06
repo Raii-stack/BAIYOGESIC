@@ -123,6 +123,28 @@ test("HR can approve pending employees without user-editing controls", async () 
   expect(fetchMock.mock.calls.some(([input]) => String(input).includes("/api/users/options"))).toBe(false)
 })
 
+test("HR can reject a registration without a block action and remove it from the queue", async () => {
+  let pending = true
+  const applicant = { ...makeUser(5), status: "pending" as const }
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: { ...adminSession, role: "employee", rights: ["hr.employee.edit"] } })
+    if (url.pathname === "/api/auth/activity") return success({ message: "ok" })
+    if (url.pathname === "/api/users") return success({ users: pending ? [applicant] : [], pagination: { page: 1, limit: 10, total: pending ? 1 : 0, totalPages: pending ? 1 : 0 } })
+    if (url.pathname === `/api/users/${applicant.userId}/reject` && init?.method === "POST") {
+      pending = false
+      return success({ user: { ...applicant, status: "disabled" } })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  }))
+  render(<MemoryRouter><AuthProvider><UserManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("User5 Account")
+  expect(screen.queryByRole("button", { name: "Block User5 Account" })).not.toBeInTheDocument()
+  await userEvent.setup().click(screen.getByRole("button", { name: "Reject User5 Account" }))
+  expect(await screen.findByText("No user accounts found")).toBeInTheDocument()
+  expect(screen.getByRole("status")).toHaveTextContent("User5 Account's registration has been rejected.")
+})
+
 test("loads user accounts with skeletons, filters, and server pagination for superadmin", async () => {
   let releaseFirstPage: (() => void) | undefined
   const firstPageGate = new Promise<void>((resolve) => {
@@ -399,6 +421,8 @@ test("allows superadmin to edit rights of admin and other superadmin accounts an
   expect(await screen.findByText("User2 Account")).toBeInTheDocument()
   const otherSuperRow = await screen.findByRole("row", { name: /User2 Account/ })
   expect(within(otherSuperRow).getByText("Pending")).toBeInTheDocument()
+  expect(within(otherSuperRow).queryByRole("button", { name: "Block User2 Account" })).not.toBeInTheDocument()
+  expect(within(otherSuperRow).getByRole("button", { name: "Reject User2 Account" })).toBeInTheDocument()
   expect(within(otherSuperRow).getByRole("button", { name: "Rights for User2 Account" })).toBeInTheDocument()
 
   await user.click(within(otherSuperRow).getByRole("button", { name: "Accept User2 Account" }))

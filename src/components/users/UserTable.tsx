@@ -26,8 +26,10 @@ export default function UserTable({
   currentUserId,
   togglingId,
   approvingId,
+  rejectingId,
   onPageChange,
   onApprove,
+  onReject,
   onToggleBlock,
   onOpenRights,
   onEdit,
@@ -41,8 +43,10 @@ export default function UserTable({
   currentUserId: string
   togglingId: string | null
   approvingId: string | null
+  rejectingId: string | null
   onPageChange: (page: number) => void
   onApprove: (user: SystemUser) => void
+  onReject: (user: SystemUser) => void
   onToggleBlock: (user: SystemUser) => void
   onOpenRights: (user: SystemUser) => void
   onEdit: (user: SystemUser) => void
@@ -68,7 +72,10 @@ export default function UserTable({
       </div>
 
       <div className="overflow-x-auto" aria-busy={loading}>
-        <table role="table" className="workspace-table min-w-[1040px]">
+        <table role="table" className="workspace-table workspace-user-table min-w-[1480px] table-fixed">
+          <colgroup>
+            {[96, 192, 240, 112, 112, 184, 224, 320].map((width, index) => <col key={headings[index]} style={{ width }} />)}
+          </colgroup>
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
               {headings.map((heading) => (
@@ -91,7 +98,9 @@ export default function UserTable({
               users.map((user) => {
                 const isSelf = String(user.userId) === String(currentUserId)
                 const canManageRow = isSuperAdmin || user.role === "employee"
-                const canBlockRow = !approvalOnly && canManageRow && !isSelf
+                const canBlockRow = !approvalOnly && canManageRow && !isSelf && user.status === "active"
+                const canRejectRow = canManageRow && !isSelf && user.status === "pending"
+                const deciding = approvingId === user.userId || rejectingId === user.userId
                 const canAssignRights = !approvalOnly && (isSuperAdmin
                   ? !isSelf
                   : canManageRow && user.role === "employee")
@@ -101,12 +110,12 @@ export default function UserTable({
                   ? "Blocked"
                   : user.status === "pending"
                     ? "Pending"
-                    : "Active"
+                    : user.status === "disabled" ? "Disabled" : "Active"
                 const statusBadgeStyle = user.isBlocked
                   ? "bg-red-100 text-red-800"
                   : user.status === "pending"
                     ? "bg-amber-100 text-amber-900"
-                    : "bg-emerald-100 text-emerald-800"
+                    : user.status === "disabled" ? "bg-neutral-100 text-neutral-600" : "bg-emerald-100 text-emerald-800"
 
                 return (
                   <tr
@@ -162,19 +171,23 @@ export default function UserTable({
                           —
                         </span>
                       ) : (
-                        <div className="flex items-center gap-3">
-                          {canApproveRow && (
+                        <div className="flex flex-wrap items-center gap-2 md:grid md:grid-cols-4">
+                          {canApproveRow ? (
                             <button
                               type="button"
-                              disabled={approvingId === user.userId}
+                              disabled={deciding}
                               onClick={() => onApprove(user)}
                               aria-label={`Accept ${user.name}`}
                               className="workspace-text-action bg-emerald-50 text-emerald-800"
                             >
-                              {approvingId === user.userId ? "Accepting…" : "Accept"}
+                              {approvingId === user.userId ? <span role="status" aria-label="Accepting registration">…</span> : "Accept"}
                             </button>
-                          )}
-                          {canBlockRow && (
+                          ) : <span aria-hidden="true" className="hidden md:block" />}
+                          {canRejectRow ? (
+                            <button type="button" disabled={deciding} onClick={() => onReject(user)} aria-label={`Reject ${user.name}`} className="workspace-text-action text-red-700 focus-visible:ring-red-600">
+                              {rejectingId === user.userId ? <span role="status" aria-label="Rejecting registration">…</span> : "Reject"}
+                            </button>
+                          ) : canBlockRow ? (
                             <button
                               type="button"
                               disabled={togglingId === user.userId}
@@ -188,8 +201,8 @@ export default function UserTable({
                             >
                               {user.isBlocked ? "Unblock" : "Block"}
                             </button>
-                          )}
-                          {canAssignRights && (
+                          ) : <span aria-hidden="true" className="hidden md:block" />}
+                          {canAssignRights ? (
                             <button
                               type="button"
                               onClick={() => onOpenRights(user)}
@@ -198,15 +211,15 @@ export default function UserTable({
                             >
                               Rights
                             </button>
-                          )}
-                          {!approvalOnly && <button
+                          ) : <span aria-hidden="true" className="hidden md:block" />}
+                          {!approvalOnly ? <button
                             type="button"
                             onClick={() => onEdit(user)}
                             aria-label={`Edit ${user.name}`}
                             className="workspace-text-action"
                           >
                             Edit
-                          </button>}
+                          </button> : <span aria-hidden="true" className="hidden md:block" />}
                         </div>
                       )}
                     </td>

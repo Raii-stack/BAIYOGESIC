@@ -489,48 +489,53 @@ const updateUser = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { user: updated } });
 });
 
-const approveUser = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
-  if (!UUID_PATTERN.test(String(userId || ''))) {
-    throw requestError('Invalid user ID', 400);
-  }
-
-  const requesterIsSuperAdmin = isSuperAdminRole(req.user && req.user.role);
-  const actor = auditActor(req);
-
-  const updated = await withAudit(actor, async (client) => {
-    const existingResult = await client.query(
-      `SELECT user_id, role, status, is_blocked FROM public.app_user WHERE user_id = $1::uuid FOR UPDATE`,
-      [userId]
-    );
-    const existing = existingResult.rows[0];
-    if (!existing) {
-      throw requestError('User account not found', 404);
+function registrationDecision(approve) {
+  return asyncHandler(async (req, res) => {
+    const { userId } = req.params;
+    if (!UUID_PATTERN.test(String(userId || ''))) {
+      throw requestError('Invalid user ID', 400);
     }
 
-    if (!requesterIsSuperAdmin && existing.role !== 'employee') {
-      throw requestError('Admins can only approve Employee accounts', 403);
-    }
+    const requesterIsSuperAdmin = isSuperAdminRole(req.user && req.user.role);
+    const actor = auditActor(req);
 
-    if (existing.status !== 'pending' || existing.is_blocked) {
-      throw requestError('Only unblocked pending accounts can be approved', 409);
-    }
+    const updated = await withAudit(actor, async (client) => {
+      const existingResult = await client.query(
+        `SELECT user_id, role, status, is_blocked FROM public.app_user WHERE user_id = $1::uuid FOR UPDATE`,
+        [userId]
+      );
+      const existing = existingResult.rows[0];
+      if (!existing) {
+        throw requestError('User account not found', 404);
+      }
 
-    await client.query(
-      `UPDATE public.app_user
-       SET status = 'active',
-           stamp = public.audit_stamp('EDIT'),
-           updated_at = now()
-       WHERE user_id = $1::uuid`,
-      [userId]
-    );
+      if (!requesterIsSuperAdmin && existing.role !== 'employee') {
+        throw requestError('You can only accept or reject Employee accounts', 403);
+      }
 
-    return fetchUserById(client, userId);
+      if (existing.status !== 'pending' || (approve && existing.is_blocked)) {
+        throw requestError(approve ? 'Only unblocked pending accounts can be approved' : 'Only pending accounts can be rejected', 409);
+      }
+
+      await client.query(
+        `UPDATE public.app_user
+         SET status = $2,
+             stamp = public.audit_stamp('EDIT'),
+             updated_at = now()
+         WHERE user_id = $1::uuid`,
+        [userId, approve ? 'active' : 'disabled']
+      );
+
+      return fetchUserById(client, userId);
+    });
+
+    invalidateUserCache(userId);
+    res.json({ success: true, data: { user: updated } });
   });
+}
 
-  invalidateUserCache(userId);
-  res.json({ success: true, data: { user: updated } });
-});
+const approveUser = registrationDecision(true);
+const rejectUser = registrationDecision(false);
 
 const setBlockStatus = asyncHandler(async (req, res) => {
   const { userId } = req.params;
@@ -702,6 +707,7 @@ module.exports = {
   createUser,
   updateUser,
   approveUser,
+  rejectUser,
   registrationNotifications,
   setBlockStatus,
   updateUserRights

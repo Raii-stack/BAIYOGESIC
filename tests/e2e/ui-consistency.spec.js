@@ -83,6 +83,41 @@ test('dashboard keeps metrics on return and fetches again on browser refresh', a
   expect(requests).toBeGreaterThan(initialRequests);
 });
 
+test('user actions stay aligned across pagination and pending accounts can be rejected', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await mockApi(page);
+  const applicant = { userId: 'pending-user', name: 'Pending Employee', email: 'pending@example.com', role: 'employee', status: 'pending', isBlocked: false };
+  await page.route('**/api/users**', async route => {
+    const url = new URL(route.request().url());
+    if (url.pathname.endsWith('/options')) return route.fulfill({ json: { success: true, data: { availableEmployees: [] } } });
+    if (url.pathname.endsWith('/reject')) return route.fulfill({ json: { success: true, data: { user: { ...applicant, status: 'disabled' } } } });
+    const current = Number(url.searchParams.get('page') || 1);
+    const user = current === 1 ? applicant : { ...applicant, userId: 'active-user', name: 'Accepted Employee With A Much Longer Name', email: 'accepted.employee.with.a.long.email@example.com', status: 'active' };
+    return route.fulfill({ json: { success: true, data: { users: [user], pagination: { page: current, limit: 10, total: 11, totalPages: 2 } } } });
+  });
+  await page.goto('/users');
+  const records = page.getByRole('region', { name: 'User account records' });
+  const actions = records.getByRole('columnheader', { name: 'Actions', exact: true });
+  await expect(records.getByRole('button', { name: 'Reject Pending Employee' })).toBeVisible();
+  await expect(records.getByRole('button', { name: 'Block Pending Employee' })).toHaveCount(0);
+  const before = await actions.boundingBox();
+  const rightsX = (await records.getByRole('button', { name: 'Rights for Pending Employee' }).boundingBox()).x;
+  await records.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(records.getByRole('button', { name: 'Block Accepted Employee With A Much Longer Name' })).toBeVisible();
+  const after = await actions.boundingBox();
+  expect(after.x).toBeCloseTo(before.x, 0);
+  expect(after.width).toBeCloseTo(before.width, 0);
+  expect((await records.getByRole('button', { name: 'Rights for Accepted Employee With A Much Longer Name' }).boundingBox()).x).toBeCloseTo(rightsX, 0);
+  await records.locator('.overflow-x-auto').evaluate(element => { element.scrollLeft = element.scrollWidth; });
+  expect((await actions.boundingBox()).x).toBeCloseTo(before.x, 0);
+  await records.getByRole('button', { name: 'Previous', exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await records.getByRole('button', { name: 'Reject Pending Employee' }).click();
+  await expect(records.getByText('Disabled', { exact: true })).toBeVisible();
+  await expect(records.getByRole('button', { name: 'Block Pending Employee' })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+});
+
 test('registration page submits pending applications and its sign-in link works', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route('**/api/auth/session', route => route.fulfill({ status: 401, json: { success: false, error: { message: 'Authentication required' } } }));

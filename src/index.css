@@ -240,6 +240,7 @@ body:has([aria-modal="true"]:not([inert] [aria-modal="true"])) { overflow: hidde
 }
 
 @media screen and (max-width: 767px) {
+  .workspace-user-table > colgroup { display: none; }
   :root { --workspace-control-height: 44px; }
   .workspace-label--row { flex-wrap: wrap; gap: 4px 12px; }
   .workspace-control { font-size: 16px; }

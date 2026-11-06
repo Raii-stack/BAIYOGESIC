@@ -15,6 +15,7 @@ const query = vi.fn(async (sql, values = []) => {
   if (/UPDATE public.app_user/.test(sql)) {
     if (sql.includes('AND status = \'active\'') && account.status !== 'active') return { rows: [] };
     if (sql.includes("status = 'active'")) account.status = 'active';
+    if (sql.includes('SET status = $2')) account.status = values[1];
     if (sql.includes('password_hash = $4')) account.password_hash = values[3];
     return { rows: account ? [account] : [] };
   }
@@ -76,6 +77,26 @@ test('notification data is protected from ordinary employees, pending accounts a
   expect((await request(app).get('/api/auth/registration-notifications').set('Cookie', cookie(2))).status).toBe(403);
   expect((await request(app).get('/api/auth/registration-notifications').set('Cookie', cookie(5))).status).toBe(401);
   expect((await request(app).get('/api/auth/registration-notifications')).status).toBe(401);
+});
+
+test.each([1, 3, 4])('approver %s can reject a pending application and it cannot sign in', async (approver) => {
+  const rejected = await request(app).post(`/api/users/${id(5)}/reject`).set('Cookie', cookie(approver));
+  expect(rejected.status).toBe(200);
+  expect(rejected.body.data.user.status).toBe('disabled');
+  expect((await request(app).post('/api/auth/login').send({ email: 'new@hope.inc', password })).status).toBe(401);
+  expect((await request(app).get('/api/auth/registration-notifications').set('Cookie', cookie(approver))).body.data.total).toBe(0);
+  expect((await request(app).post(`/api/users/${id(5)}/approve`).set('Cookie', cookie(approver))).status).toBe(409);
+});
+
+test('rejection enforces permission, target role, ID and pending-state checks', async () => {
+  expect((await request(app).post(`/api/users/${id(5)}/reject`).set('Cookie', cookie(2))).status).toBe(403);
+  expect((await request(app).post(`/api/users/${id(5)}/reject`)).status).toBe(401);
+  expect((await request(app).post('/api/users/invalid/reject').set('Cookie', cookie(3))).status).toBe(400);
+  accounts[4].role = 'admin';
+  expect((await request(app).post(`/api/users/${id(5)}/reject`).set('Cookie', cookie(1))).status).toBe(403);
+  accounts[4].role = 'employee';
+  accounts[4].status = 'active';
+  expect((await request(app).post(`/api/users/${id(5)}/reject`).set('Cookie', cookie(3))).status).toBe(409);
 });
 
 test('pending accounts cannot log in or use a protected endpoint with a token', async () => {

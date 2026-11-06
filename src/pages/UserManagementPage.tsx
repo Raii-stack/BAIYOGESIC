@@ -53,6 +53,7 @@ export default function UserManagementPage() {
   const [rightsUser, setRightsUser] = useState<SystemUser | null>(null)
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [approvingId, setApprovingId] = useState<string | null>(null)
+  const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null)
 
   useEffect(() => {
@@ -194,6 +195,21 @@ export default function UserManagementPage() {
       // Shared error toast is emitted by apiFailure
     } finally {
       setTogglingId(null)
+    }
+  }
+
+  const handleRejectUser = async (target: SystemUser) => {
+    setRejectingId(target.userId)
+    try {
+      const updated = await userApi.reject(target.userId)
+      setUsers((current) => current.map((user) => user.userId === updated.userId ? updated : user))
+      showNotice(`${target.name}'s registration has been rejected.`)
+      window.dispatchEvent(new Event("hope:registrations-changed"))
+      if (approvalOnly || statusFilter === "pending") setRefresh((current) => current + 1)
+    } catch {
+      // Shared error toast is emitted by apiFailure
+    } finally {
+      setRejectingId(null)
     }
   }
 
@@ -356,8 +372,10 @@ export default function UserManagementPage() {
                   currentUserId={currentUserId}
                   togglingId={togglingId}
                   approvingId={approvingId}
+                  rejectingId={rejectingId}
                   onPageChange={setPage}
                   onApprove={handleApproveUser}
+                  onReject={handleRejectUser}
                   onToggleBlock={handleToggleBlock}
                   onOpenRights={setRightsUser}
                   onEdit={openEditPanel}

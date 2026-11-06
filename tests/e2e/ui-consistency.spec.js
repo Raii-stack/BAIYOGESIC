@@ -83,7 +83,8 @@ test('dashboard keeps metrics on return and fetches again on browser refresh', a
   expect(requests).toBeGreaterThan(initialRequests);
 });
 
-test('user actions stay aligned across pagination and pending accounts can be rejected', async ({ page }) => {
+test('user actions stay aligned and expandable details fit without horizontal scrolling', async ({ page }) => {
+  test.setTimeout(60000);
   await page.setViewportSize({ width: 1440, height: 900 });
   await mockApi(page);
   const applicant = { userId: 'pending-user', name: 'Pending Employee', email: 'pending@example.com', role: 'employee', status: 'pending', isBlocked: false };
@@ -92,7 +93,7 @@ test('user actions stay aligned across pagination and pending accounts can be re
     if (url.pathname.endsWith('/options')) return route.fulfill({ json: { success: true, data: { availableEmployees: [] } } });
     if (url.pathname.endsWith('/reject')) return route.fulfill({ json: { success: true, data: { user: { ...applicant, status: 'disabled' } } } });
     const current = Number(url.searchParams.get('page') || 1);
-    const user = current === 1 ? applicant : { ...applicant, userId: 'active-user', name: 'Accepted Employee With A Much Longer Name', email: 'accepted.employee.with.a.long.email@example.com', status: 'active' };
+    const user = current === 1 ? applicant : { ...applicant, userId: 'active-user', name: 'Accepted Employee With A Much Longer Name', email: 'accepted.employee.with.a.long.email@example.com', status: 'active', isBlocked: true };
     return route.fulfill({ json: { success: true, data: { users: [user], pagination: { page: current, limit: 10, total: 11, totalPages: 2 } } } });
   });
   await page.goto('/users');
@@ -100,16 +101,27 @@ test('user actions stay aligned across pagination and pending accounts can be re
   const actions = records.getByRole('columnheader', { name: 'Actions', exact: true });
   await expect(records.getByRole('button', { name: 'Reject Pending Employee' })).toBeVisible();
   await expect(records.getByRole('button', { name: 'Block Pending Employee' })).toHaveCount(0);
+  await expect(records.getByRole('button', { name: 'Accept Pending Employee' })).toHaveCSS('justify-content', 'center');
   const before = await actions.boundingBox();
   const rightsX = (await records.getByRole('button', { name: 'Rights for Pending Employee' }).boundingBox()).x;
   await records.getByRole('button', { name: 'Next', exact: true }).click();
-  await expect(records.getByRole('button', { name: 'Block Accepted Employee With A Much Longer Name' })).toBeVisible();
+  await expect(records.getByRole('button', { name: 'Unblock Accepted Employee With A Much Longer Name' })).toBeVisible();
+  await expect(records.getByRole('button', { name: 'Unblock Accepted Employee With A Much Longer Name' })).toHaveCSS('justify-content', 'center');
   const after = await actions.boundingBox();
   expect(after.x).toBeCloseTo(before.x, 0);
   expect(after.width).toBeCloseTo(before.width, 0);
   expect((await records.getByRole('button', { name: 'Rights for Accepted Employee With A Much Longer Name' }).boundingBox()).x).toBeCloseTo(rightsX, 0);
   await records.locator('.overflow-x-auto').evaluate(element => { element.scrollLeft = element.scrollWidth; });
   expect((await actions.boundingBox()).x).toBeCloseTo(before.x, 0);
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const expand = records.getByRole('button', { name: 'Expand details for Accepted Employee With A Much Longer Name' });
+    await expand.click();
+    await expect(records.getByRole('region', { name: 'Details for Accepted Employee With A Much Longer Name' })).toContainText('accepted.employee.with.a.long.email@example.com');
+    expect(await records.locator('.overflow-x-auto').evaluate(element => element.scrollWidth > element.clientWidth + 1), `table overflow at ${width}px`).toBe(false);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), `page overflow at ${width}px`).toBe(false);
+    await records.getByRole('button', { name: 'Collapse details for Accepted Employee With A Much Longer Name' }).click();
+  }
   await records.getByRole('button', { name: 'Previous', exact: true }).click();
   await page.setViewportSize({ width: 390, height: 844 });
   await records.getByRole('button', { name: 'Reject Pending Employee' }).click();

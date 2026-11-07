@@ -31,7 +31,12 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) {
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 app.use(requestLogger);
-app.use(helmet());
+app.use(helmet({
+  xContentTypeOptions: true,
+  frameguard: { action: 'deny' },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  hidePoweredBy: true
+}));
 
 const allowedOrigins = new Set(
   (process.env.CLIENT_ORIGIN || 'http://localhost:5173')
@@ -63,7 +68,11 @@ app.use(cookieParser());
 app.use('/api', apiLimiter);
 
 app.use('/api', (_req, res, next) => {
-  res.set('Cache-Control', 'no-store');
+  res.set({
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
+  });
   next();
 });
 

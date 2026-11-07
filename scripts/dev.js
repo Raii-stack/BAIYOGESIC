@@ -2,7 +2,7 @@ const { spawn } = require("node:child_process");
 
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const children = [
-  spawn(npmCommand, ["run", "dev:frontend"], {
+  spawn(npmCommand, ["run", "dev:frontend", "--", "--host", "127.0.0.1"], {
     stdio: "inherit",
     shell: process.platform === "win32",
   }),

@@ -101,7 +101,7 @@ test('user actions stay aligned and expandable details fit without horizontal sc
   await page.goto('/users');
   const records = page.getByRole('region', { name: 'User account records' });
   const actions = records.getByRole('columnheader', { name: 'Actions', exact: true });
-  await expect(records.getByRole('columnheader')).toHaveText(['Surname', 'Name', 'Email', 'Role & department', 'Access', 'Actions']);
+  await expect(records.getByRole('columnheader')).toHaveText(['Surname', 'Name', 'Email', 'Role', 'Access', 'Actions']);
   await expect(records.getByRole('button', { name: 'Reject Pending Employee' })).toBeVisible();
   await expect(records.getByRole('button', { name: 'Block Pending Employee' })).toHaveCount(0);
   await expect(records.getByRole('button', { name: 'Accept Pending Employee' })).toHaveCSS('place-items', 'center');
@@ -116,7 +116,8 @@ test('user actions stay aligned and expandable details fit without horizontal sc
   await records.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(records.getByRole('button', { name: 'Unblock Accepted Employee With A Much Longer Name' })).toBeVisible();
   await expect(records.getByText('Manager (Admin)', { exact: true })).toBeVisible();
-  await expect(records.getByText('Department: Accounting & Finance — Regional Operations', { exact: true })).toBeVisible();
+  await expect(records.getByText('Accounting & Finance — Regional Operations', { exact: true })).toHaveCount(0);
+  await expect(records.getByText('Permissions', { exact: true })).toHaveCount(0);
   await expect(records.getByRole('button', { name: 'Unblock Accepted Employee With A Much Longer Name' })).toHaveCSS('place-items', 'center');
   const after = await actions.boundingBox();
   expect(after.x).toBeCloseTo(before.x, 0);
@@ -129,7 +130,12 @@ test('user actions stay aligned and expandable details fit without horizontal sc
     const expand = records.getByRole('button', { name: 'Expand details for Accepted Employee With A Much Longer Name' });
     await expand.click();
     await expect(records.locator('td[data-label="Email"]')).toHaveText('accepted.employee.with.a.long.email@example.com');
-    await expect(records.getByRole('region', { name: 'Details for Accepted Employee With A Much Longer Name' })).toContainText('No recorded activity');
+    const details = records.getByRole('region', { name: 'Details for Accepted Employee With A Much Longer Name' });
+    await expect(details).toContainText('No recorded activity');
+    await expect(details.getByText('Permissions', { exact: true })).toBeVisible();
+    await expect(details.getByText('All Departments — Full Access', { exact: true })).toBeVisible();
+    await expect(details.getByText('Department', { exact: true })).toHaveCount(1);
+    await expect(details.getByText('Accounting & Finance — Regional Operations', { exact: true })).toHaveCount(1);
     await expect(records.locator('.overflow-x-auto')).toHaveCSS('scrollbar-width', 'none');
     expect(await records.locator('.overflow-x-auto').evaluate(element => element.scrollWidth > element.clientWidth + 1), `table overflow at ${width}px`).toBe(false);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), `page overflow at ${width}px`).toBe(false);

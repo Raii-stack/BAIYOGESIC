@@ -472,13 +472,30 @@ const updateUser = asyncHandler(async (req, res) => {
       );
     }
 
-    if (existing.role === 'employee' && (nextRole === 'admin' || nextRole === 'superadmin')) {
-      await client.query(
+    if (nextRole !== existing.role) {
+      const oldRights = await client.query(
+        `SELECT right_code FROM public.app_user_right WHERE user_id = $1::uuid ORDER BY right_code`,
+        [userId]
+      );
+      await client.query(`DELETE FROM public.app_user_right WHERE user_id = $1::uuid`, [userId]);
+      const newRights = await client.query(
         `INSERT INTO public.app_user_right (user_id, right_code, granted_by)
          SELECT $1::uuid, r.right_code, $2
          FROM public.app_right r
-         ON CONFLICT DO NOTHING`,
-        [userId, actor]
+         WHERE $3::text[] IS NULL OR r.right_code = ANY($3::text[])
+         RETURNING right_code`,
+        [userId, actor, nextRole === 'employee' ? DEFAULT_EMPLOYEE_RIGHTS : null]
+      );
+      await client.query(
+        `INSERT INTO public.audit_log
+           (table_name, action, record_key, old_values, new_values, action_by)
+         VALUES
+           ('app_user_right', 'EDIT', $1,
+            jsonb_build_object('role', $2::text, 'rights', to_jsonb($3::text[])),
+            jsonb_build_object('role', $4::text, 'rights', to_jsonb($5::text[])),
+            $6)`,
+        [userId, existing.role, oldRights.rows.map((row) => row.right_code), nextRole,
+          newRights.rows.map((row) => row.right_code), actor]
       );
     }
 

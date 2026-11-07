@@ -375,6 +375,7 @@ export default function UserPanel({
                 <select
                   value={role}
                   disabled={!isSuperAdmin || isEditingSelf}
+                  aria-describedby={user && role !== user.role ? "role-permission-reset" : undefined}
                   onChange={(event) => setRole(event.target.value as UserRole)}
                   className="workspace-control disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                 >
@@ -383,6 +384,15 @@ export default function UserPanel({
                   <option value="employee">Employee (Granular Rights)</option>
                 </select>
               </label>
+
+              {user && role !== user.role && (
+                <p id="role-permission-reset" className="text-xs text-slate-600">
+                  {role === "employee"
+                    ? "Saving this role replaces current permissions with Employee read-only access to Customers, Products, Human Resources, and Sales."
+                    : "Saving this role replaces current permissions with full access to all modules."}
+                  {" "}Use Rights to customize permissions afterward.
+                </p>
+              )}
 
               {!isEditing && role === "employee" && (
                 <label className="block">

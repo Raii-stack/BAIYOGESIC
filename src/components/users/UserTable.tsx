@@ -5,7 +5,7 @@ import type { UserPagination } from "../../lib/user-api"
 import { getUserPermissionLabel, userRoleLabels } from "../../lib/users"
 import type { SystemUser } from "../../types/user"
 
-const headings = ["Surname", "Name", "Email", "Role & department", "Access", "Actions"]
+const headings = ["Surname", "Name", "Email", "Role", "Access", "Actions"]
 
 function visiblePages(page: number, totalPages: number) {
   const count = Math.min(totalPages, 5)
@@ -61,7 +61,7 @@ export default function UserTable({
         <div>
           <h2 className="text-sm font-semibold text-neutral-900">{approvalOnly ? "Pending registrations" : "User directory"}</h2>
           <p className="mt-0.5 text-xs text-slate-500">
-            {approvalOnly ? "Approve employee accounts before they can sign in." : "Account roles, department permission profiles, and employee departments"}
+            {approvalOnly ? "Approve employee accounts before they can sign in." : "Account roles, status, and expandable user details"}
           </p>
         </div>
         <span className="workspace-badge workspace-badge--neutral">
@@ -72,7 +72,7 @@ export default function UserTable({
       <div className="overflow-x-auto" aria-busy={loading}>
         <table role="table" className="workspace-table workspace-user-table table-fixed">
           <colgroup>
-            {[undefined, undefined, "24%", "22%", 80, 200].map((width, index) => <col key={headings[index]} style={{ width }} />)}
+            {[undefined, undefined, "26%", 140, 80, 200].map((width, index) => <col key={headings[index]} style={{ width }} />)}
           </colgroup>
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">
@@ -131,12 +131,10 @@ export default function UserTable({
                     </td>
                     <td data-label="Name" className="[overflow-wrap:anywhere]">{user.firstName || (user.lastName ? "—" : user.name)}</td>
                     <td data-label="Email" className="[overflow-wrap:anywhere]">{user.email}</td>
-                    <td data-label="Role & department" className="[overflow-wrap:anywhere]">
+                    <td data-label="Role" className="[overflow-wrap:anywhere]">
                       <span className="workspace-badge workspace-badge--neutral" data-role={user.role}>
                         {userRoleLabels[user.role]}
                       </span>
-                      <p className="mt-1 text-xs text-slate-600">Permissions: {getUserPermissionLabel(user)}</p>
-                      <p className="mt-1 text-xs text-slate-500">Department: {user.departmentName || "Not assigned"}</p>
                     </td>
                     <td data-label="Access" className="whitespace-nowrap">
                       <span
@@ -217,6 +215,7 @@ export default function UserTable({
                             <div><dt className="text-xs text-neutral-500">Employee no.</dt><dd className="mt-1">{user.empno || "—"}</dd></div>
                             <div><dt className="text-xs text-neutral-500">Job title</dt><dd className="mt-1">{user.jobTitle || "—"}</dd></div>
                             <div><dt className="text-xs text-neutral-500">Department</dt><dd className="mt-1">{user.departmentName || "—"}</dd></div>
+                            <div><dt className="text-xs text-neutral-500">Permissions</dt><dd className="mt-1">{getUserPermissionLabel(user)}</dd></div>
                             <div><dt className="text-xs text-neutral-500">Last active</dt><dd className="mt-1">
                               {user.lastActiveAt && !Number.isNaN(Date.parse(user.lastActiveAt))
                                 ? <time dateTime={user.lastActiveAt}>{new Date(user.lastActiveAt).toLocaleString()}</time>

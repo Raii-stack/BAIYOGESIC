@@ -13,9 +13,9 @@
  */
 
 require('dotenv').config({ quiet: true });
-const crypto = require('node:crypto');
-const fs = require('node:fs');
-const path = require('node:path');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 function getPool() {
   const { requirePool } = require('../db');

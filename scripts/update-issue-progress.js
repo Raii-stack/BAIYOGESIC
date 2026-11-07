@@ -1,5 +1,5 @@
-const fs = require('node:fs');
-const path = require('node:path');
+const fs = require('fs');
+const path = require('path');
 
 const START_MARKER = '<!-- issue-progress:start -->';
 const END_MARKER = '<!-- issue-progress:end -->';

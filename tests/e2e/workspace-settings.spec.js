@@ -115,7 +115,18 @@ test('employee inbox retains data, supports history/read actions, and opens link
   expect(state.inboxRequests).toBe(initial);
   expect(state.preferenceRequests).toBe(1);
   await page.getByRole('button', { name: 'Next', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'Employee inbox' })).toContainText('Account notice 1');
+  await expect(page.getByRole('region', { name: 'Employee inbox' }).getByText('Account notice 1', { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/page=2/);
+  const historyRequests = state.inboxRequests;
+  await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Home' }).click();
+  await page.goBack();
+  await expect(page).toHaveURL(/page=2/);
+  await expect(page.getByRole('region', { name: 'Employee inbox' }).getByText('Account notice 1', { exact: true })).toBeVisible();
+  expect(state.inboxRequests).toBe(historyRequests);
+  await expect(page.getByText('Loading inbox page…')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Mark Account notice 1 as read', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Mark Account notice 1 as read', exact: true })).toHaveCount(0);
+  await expect(page.getByText('Loading inbox page…')).toHaveCount(0);
   await page.getByRole('button', { name: 'Previous', exact: true }).click();
   await page.getByRole('button', { name: /Sale created.*A relevant record/ }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -129,4 +140,15 @@ test('employee inbox retains data, supports history/read actions, and opens link
   await page.goto('/notifications');
   await page.getByRole('button', { name: 'Mark all read', exact: true }).click();
   await expect(page.getByTitle('Notifications', { exact: true })).toHaveAttribute('aria-label', 'Notifications: 0 unread');
+});
+
+test('an inbox history failure stops loading and can be retried', async ({ page }) => {
+  await workspace(page);
+  await page.route('**/api/me/notifications?page=2', route => route.fulfill({ status: 503, json: { success: false } }), { times: 1 });
+  await page.goto('/notifications');
+  await page.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByText('Loading inbox page…')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Retry loading inbox', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Employee inbox' }).getByText('Account notice 1', { exact: true })).toBeVisible();
 });

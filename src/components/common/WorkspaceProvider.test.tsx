@@ -54,6 +54,18 @@ test("polls quietly, skips hidden tabs, and only announces new unread items", as
   expect(notifyToast).toHaveBeenCalledExactlyOnceWith("You have new notifications.", "info")
 })
 
+test("does not duplicate a preference request when the tab gains focus while loading", async () => {
+  let resolve!: (value: typeof defaultPreferences) => void
+  vi.mocked(workspaceApi.preferences).mockReturnValueOnce(new Promise((done) => { resolve = done }))
+  render(<WorkspaceProvider user={user}><Harness /></WorkspaceProvider>)
+  fireEvent(window, new Event("focus"))
+  fireEvent(document, new Event("visibilitychange"))
+  expect(workspaceApi.preferences).toHaveBeenCalledTimes(1)
+  await act(async () => { resolve({ ...defaultPreferences }) })
+  fireEvent(window, new Event("focus"))
+  expect(workspaceApi.preferences).toHaveBeenCalledTimes(1)
+})
+
 test("clears account data and ignores a previous account's late response", async () => {
   let resolve!: (value: Inbox) => void
   vi.mocked(workspaceApi.inbox).mockReturnValueOnce(new Promise((done) => { resolve = done })).mockResolvedValue(data("2"))
@@ -65,6 +77,26 @@ test("clears account data and ignores a previous account's late response", async
   rerender(<WorkspaceProvider user={null}><Harness /></WorkspaceProvider>)
   expect(screen.getByLabelText("Inbox")).toBeEmptyDOMElement()
   expect(document.documentElement.dataset.workspaceDensity).toBeUndefined()
+})
+
+test("caches history across routes, deduplicates requests, and refreshes it after inbox changes", async () => {
+  let workspace!: ReturnType<typeof useWorkspace>
+  function Capture() { workspace = useWorkspace(); return null }
+  const { rerender } = render(<WorkspaceProvider user={user}><Capture /></WorkspaceProvider>)
+  await act(async () => {})
+  const secondPage = { ...data("2"), page: 2, totalPages: 2 }
+  vi.mocked(workspaceApi.inbox).mockResolvedValue(secondPage)
+  await act(async () => { await Promise.all([workspace.loadInboxPage(2), workspace.loadInboxPage(2)]) })
+  expect(workspaceApi.inbox).toHaveBeenCalledTimes(2)
+  rerender(<WorkspaceProvider user={user}><Capture /><p>Different route</p></WorkspaceProvider>)
+  await act(async () => { expect(await workspace.loadInboxPage(2)).toEqual(secondPage) })
+  expect(workspaceApi.inbox).toHaveBeenCalledTimes(2)
+  vi.mocked(workspaceApi.inbox).mockResolvedValueOnce(data("3")).mockResolvedValueOnce({ ...secondPage, items: [] })
+  await act(async () => { await workspace.refreshInbox(); await workspace.loadInboxPage(2) })
+  expect(workspaceApi.inbox).toHaveBeenCalledTimes(4)
+  expect(workspace.cachedInboxPage(2)?.items).toEqual([])
+  rerender(<WorkspaceProvider user={null}><Capture /></WorkspaceProvider>)
+  expect(workspace.cachedInboxPage(2)).toBeUndefined()
 })
 
 test("applies preferences immediately and keeps unsaved choices through failure and navigation", async () => {

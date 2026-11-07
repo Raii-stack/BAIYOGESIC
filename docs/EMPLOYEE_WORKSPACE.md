@@ -2,7 +2,7 @@
 
 Signed-in users can open Settings from their account menu. Preferences apply immediately and remain pending until Save settings succeeds. Account and security notifications cannot be disabled. Business notifications exclude the actor; personal notifications include their own account changes.
 
-Inbox data stays in the signed-in session across routes, checks every 30 seconds while visible, and refreshes after successful local employee, user, sales, or product writes. Account changes and sign-out clear the cache. Notification ownership and current module access are checked on the server, including when opening a record link.
+Inbox data, including loaded history pages, stays in the signed-in session across routes. Pagination is stored in the URL so browser Back returns to the same page without a loading flash or another request. The inbox checks every 30 seconds while visible and refreshes after successful local employee, user, sales, or product writes. Changed inbox results invalidate history quietly; unchanged results preserve it. Account changes and sign-out clear the cache. Notification ownership and current module access are checked on the server, including when opening a record link.
 
 ## Release order
 

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react"
 import type { AuthUser } from "../../lib/auth"
-import { defaultPreferences, emptyInbox, workspaceApi, type Preferences } from "../../lib/workspace-api"
+import { defaultPreferences, emptyInbox, workspaceApi, type Inbox, type Preferences } from "../../lib/workspace-api"
 import { notifyToast } from "../../lib/toast"
 
 function useWorkspaceState(user: AuthUser | null) {
@@ -13,24 +13,34 @@ function useWorkspaceState(user: AuthUser | null) {
   const [inboxError, setInboxError] = useState("")
   const session = useRef(0)
   const refreshInbox = useRef<() => Promise<void>>(async () => {})
+  const inboxRef = useRef(emptyInbox)
+  const inboxVersion = useRef(0)
+  const history = useRef(new Map<number, { version: number; data: Inbox }>())
+  const historyRequests = useRef(new Map<number, { version: number; promise: Promise<Inbox> }>())
+  const sessionController = useRef<AbortController | null>(null)
   const preferenceRef = useRef(preferences)
   preferenceRef.current = preferences
 
   useEffect(() => {
     const controller = new AbortController()
+    sessionController.current = controller
     const generation = ++session.current
+    history.current.clear(); historyRequests.current.clear(); inboxRef.current = emptyInbox; inboxVersion.current++
     setOwnerId(String(user?.userId ?? ""))
     setPreferences(defaultPreferences); setSavedPreferences(defaultPreferences); setPreferencesLoaded(false); setPreferencesError("")
     setInbox(emptyInbox); setInboxError("")
     if (!user || user.mustChangePassword) return () => controller.abort()
     let loadedPreferences = false
+    let preferencesPending = false
     const loadPreferences = async () => {
+      if (loadedPreferences || preferencesPending) return
+      preferencesPending = true
       try {
         const result = await workspaceApi.preferences(controller.signal)
         if (!controller.signal.aborted && generation === session.current) { loadedPreferences = true; setPreferences(result); setSavedPreferences(result); setPreferencesLoaded(true); setPreferencesError("") }
       } catch (error) {
         if (!controller.signal.aborted) setPreferencesError(error instanceof Error ? error.message : "Unable to load preferences.")
-      }
+      } finally { preferencesPending = false }
     }
     let pending = false
     let refreshRequested = false
@@ -47,7 +57,9 @@ function useWorkspaceState(user: AuthUser | null) {
         if (loadedPreferences && latest !== null && highest > latest && preferenceRef.current.popups && result.items.some((item) => /^\d+$/.test(item.id) && BigInt(item.id) > latest! && !item.readAt)) notifyToast("You have new notifications.", "info")
         latest = highest > (latest ?? 0n) ? highest : latest ?? highest
         checkedAt = Date.now()
-        setInbox((current) => JSON.stringify(current) === JSON.stringify(result) ? current : result)
+        if (JSON.stringify(inboxRef.current) !== JSON.stringify(result)) {
+          inboxRef.current = result; inboxVersion.current++; setInbox(result)
+        }
         setInboxError("")
       } catch (error) {
         if (!controller.signal.aborted) setInboxError(error instanceof Error ? error.message : "Unable to load notifications.")
@@ -90,6 +102,21 @@ function useWorkspaceState(user: AuthUser | null) {
     }
   }, [])
   const refresh = useCallback(() => refreshInbox.current(), [])
+  const cachedInboxPage = useCallback((page: number) => history.current.get(page)?.data, [])
+  const loadInboxPage = useCallback((page: number): Promise<Inbox> => {
+    const version = inboxVersion.current
+    const cached = history.current.get(page)
+    if (cached?.version === version) return Promise.resolve(cached.data)
+    const pending = historyRequests.current.get(page)
+    if (pending?.version === version) return pending.promise
+    const generation = session.current
+    const promise = workspaceApi.inbox(page, sessionController.current?.signal).then((result) => {
+      if (generation === session.current && version === inboxVersion.current) history.current.set(page, { version, data: result })
+      return result
+    }).finally(() => { if (historyRequests.current.get(page)?.promise === promise) historyRequests.current.delete(page) })
+    historyRequests.current.set(page, { version, promise })
+    return promise
+  }, [])
   const read = useCallback(async (id?: string) => {
     const generation = session.current
     if (id) await workspaceApi.read(id); else await workspaceApi.readAll()
@@ -98,7 +125,8 @@ function useWorkspaceState(user: AuthUser | null) {
   const ownsState = ownerId === String(user?.userId ?? "")
   return { preferences: ownsState ? preferences : defaultPreferences, preferencesDirty: ownsState && JSON.stringify(preferences) !== JSON.stringify(savedPreferences), setPreferences,
     preferencesError: ownsState ? preferencesError : "", preferencesLoaded: ownsState && preferencesLoaded, savePreferences,
-    inbox: ownsState ? inbox : emptyInbox, inboxError: ownsState ? inboxError : "", refreshInbox: refresh, read }
+    inbox: ownsState ? inbox : emptyInbox, inboxError: ownsState ? inboxError : "", refreshInbox: refresh, read,
+    cachedInboxPage: ownsState ? cachedInboxPage : () => undefined, loadInboxPage }
 }
 
 type WorkspaceState = ReturnType<typeof useWorkspaceState>

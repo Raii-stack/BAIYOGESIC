@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 
-import { departmentPermissionPresets, permissionGroups } from "../../lib/users"
+import { departmentPermissionPresets, getDepartmentPermissionPreset, getUserPermissionLabel, permissionGroups, userRoleLabels } from "../../lib/users"
 import type { PermissionGroup, SystemUser, UserRole } from "../../types/user"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
 
@@ -19,15 +19,6 @@ function getModulePresetValue(group: PermissionGroup, selectedRights: string[]):
   if (matchesSet(group.employeeDefaultIds)) return "employee"
   if (matchesSet(group.viewerIds)) return "viewer"
   return "custom"
-}
-
-function getDepartmentPresetId(rights: string[]): string {
-  const selected = new Set(rights)
-  return departmentPermissionPresets.find(
-    (preset) =>
-      preset.rights.length === selected.size &&
-      preset.rights.every((right) => selected.has(right)),
-  )?.id ?? ""
 }
 
 export default function RightsModal({
@@ -49,7 +40,7 @@ export default function RightsModal({
   useEffect(() => {
     const rights = user?.rights ?? []
     setSelectedRights(rights)
-    setSelectedPresetId(getDepartmentPresetId(rights))
+    setSelectedPresetId(getDepartmentPermissionPreset(rights)?.id ?? "")
     setSaving(false)
     setError("")
   }, [user])
@@ -137,9 +128,7 @@ export default function RightsModal({
   const activePreset = departmentPermissionPresets.find(
     (item) => item.id === selectedPresetId,
   )
-  const matchedPreset = departmentPermissionPresets.find(
-    (item) => item.id === getDepartmentPresetId(selectedRights),
-  )
+  const matchedPreset = getDepartmentPermissionPreset(selectedRights)
   const nextRole: UserRole =
     user.role === "superadmin"
       ? "superadmin"
@@ -407,9 +396,8 @@ export default function RightsModal({
 
         <footer className="workspace-drawer-footer">
           <p className="text-xs text-slate-500">
-            {actionRightsCount} action permissions selected · Role after save: {
-              nextRole === "superadmin" ? "Superadmin" : nextRole === "admin" ? "Admin" : "Employee"
-            }
+            {actionRightsCount} action permissions selected · Role after save: {userRoleLabels[nextRole]}
+            <span className="mt-1 block">Permissions: {getUserPermissionLabel({ role: nextRole, rights: selectedRights })}</span>
           </p>
           <div className="ml-auto flex gap-3">
             <button

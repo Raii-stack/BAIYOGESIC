@@ -12,6 +12,7 @@ import useDebouncedValue from "../hooks/useDebouncedValue"
 import usePageQuery from "../hooks/usePageQuery"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { isAdminRole, isSuperAdminRole } from "../lib/auth"
+import { userRoleLabels } from "../lib/users"
 import {
   userApi,
   type UserCreateInput,
@@ -308,7 +309,7 @@ export default function UserManagementPage() {
                       >
                         <option value="all">All roles</option>
                         {isSuperAdmin && <option value="superadmin">Superadmin</option>}
-                        <option value="admin">Admin</option>
+                        <option value="admin">{userRoleLabels.admin}</option>
                         <option value="employee">Employee</option>
                       </select>
                     </span>

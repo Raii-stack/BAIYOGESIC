@@ -1,4 +1,24 @@
-import type { DepartmentPermissionPreset, PermissionGroup } from "../types/user"
+import type { DepartmentPermissionPreset, PermissionGroup, SystemUser, UserRole } from "../types/user"
+
+export const userRoleLabels: Record<UserRole, string> = {
+  superadmin: "Superadmin",
+  admin: "Manager (Admin)",
+  employee: "Employee",
+}
+
+export function getDepartmentPermissionPreset(rights: string[]) {
+  const selected = new Set(rights)
+  return departmentPermissionPresets.find(
+    (preset) => preset.rights.length === selected.size && preset.rights.every((right) => selected.has(right)),
+  )
+}
+
+export function getUserPermissionLabel(user: Pick<SystemUser, "role" | "rights">): string {
+  const preset = getDepartmentPermissionPreset(user.rights)
+  if (preset) return preset.label
+  if (user.rights.length > 0) return "Custom permissions"
+  return user.role === "employee" ? "No permissions assigned" : "All Departments — Full Access"
+}
 
 export const permissionGroups: PermissionGroup[] = [
   {

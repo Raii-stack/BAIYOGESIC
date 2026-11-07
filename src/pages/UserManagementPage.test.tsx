@@ -64,6 +64,37 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+test("shows manager profiles and employee departments directly in user rows", async () => {
+  const manager = { ...makeUser(2, "admin"), rights: departmentPermissionPresets.find((preset) => preset.id === "hr-manager")!.rights }
+  const employee = { ...makeUser(3), rights: departmentPermissionPresets.find((preset) => preset.id === "inventory-employee")!.rights }
+  const custom = { ...makeUser(4, "admin"), rights: ["sales.access"], departmentName: null }
+  const users = [makeUser(1, "superadmin"), manager, employee, custom]
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: superAdminSession })
+    if (url.pathname === "/api/users/options") return success({ availableEmployees: [] })
+    if (url.pathname === "/api/users") return success({ users, pagination: { page: 1, limit: 10, total: users.length, totalPages: 1 } })
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  }))
+
+  render(<MemoryRouter><AuthProvider><UserManagementPage /></AuthProvider></MemoryRouter>)
+
+  const managerRow = within(await screen.findByRole("row", { name: "User2 Account", exact: true }))
+  expect(managerRow.getByText("Manager (Admin)")).toBeInTheDocument()
+  expect(managerRow.getByText("Permissions: Human Resources — Manager")).toBeInTheDocument()
+  expect(managerRow.getByText("Department: Sales Branch 1")).toBeInTheDocument()
+  expect(screen.getByRole("option", { name: "Manager (Admin)", exact: true })).toHaveValue("admin")
+
+  const employeeRow = within(screen.getByRole("row", { name: "User3 Account", exact: true }))
+  expect(employeeRow.getByText("Employee")).toBeInTheDocument()
+  expect(employeeRow.getByText("Permissions: Inventory & Products — Employee")).toBeInTheDocument()
+  const customRow = within(screen.getByRole("row", { name: "User4 Account", exact: true }))
+  expect(customRow.getByText("Manager (Admin)")).toBeInTheDocument()
+  expect(customRow.getByText("Permissions: Custom permissions")).toBeInTheDocument()
+  expect(customRow.getByText("Department: Not assigned")).toBeInTheDocument()
+  expect(within(screen.getByRole("row", { name: "User1 Account", exact: true })).getByText("Permissions: All Departments — Full Access")).toBeInTheDocument()
+})
+
 test("notification links switch an open user directory to pending accounts and keep pagination working", async () => {
   vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
     const url = new URL(String(input), "http://localhost")
@@ -80,7 +111,7 @@ test("notification links switch an open user directory to pending accounts and k
   const user = userEvent.setup()
   render(<MemoryRouter initialEntries={["/users?page=1"]}><AuthProvider><UserManagementPage /></AuthProvider></MemoryRouter>)
   await screen.findByRole("row", { name: "User1 Account", exact: true })
-  expect(within(screen.getByRole("region", { name: "User account records" })).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Surname", "Name", "Email", "Role", "Access", "Actions"])
+  expect(within(screen.getByRole("region", { name: "User account records" })).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["Surname", "Name", "Email", "Role & department", "Access", "Actions"])
   const firstRow = within(screen.getByRole("row", { name: "User1 Account", exact: true }))
   expect(firstRow.getByText("Account", { exact: true })).toBeInTheDocument()
   expect(firstRow.getByRole("cell", { name: "User1", exact: true })).toBeInTheDocument()
@@ -353,7 +384,7 @@ test("creates and edits a user account through the slide-over panel", async () =
   await user.click(within(editPanel).getByRole("button", { name: "Save changes" }))
 
   await waitFor(() =>
-    expect(within(screen.getByRole("row", { name: /Maria Santos/ })).getByText("Admin")).toBeInTheDocument(),
+    expect(within(screen.getByRole("row", { name: /Maria Santos/ })).getByText("Manager (Admin)")).toBeInTheDocument(),
   )
   expect(screen.getByRole("status")).toHaveTextContent("User account updated successfully.")
 })
@@ -576,7 +607,9 @@ test("keeps the saved preset visible and the Rights modal stable while saving", 
   finishSave?.()
   await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument())
   expect(savedRole).toBe("admin")
-  expect(within(screen.getByRole("row", { name: /User3 Account/ })).getByText("Admin")).toBeInTheDocument()
+  const updatedRow = within(screen.getByRole("row", { name: /User3 Account/ }))
+  expect(updatedRow.getByText("Manager (Admin)")).toBeInTheDocument()
+  expect(updatedRow.getByText("Permissions: Sales & CRM — Manager")).toBeInTheDocument()
 })
 
 test("keeps the edited rights open when saving fails", async () => {

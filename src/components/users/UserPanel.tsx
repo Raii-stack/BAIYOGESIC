@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { UserCreateInput, UserUpdateInput } from "../../lib/user-api"
-import { departmentPermissionPresets } from "../../lib/users"
+import { departmentPermissionPresets, userRoleLabels } from "../../lib/users"
 import type { AvailableEmployee, SystemUser, UserRole } from "../../types/user"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
 
@@ -379,7 +379,7 @@ export default function UserPanel({
                   className="workspace-control disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                 >
                   {isSuperAdmin && <option value="superadmin">Superadmin (System Owner)</option>}
-                  {isSuperAdmin && <option value="admin">Admin (Manager)</option>}
+                  {isSuperAdmin && <option value="admin">{userRoleLabels.admin}</option>}
                   <option value="employee">Employee (Granular Rights)</option>
                 </select>
               </label>

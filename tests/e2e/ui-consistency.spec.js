@@ -95,13 +95,13 @@ test('user actions stay aligned and expandable details fit without horizontal sc
     if (url.pathname.endsWith('/options')) return route.fulfill({ json: { success: true, data: { availableEmployees: [] } } });
     if (url.pathname.endsWith('/reject')) return route.fulfill({ json: { success: true, data: { user: { ...applicant, status: 'disabled' } } } });
     const current = Number(url.searchParams.get('page') || 1);
-    const user = current === 1 ? applicant : { ...applicant, userId: 'active-user', firstName: 'Accepted', lastName: 'Employee With A Much Longer Name', name: 'Accepted Employee With A Much Longer Name', email: 'accepted.employee.with.a.long.email@example.com', status: 'active', isBlocked: true };
+    const user = current === 1 ? applicant : { ...applicant, userId: 'active-user', firstName: 'Accepted', lastName: 'Employee With A Much Longer Name', name: 'Accepted Employee With A Much Longer Name', email: 'accepted.employee.with.a.long.email@example.com', role: 'admin', departmentName: 'Accounting & Finance — Regional Operations', status: 'active', isBlocked: true };
     return route.fulfill({ json: { success: true, data: { users: [user], pagination: { page: current, limit: 10, total: 11, totalPages: 2 } } } });
   });
   await page.goto('/users');
   const records = page.getByRole('region', { name: 'User account records' });
   const actions = records.getByRole('columnheader', { name: 'Actions', exact: true });
-  await expect(records.getByRole('columnheader')).toHaveText(['Surname', 'Name', 'Email', 'Role', 'Access', 'Actions']);
+  await expect(records.getByRole('columnheader')).toHaveText(['Surname', 'Name', 'Email', 'Role & department', 'Access', 'Actions']);
   await expect(records.getByRole('button', { name: 'Reject Pending Employee' })).toBeVisible();
   await expect(records.getByRole('button', { name: 'Block Pending Employee' })).toHaveCount(0);
   await expect(records.getByRole('button', { name: 'Accept Pending Employee' })).toHaveCSS('place-items', 'center');
@@ -115,6 +115,8 @@ test('user actions stay aligned and expandable details fit without horizontal sc
   const rightsX = (await records.getByRole('button', { name: 'Rights for Pending Employee' }).boundingBox()).x;
   await records.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(records.getByRole('button', { name: 'Unblock Accepted Employee With A Much Longer Name' })).toBeVisible();
+  await expect(records.getByText('Manager (Admin)', { exact: true })).toBeVisible();
+  await expect(records.getByText('Department: Accounting & Finance — Regional Operations', { exact: true })).toBeVisible();
   await expect(records.getByRole('button', { name: 'Unblock Accepted Employee With A Much Longer Name' })).toHaveCSS('place-items', 'center');
   const after = await actions.boundingBox();
   expect(after.x).toBeCloseTo(before.x, 0);
@@ -128,6 +130,7 @@ test('user actions stay aligned and expandable details fit without horizontal sc
     await expand.click();
     await expect(records.locator('td[data-label="Email"]')).toHaveText('accepted.employee.with.a.long.email@example.com');
     await expect(records.getByRole('region', { name: 'Details for Accepted Employee With A Much Longer Name' })).toContainText('No recorded activity');
+    await expect(records.locator('.overflow-x-auto')).toHaveCSS('scrollbar-width', 'none');
     expect(await records.locator('.overflow-x-auto').evaluate(element => element.scrollWidth > element.clientWidth + 1), `table overflow at ${width}px`).toBe(false);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), `page overflow at ${width}px`).toBe(false);
     await records.getByRole('button', { name: 'Collapse details for Accepted Employee With A Much Longer Name' }).click();
@@ -215,6 +218,16 @@ for (const width of [320, 375, 768, 1024, 1440]) {
       await expect(filters.locator('.workspace-control').first()).toBeEnabled();
       await expect(page.locator('table tbody tr[aria-hidden="true"]')).toHaveCount(0);
       if (path === '/sales') await expect(page.getByText('TR000001-1', { exact: true })).toBeVisible();
+      for (const scroller of await page.locator('.workspace-table-scroll, .overflow-x-auto:has(> table)').all()) {
+        await expect(scroller).toHaveCSS('scrollbar-width', 'none');
+        await expect(scroller).toHaveCSS('overflow-x', 'auto');
+        expect(await scroller.evaluate(element => {
+          element.scrollLeft = element.scrollWidth;
+          const endReached = Math.abs(element.scrollLeft - (element.scrollWidth - element.clientWidth)) <= 1;
+          element.scrollLeft = 0;
+          return endReached;
+        })).toBe(true);
+      }
       const problems = await page.locator('main').evaluate((main, { width, height }) => {
         const problems = [];
         const filter = main.querySelector('.workspace-filters');

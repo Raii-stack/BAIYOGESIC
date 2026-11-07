@@ -72,7 +72,7 @@ export default function UserTable({
       <div className="overflow-x-auto" aria-busy={loading}>
         <table role="table" className="workspace-table workspace-user-table table-fixed">
           <colgroup>
-            {[undefined, undefined, "26%", 140, 80, 200].map((width, index) => <col key={headings[index]} style={{ width }} />)}
+            {[undefined, undefined, "23%", "18%", "12%", 200].map((width, index) => <col key={headings[index]} style={{ width }} />)}
           </colgroup>
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50">

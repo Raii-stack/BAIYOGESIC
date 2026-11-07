@@ -288,7 +288,7 @@ export default function AuditLogViewer() {
                 <th scope="col" className="workspace-table-heading">Action</th>
                 <th scope="col" className="workspace-table-heading">Record Key</th>
                 <th scope="col" className="workspace-table-heading">Actor</th>
-                <th scope="col" className="workspace-table-heading text-right">Details</th>
+                <th scope="col" className="workspace-table-heading workspace-table-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -300,7 +300,7 @@ export default function AuditLogViewer() {
                     <td className="px-4 py-3"><div className="h-4 w-16 rounded bg-slate-200" /></td>
                     <td className="px-4 py-3"><div className="h-4 w-24 rounded bg-slate-200" /></td>
                     <td className="px-4 py-3"><div className="h-4 w-28 rounded bg-slate-200" /></td>
-                    <td className="px-4 py-3 text-right"><div className="ml-auto h-4 w-12 rounded bg-slate-200" /></td>
+                    <td className="px-4 py-3"><div className="h-4 w-8 rounded bg-slate-200" /></td>
                   </tr>
                 ))
               ) : logs.length === 0 ? (
@@ -330,15 +330,20 @@ export default function AuditLogViewer() {
                     <td data-label="Actor" className="px-4 py-3 text-xs text-slate-700">
                       {log.actionBy || "system"}
                     </td>
-                    <td data-label="Details" className="px-4 py-3 text-right text-xs">
+                    <td data-label="Actions" className="workspace-table-actions bg-white">
                       <button
                         type="button"
                         onClick={() => setInspectingId(log.auditId)}
                         disabled={Boolean(inspectingId)}
                         aria-label={`View diff for audit entry ${log.auditId}`}
-                        className="workspace-text-action font-medium text-blue-600 hover:text-blue-800"
+                        title="Inspect diff"
+                        className="workspace-icon-action workspace-icon-action--primary"
                       >
-                        {inspectingId === log.auditId ? "Loading…" : "Inspect Diff"}
+                        {inspectingId === log.auditId ? (
+                          <span role="status" aria-label="Loading diff">…</span>
+                        ) : (
+                          <DashboardIcon name="eye" className="h-4 w-4" />
+                        )}
                       </button>
                     </td>
                   </tr>
@@ -480,7 +485,7 @@ export function DiffInspectorModal({
             type="button"
             onClick={onClose}
             aria-label="Close diff inspector"
-            className="workspace-text-action text-slate-400 hover:text-slate-700"
+            className="workspace-icon-action"
           >
             <DashboardIcon name="close" className="h-5 w-5" />
           </button>

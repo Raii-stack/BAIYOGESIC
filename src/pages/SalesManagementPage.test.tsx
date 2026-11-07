@@ -109,7 +109,7 @@ test("records the selected payment method through the API before updating the ba
   })
   vi.stubGlobal("fetch", fetchMock)
   render(<MemoryRouter initialEntries={["/sales?view=transactions&page=1&search=T-001"]}><AuthProvider><SalesManagementPage /></AuthProvider></MemoryRouter>)
-  await user.click(await screen.findByRole("button", { name: "Details", exact: true }))
+  await user.click(await screen.findByRole("button", { name: "Details for T-001", exact: true }))
   const details = within(screen.getByRole("dialog", { name: /Sale Details/ }))
   await user.click(details.getByRole("button", { name: "Record Payment", exact: true }))
   const payment = within(screen.getByRole("dialog", { name: "Record Payment", exact: true }))

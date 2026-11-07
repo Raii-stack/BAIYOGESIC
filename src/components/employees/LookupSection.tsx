@@ -177,9 +177,9 @@ export default function LookupSection({ kind, canAdd = canEdit, canEdit, canDele
               {canViewAudit && <td data-label="Last change" className="max-w-56  font-mono text-[11px] leading-5 text-slate-500">{item.stamp || "—"}</td>}
               {showActions && <td data-label="Actions" className={`workspace-table-actions ${item.archived ? "bg-slate-50" : "bg-white"}`}><div className="flex items-center gap-1">
                 {!item.archived ? <>
-                  {canEdit && <button type="button" onClick={() => openModal(item)} aria-label={`Edit ${item.label}`} title={`Edit ${singular.toLowerCase()}`} className="workspace-icon-action"><DashboardIcon name="edit" className="h-4 w-4" /></button>}
+                  {canEdit && <button type="button" onClick={() => openModal(item)} aria-label={`Edit ${item.label}`} title={`Edit ${singular.toLowerCase()}`} className="workspace-icon-action workspace-icon-action--primary"><DashboardIcon name="edit" className="h-4 w-4" /></button>}
                   {canDelete && <button type="button" onClick={() => { setArchiveError(""); setToArchive(item) }} aria-label={`Archive ${item.label}`} title={`Archive ${singular.toLowerCase()}`} className="workspace-icon-action workspace-icon-action--danger"><DashboardIcon name="archive" className="h-4 w-4" /></button>}
-                </> : canDelete ? <button type="button" onClick={() => restore(item)} disabled={restoringCode === item.code} aria-label={`Restore ${item.label}`} title={`Restore ${singular.toLowerCase()}`} className="workspace-icon-action"><DashboardIcon name="restore" className="h-4 w-4" /></button> : <span className="px-2 text-slate-400">—</span>}
+                </> : canDelete ? <button type="button" onClick={() => restore(item)} disabled={restoringCode === item.code} aria-label={`Restore ${item.label}`} title={`Restore ${singular.toLowerCase()}`} className="workspace-icon-action workspace-icon-action--success"><DashboardIcon name="restore" className="h-4 w-4" /></button> : <span className="px-2 text-slate-400">—</span>}
               </div></td>}
             </tr>
           ))}

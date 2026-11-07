@@ -114,10 +114,10 @@ const ProductTableRow = memo(function ProductTableRow({
                 type="button"
                 onClick={() => onViewPrices(product)}
                 aria-label={`Prices for ${product.code}`}
-                title="Price history modal"
-                className="workspace-secondary-action"
+                title="Manage prices"
+                className="workspace-icon-action workspace-icon-action--warning"
               >
-                Prices
+                <DashboardIcon name="currency" className="h-4 w-4" />
               </button>
             )}
             <button
@@ -166,7 +166,7 @@ const ProductTableRow = memo(function ProductTableRow({
                       onClick={() => onEdit(product)}
                       aria-label={`Edit ${product.code}`}
                       title="Edit product"
-                      className="workspace-icon-action"
+                      className="workspace-icon-action workspace-icon-action--primary"
                     >
                       <DashboardIcon name="edit" className="h-4 w-4" />
                     </button>
@@ -190,7 +190,7 @@ const ProductTableRow = memo(function ProductTableRow({
                   disabled={restoringCode === product.code}
                   aria-label={`Restore ${product.code}`}
                   title="Restore product"
-                  className="workspace-icon-action"
+                  className="workspace-icon-action workspace-icon-action--success"
                 >
                   <DashboardIcon name="restore" className="h-4 w-4" />
                 </button>

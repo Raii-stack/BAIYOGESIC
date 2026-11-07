@@ -5,6 +5,7 @@ import { safeErrorMessage } from "../../lib/api-errors"
 import { notifyToast } from "../../lib/toast"
 import { emailOk } from "../../utils/validation"
 import { Field, Logo, Submit } from "./AuthComponents"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 interface ForgotPasswordModalProps {
   open: boolean
@@ -111,7 +112,7 @@ export default function ForgotPasswordModal({ open, onClose, onSuccess }: Forgot
             aria-label="Close recovery dialog"
             className="rounded-md p-1.5 text-neutral-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-700"
           >
-            ✕
+            <DashboardIcon name="close" className="h-4 w-4" />
           </button>
         </div>
 

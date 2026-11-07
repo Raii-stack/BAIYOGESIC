@@ -159,13 +159,13 @@ export default function UserTable({
                               onClick={() => onApprove(user)}
                               aria-label={`Accept ${user.name}`}
                               title="Accept registration"
-                              className="workspace-icon-action h-8 w-8 text-emerald-700"
+                              className="workspace-icon-action workspace-icon-action--success h-8 w-8"
                             >
                               {approvingId === user.userId ? <span role="status" aria-label="Accepting registration">…</span> : <DashboardIcon name="check" className="h-4 w-4" />}
                             </button>
                           ) : <span aria-hidden="true" className="hidden md:block" />}
                           {canRejectRow ? (
-                            <button type="button" disabled={deciding} onClick={() => onReject(user)} aria-label={`Reject ${user.name}`} title="Reject registration" className="workspace-icon-action workspace-icon-action--danger h-8 w-8 text-red-700">
+                            <button type="button" disabled={deciding} onClick={() => onReject(user)} aria-label={`Reject ${user.name}`} title="Reject registration" className="workspace-icon-action workspace-icon-action--danger h-8 w-8">
                               {rejectingId === user.userId ? <span role="status" aria-label="Rejecting registration">…</span> : <DashboardIcon name="close" className="h-4 w-4" />}
                             </button>
                           ) : canBlockRow ? (
@@ -177,8 +177,8 @@ export default function UserTable({
                               title={user.isBlocked ? "Unblock account" : "Block account"}
                               className={`workspace-icon-action h-8 w-8 ${
                                 user.isBlocked
-                                  ? "text-emerald-700 focus-visible:ring-emerald-600"
-                                  : "text-red-700 focus-visible:ring-red-600"
+                                  ? "workspace-icon-action--success focus-visible:ring-emerald-600"
+                                  : "workspace-icon-action--danger focus-visible:ring-red-600"
                               }`}
                             >
                               <DashboardIcon name={user.isBlocked ? "restore" : "lock"} className="h-4 w-4" />
@@ -190,7 +190,7 @@ export default function UserTable({
                               onClick={() => onOpenRights(user)}
                               aria-label={`Rights for ${user.name}`}
                               title="Manage access rights"
-                              className="workspace-icon-action h-8 w-8"
+                              className="workspace-icon-action workspace-icon-action--warning h-8 w-8"
                             >
                               <DashboardIcon name="settings" className="h-4 w-4" />
                             </button>
@@ -200,7 +200,7 @@ export default function UserTable({
                             onClick={() => onEdit(user)}
                             aria-label={`Edit ${user.name}`}
                             title="Edit account"
-                            className="workspace-icon-action h-8 w-8"
+                            className="workspace-icon-action workspace-icon-action--primary h-8 w-8"
                           >
                             <DashboardIcon name="edit" className="h-4 w-4" />
                           </button> : <span aria-hidden="true" className="hidden md:block" />}

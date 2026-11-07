@@ -3,6 +3,7 @@ import { Link, Navigate } from "react-router"
 
 import { Logo } from "../auth/AuthComponents"
 import { useAuth } from "../auth/AuthProvider"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 import "./LandingPage.css"
 
 const modules = [
@@ -36,7 +37,7 @@ export default function LandingPage() {
               >
                 Register
               </Link>
-              <Link to="/login" className="hope-button hope-button-light">Sign in<span aria-hidden="true">↗</span></Link>
+              <Link to="/login" className="hope-button hope-button-light">Sign in<DashboardIcon name="arrowUpRight" className="h-4 w-4 shrink-0" /></Link>
             </nav>
           </header>
 
@@ -49,15 +50,15 @@ export default function LandingPage() {
             </h1>
             <p className="hope-hero-description">Bring your people, products, and everyday operations together. One place to keep work moving.</p>
             <div className="hope-hero-actions">
-              <Link to="/login" className="hope-button hope-button-light">Sign in to your workspace<span aria-hidden="true">↗</span></Link>
+              <Link to="/login" className="hope-button hope-button-light">Sign in to your workspace<DashboardIcon name="arrowUpRight" className="h-4 w-4 shrink-0" /></Link>
               <Link
                 to="/register"
                 className="hope-button hope-button-outline"
               >
-                Register for an account<span aria-hidden="true">→</span>
+                Register for an account<DashboardIcon name="arrowRight" className="h-4 w-4 shrink-0" />
               </Link>
             </div>
-            <a href="#workspace" className="hope-text-link">Explore the workspace<span aria-hidden="true">↓</span></a>
+            <a href="#workspace" className="hope-text-link">Explore the workspace<DashboardIcon name="arrowDown" className="h-4 w-4 shrink-0" /></a>
           </div>
         </section>
 
@@ -88,7 +89,7 @@ export default function LandingPage() {
             <div className="hope-access-action">
               <p>Already part of HOPE? Your workspace is ready when you are.</p>
               <div className="hope-access-buttons">
-                <Link to="/login" className="hope-button hope-button-dark">Open your workspace<span aria-hidden="true">↗</span></Link>
+                <Link to="/login" className="hope-button hope-button-dark">Open your workspace<DashboardIcon name="arrowUpRight" className="h-4 w-4 shrink-0" /></Link>
                 <Link
                   to="/register"
                   className="hope-button hope-button-outline"
@@ -105,7 +106,7 @@ export default function LandingPage() {
       <footer className="hope-footer hope-container">
         <Logo inverse />
         <p>© {new Date().getFullYear()} HOPE, Inc. All rights reserved.</p>
-        <a href="#main-content">Back to top<span aria-hidden="true">↑</span></a>
+        <a href="#main-content">Back to top<DashboardIcon name="arrowUp" className="h-3.5 w-3.5 shrink-0" /></a>
       </footer>
 
     </div>

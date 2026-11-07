@@ -1,6 +1,7 @@
 import type { SaleTransaction } from "../../types/sale"
 import { getPaymentStatus, getSaleBalance, getSaleTotal } from "../../lib/sales"
 import { TableSkeletonRows } from "../common/TableSkeleton"
+import { DashboardIcon } from "../dashboard/DashboardComponents"
 
 function visiblePages(page: number, totalPages: number) {
   const count = Math.min(totalPages, 5)
@@ -131,41 +132,50 @@ export default function SalesTable({
                     </td>
                   )}
                   {showActions && (
-                    <td data-label="Actions" className="workspace-table-actions">
-                      {inactive ? (
-                        canRestore ? (
-                          <button
-                            type="button"
-                            onClick={() => onRestore(sale.transactionNo)}
-                            aria-label={`Restore ${sale.transactionNo}`}
-                            className="workspace-text-action text-emerald-700"
-                          >
-                            Restore
-                          </button>
-                        ) : null
-                      ) : (
-                        <div className="flex items-center gap-3">
-                          {canViewDetails && (
+                    <td
+                      data-label="Actions"
+                      className={`workspace-table-actions ${inactive ? "bg-slate-50" : "bg-white"}`}
+                    >
+                      <div className="flex items-center gap-1">
+                        {inactive ? (
+                          canRestore ? (
                             <button
                               type="button"
-                              onClick={() => onDetails(sale)}
-                              className="workspace-text-action"
+                              onClick={() => onRestore(sale.transactionNo)}
+                              aria-label={`Restore ${sale.transactionNo}`}
+                              title="Restore sale"
+                              className="workspace-icon-action workspace-icon-action--success"
                             >
-                              Details
+                              <DashboardIcon name="restore" className="h-4 w-4" />
                             </button>
-                          )}
-                          {canDelete && (
-                            <button
-                              type="button"
-                              onClick={() => onDelete(sale.transactionNo)}
-                              aria-label={`Archive ${sale.transactionNo}`}
-                              className="workspace-text-action text-red-700"
-                            >
-                              Archive
-                            </button>
-                          )}
-                        </div>
-                      )}
+                          ) : null
+                        ) : (
+                          <>
+                            {canViewDetails && (
+                              <button
+                                type="button"
+                                onClick={() => onDetails(sale)}
+                                aria-label={`Details for ${sale.transactionNo}`}
+                                title="View sale details"
+                                className="workspace-icon-action workspace-icon-action--primary"
+                              >
+                                <DashboardIcon name="eye" className="h-4 w-4" />
+                              </button>
+                            )}
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => onDelete(sale.transactionNo)}
+                                aria-label={`Archive ${sale.transactionNo}`}
+                                title="Archive sale"
+                                className="workspace-icon-action workspace-icon-action--danger"
+                              >
+                                <DashboardIcon name="archive" className="h-4 w-4" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   )}
                 </tr>

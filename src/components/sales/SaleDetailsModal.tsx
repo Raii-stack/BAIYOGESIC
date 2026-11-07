@@ -236,6 +236,8 @@ export default function SaleDetailsModal({
                         key={heading}
                         scope="col"
                         className={`${
+                          heading === "Actions" ? "workspace-table-actions" : ""
+                        } ${
                           heading === "Amount" ? "text-right" : ""
                         }`}
                       >
@@ -267,8 +269,8 @@ export default function SaleDetailsModal({
                         </td>
                       )}
                       {showDetailActions && (
-                        <td data-label="Actions">
-                          <div className="flex gap-3">
+                        <td data-label="Actions" className="workspace-table-actions bg-white">
+                          <div className="flex items-center gap-1">
                             {canEdit && (
                               <button
                                 type="button"
@@ -276,9 +278,11 @@ export default function SaleDetailsModal({
                                   setEditingPayment(payment)
                                   setPaymentModalOpen(true)
                                 }}
-                                className="workspace-text-action"
+                                aria-label={`Edit payment ${payment.orNo}`}
+                                title="Edit payment"
+                                className="workspace-icon-action workspace-icon-action--primary"
                               >
-                                Edit
+                                <DashboardIcon name="edit" className="h-4 w-4" />
                               </button>
                             )}
                             {canDelete && (
@@ -291,9 +295,11 @@ export default function SaleDetailsModal({
                                     ),
                                   ).catch(() => {})
                                 }}
-                                className="workspace-text-action text-red-700"
+                                aria-label={`Delete payment ${payment.orNo}`}
+                                title="Delete payment"
+                                className="workspace-icon-action workspace-icon-action--danger"
                               >
-                                Delete
+                                <DashboardIcon name="archive" className="h-4 w-4" />
                               </button>
                             )}
                           </div>

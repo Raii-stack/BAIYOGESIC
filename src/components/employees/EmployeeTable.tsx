@@ -194,7 +194,7 @@ export default function EmployeeTable({
                                 onClick={() => onEdit(employee)}
                                 aria-label={`Edit ${employee.fullName}`}
                                 title="Edit employee"
-                                className="workspace-icon-action"
+                                className="workspace-icon-action workspace-icon-action--primary"
                               >
                                 <DashboardIcon name="edit" className="h-4 w-4" />
                               </button>
@@ -218,7 +218,7 @@ export default function EmployeeTable({
                             disabled={restoringId === employee.id}
                             aria-label={`Restore ${employee.fullName}`}
                             title="Restore employee"
-                            className="workspace-icon-action"
+                            className="workspace-icon-action workspace-icon-action--success"
                           >
                             <DashboardIcon name="restore" className="h-4 w-4" />
                           </button>

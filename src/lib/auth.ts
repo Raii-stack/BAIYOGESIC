@@ -110,7 +110,7 @@ export const authApi = {
   register: (payload: { firstName: string; lastName: string; email: string; password?: string }) =>
     request<{ message: string; user: AuthUser }>("/register", payload),
   forgotPassword: (email: string) =>
-    request<{ message: string; token?: string }>("/forgot-password", { email }),
+    request<{ message: string }>("/forgot-password", { email }),
   resetPassword: (token: string, password: string) =>
     request<{ message?: string; user?: AuthUser }>("/reset-password", { token, password }),
 }

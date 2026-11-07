@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, expect, test, vi } from "vitest"
 
@@ -15,6 +15,7 @@ vi.mock("../../lib/toast", () => ({ notifyToast: vi.fn() }))
 afterEach(() => {
   cleanup()
   vi.clearAllMocks()
+  vi.useRealTimers()
 })
 
 test("validates work email format before submitting", async () => {
@@ -39,11 +40,10 @@ test("submits valid email and renders recovery confirmation state", async () => 
   const onClose = vi.fn()
   const onSuccess = vi.fn()
   vi.mocked(authApi.forgotPassword).mockResolvedValueOnce({
-    message: "Password reset link generated successfully.",
-    token: "mock-token-xyz123",
+    message: "Password reset link sent.",
   })
 
-  render(<ForgotPasswordModal open={true} onClose={onClose} onSuccess={onSuccess} />)
+  const { rerender } = render(<ForgotPasswordModal open={true} onClose={onClose} onSuccess={onSuccess} />)
 
   await user.type(screen.getByLabelText("Work email"), "staff@hope.inc")
   await user.click(screen.getByRole("button", { name: "Send reset link" }))
@@ -53,8 +53,15 @@ test("submits valid email and renders recovery confirmation state", async () => 
   })
 
   expect(await screen.findByRole("status")).toHaveTextContent("Reset instructions sent!")
-  expect(screen.getByText(/mock-token-xyz123/)).toBeInTheDocument()
+  expect(screen.getByRole("status")).toHaveTextContent("15 minutes")
+  expect(screen.getByRole("button", { name: "Reset link sent" })).toBeDisabled()
+  expect(screen.queryByRole("link")).not.toBeInTheDocument()
   expect(onSuccess).toHaveBeenCalledOnce()
+
+  rerender(<ForgotPasswordModal open={false} onClose={onClose} />)
+  rerender(<ForgotPasswordModal open={true} onClose={onClose} />)
+  expect(screen.getByRole("button", { name: "Reset link sent" })).toBeDisabled()
+  expect(authApi.forgotPassword).toHaveBeenCalledOnce()
 
   await user.click(screen.getByRole("button", { name: "Return to sign in" }))
   expect(onClose).toHaveBeenCalledOnce()
@@ -71,7 +78,23 @@ test("surfaces server errors and supports Escape key to close", async () => {
   await user.click(screen.getByRole("button", { name: "Send reset link" }))
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Authentication service unavailable")
+  expect(screen.getByRole("button", { name: "Send reset link" })).toBeEnabled()
 
   fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" })
   expect(onClose).toHaveBeenCalledOnce()
+})
+
+test("suppresses duplicate submissions and allows another request after 15 minutes", async () => {
+  vi.useFakeTimers()
+  let finish!: (value: { message: string }) => void
+  vi.mocked(authApi.forgotPassword).mockReturnValueOnce(new Promise((resolve) => { finish = resolve }))
+  render(<ForgotPasswordModal open={true} onClose={vi.fn()} />)
+  fireEvent.change(screen.getByLabelText("Work email"), { target: { value: "staff@hope.inc" } })
+  const form = screen.getByRole("button", { name: "Send reset link" }).closest("form")!
+  fireEvent.submit(form); fireEvent.submit(form)
+  expect(authApi.forgotPassword).toHaveBeenCalledOnce()
+  await act(async () => { finish({ message: "Check your inbox." }) })
+  expect(screen.getByRole("button", { name: "Reset link sent" })).toBeDisabled()
+  await act(async () => { vi.advanceTimersByTime(15 * 60 * 1000) })
+  expect(screen.getByRole("button", { name: "Send reset link" })).toBeEnabled()
 })

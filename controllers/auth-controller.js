@@ -5,6 +5,7 @@ const { supabase, requirePool } = require('../db');
 const { primeUserCache, invalidateUserCache } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error-handler');
 const { endActivity } = require('./activity-controller');
+const { passwordResetMailer } = require('../lib/password-reset-email');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 const PASSWORD_MIN_LENGTH = 8;
@@ -56,6 +57,11 @@ function validatePassword(password) {
   if (typeof password !== 'string' || password.length < PASSWORD_MIN_LENGTH) {
     throw requestError(`password must be at least ${PASSWORD_MIN_LENGTH} characters`, 400);
   }
+}
+
+function resetTokenHash(token) {
+  // Older recovery tokens were exposed in API responses; accept only tokens from the email flow.
+  return `email:${crypto.createHash('sha256').update(token).digest('hex')}`;
 }
 
 function formatAuthUser(user) {
@@ -176,50 +182,39 @@ const forgotPassword = asyncHandler(async (req, res) => {
     throw requestError('A valid email is required', 400);
   }
 
-  const pool = requirePool();
-  let user = null;
+  const sendResetEmail = passwordResetMailer();
+  const message = 'If an active account exists with that email, a password reset link has been sent. The link expires in 15 minutes.';
+  const client = await requirePool().connect();
   try {
-    const result = await pool.query(
-      'SELECT user_id, email, status, is_blocked FROM public.app_user WHERE lower(email) = $1 LIMIT 1',
+    await client.query('BEGIN');
+    const result = await client.query(
+      'SELECT user_id, email, status, is_blocked FROM public.app_user WHERE lower(email) = $1 LIMIT 1 FOR UPDATE',
       [normalizedEmail]
     );
-    user = result.rows[0] || null;
-  } catch {
-    throw requestError('Authentication service unavailable', 503);
-  }
-
-  if (!user || user.status !== 'active' || user.is_blocked) {
-    return res.json({
-      success: true,
-      data: { message: 'If an active account exists with that email, a password reset link has been sent.' }
-    });
-  }
-
-  const rawToken = crypto.randomBytes(32).toString('hex');
-  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-
-  try {
-    await pool.query(
-      'INSERT INTO public.password_reset_token (token_hash, user_id, expires_at, used) VALUES ($1, $2, $3, false)',
-      [tokenHash, user.user_id, expiresAt]
-    );
-  } catch {
-    try {
-      await pool.query(
-        'INSERT INTO public.password_reset_token (token_hash, user_id, expires_at, used) VALUES ($1, $2, $3, false)',
-        [rawToken, user.user_id, expiresAt]
+    const user = result.rows[0];
+    if (user?.status === 'active' && !user.is_blocked) {
+      const existing = await client.query(
+        "SELECT 1 FROM public.password_reset_token WHERE user_id = $1 AND token_hash LIKE 'email:%' AND NOT used AND expires_at > now() AND created_at > now() - interval '15 minutes' LIMIT 1", [user.user_id]
       );
-    } catch {}
-  }
-
-  res.json({
-    success: true,
-    data: {
-      message: 'Password reset link generated successfully.',
-      token: rawToken
+      if (!existing.rows.length) {
+        const rawToken = crypto.randomBytes(32).toString('hex');
+        const tokenHash = resetTokenHash(rawToken);
+        await client.query(
+          "INSERT INTO public.password_reset_token (token_hash, user_id, expires_at, used) VALUES ($1, $2, now() + interval '15 minutes', false)",
+          [tokenHash, user.user_id]
+        );
+        // shortcut: a failed commit can leave an unusable emailed link; add an outbox if delivery guarantees are needed.
+        await sendResetEmail(user.email, rawToken);
+      }
     }
-  });
+    await client.query('COMMIT');
+    res.json({ success: true, data: { message } });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 });
 
 const resetPassword = asyncHandler(async (req, res) => {
@@ -230,12 +225,13 @@ const resetPassword = asyncHandler(async (req, res) => {
   if (!rawToken) {
     throw requestError('Reset token is required', 400);
   }
+  if (!/^[a-f0-9]{64}$/.test(rawToken)) throw requestError('Invalid or expired reset token', 400);
 
   if (requestedPassword.length < 8) {
     throw requestError('Password must be at least 8 characters', 400);
   }
 
-  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+  const tokenHash = resetTokenHash(rawToken);
   const pool = requirePool();
   const client = await pool.connect();
 
@@ -243,8 +239,8 @@ const resetPassword = asyncHandler(async (req, res) => {
     await client.query('BEGIN');
 
     const tokenResult = await client.query(
-      'SELECT token_hash, user_id, expires_at, used FROM public.password_reset_token WHERE (token_hash = $1 OR token_hash = $2) AND used = false AND expires_at > now() FOR UPDATE LIMIT 1',
-      [tokenHash, rawToken]
+      "SELECT token_hash, user_id, expires_at, used FROM public.password_reset_token WHERE token_hash = $1 AND used = false AND expires_at > now() AND created_at > now() - interval '15 minutes' LIMIT 1 FOR UPDATE",
+      [tokenHash]
     );
 
     const resetRecord = tokenResult.rows[0];
@@ -254,14 +250,15 @@ const resetPassword = asyncHandler(async (req, res) => {
 
     const passwordHash = await bcrypt.hash(requestedPassword, 12);
 
-    await client.query(
-      'UPDATE public.app_user SET password_hash = $2, must_change_password = false, updated_at = now() WHERE user_id = $1',
+    const updatedUser = await client.query(
+      "UPDATE public.app_user SET password_hash = $2, must_change_password = false, updated_at = now() WHERE user_id = $1 AND status = 'active' AND NOT is_blocked RETURNING user_id",
       [resetRecord.user_id, passwordHash]
     );
+    if (!updatedUser.rows.length) throw requestError('Invalid or expired reset token', 400);
 
     await client.query(
-      'UPDATE public.password_reset_token SET used = true WHERE token_hash = $1',
-      [resetRecord.token_hash]
+      'UPDATE public.password_reset_token SET used = true WHERE user_id = $1 AND used = false',
+      [resetRecord.user_id]
     );
 
     await client.query('COMMIT');

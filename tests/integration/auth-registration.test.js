@@ -3,6 +3,11 @@ import bcrypt from 'bcrypt';
 
 let mockClient;
 let mockPool;
+let sendResetEmail;
+require.cache[require.resolve('../../lib/password-reset-email')] = {
+  id: require.resolve('../../lib/password-reset-email'), filename: require.resolve('../../lib/password-reset-email'), loaded: true,
+  exports: { passwordResetMailer: () => sendResetEmail },
+};
 
 require.cache[require.resolve('../../db')] = {
   id: require.resolve('../../db'),
@@ -50,8 +55,13 @@ function invokeHandler(handler, { body = {}, user, query = {} } = {}) {
 }
 
 beforeEach(() => {
+  sendResetEmail = vi.fn().mockResolvedValue(undefined);
   mockClient = {
     query: vi.fn(async (sql, params) => {
+      if (typeof sql === 'string' && sql.includes('SELECT user_id, email, status, is_blocked FROM public.app_user')) {
+        return { rows: params[0] === 'existing@hope.inc' ? [{ user_id: '99', email: params[0], status: 'active', is_blocked: false }] : [] };
+      }
+      if (typeof sql === 'string' && sql.includes('UPDATE public.app_user SET password_hash')) return { rows: [{ user_id: '99' }] };
       if (typeof sql === 'string' && sql.includes('SELECT user_id FROM public.app_user WHERE lower(email)')) {
         return { rows: [] }; // No duplicate email by default
       }
@@ -173,12 +183,16 @@ describe('Forgot Password Flow (POST /api/auth/forgot-password)', () => {
     const res = await invokeHandler(forgotPassword, { body: { email: 'existing@hope.inc' } });
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.token).toBeDefined();
+    expect(res.body.data.token).toBeUndefined();
+    expect(sendResetEmail).toHaveBeenCalledWith('existing@hope.inc', expect.stringMatching(/^[a-f0-9]{64}$/));
 
-    const insertTokenCall = mockPool.query.mock.calls.find(
+    const insertTokenCall = mockClient.query.mock.calls.find(
       ([sql]) => typeof sql === 'string' && sql.includes('INSERT INTO public.password_reset_token')
     );
     expect(insertTokenCall).toBeDefined();
+    expect(insertTokenCall[0]).toContain("interval '15 minutes'");
+    expect(insertTokenCall[1][0]).toMatch(/^email:[a-f0-9]{64}$/);
+    expect(insertTokenCall[1][0]).not.toBe(sendResetEmail.mock.calls[0][1]);
   });
 
   it('returns generic message for non-existent account without leaking existence', async () => {
@@ -187,6 +201,32 @@ describe('Forgot Password Flow (POST /api/auth/forgot-password)', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.token).toBeUndefined();
     expect(res.body.data.message).toMatch(/If an active account exists/i);
+    expect(sendResetEmail).not.toHaveBeenCalled();
+  });
+
+  it('rolls back an email failure and allows the user to retry', async () => {
+    sendResetEmail.mockRejectedValueOnce(Object.assign(new Error('Email delivery failed'), { statusCode: 503 }));
+    const res = await invokeHandler(forgotPassword, { body: { email: 'existing@hope.inc' } });
+    expect(res.statusCode).toBe(503);
+    expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(mockClient.query).not.toHaveBeenCalledWith('COMMIT');
+  });
+
+  it('does not send another email while an emailed reset link remains valid', async () => {
+    const original = mockClient.query.getMockImplementation();
+    mockClient.query.mockImplementation((sql, params) => sql.startsWith('SELECT 1 FROM public.password_reset_token') ? { rows: [{}] } : original(sql, params));
+    const res = await invokeHandler(forgotPassword, { body: { email: 'existing@hope.inc' } });
+    expect(res.statusCode).toBe(200);
+    expect(sendResetEmail).not.toHaveBeenCalled();
+  });
+
+  it('does not issue tokens when storing the token fails', async () => {
+    const original = mockClient.query.getMockImplementation();
+    mockClient.query.mockImplementation((sql, params) => sql.startsWith('INSERT INTO public.password_reset_token') ? Promise.reject(new Error('Write failed')) : original(sql, params));
+    const res = await invokeHandler(forgotPassword, { body: { email: 'existing@hope.inc' } });
+    expect(res.statusCode).toBe(500);
+    expect(sendResetEmail).not.toHaveBeenCalled();
+    expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
   });
 });
 
@@ -195,13 +235,13 @@ describe('Reset Password Flow (POST /api/auth/reset-password)', () => {
     const res1 = await invokeHandler(resetPassword, { body: { token: '', password: 'ValidPassword123!' } });
     expect(res1.statusCode).toBe(400);
 
-    const res2 = await invokeHandler(resetPassword, { body: { token: 'valid-token', password: 'short' } });
+    const res2 = await invokeHandler(resetPassword, { body: { token: 'a'.repeat(64), password: 'short' } });
     expect(res2.statusCode).toBe(400);
   });
 
   it('redeems valid token and updates password hash', async () => {
     const res = await invokeHandler(resetPassword, {
-      body: { token: 'valid-reset-token-12345', password: 'NewSecurePassword123!' },
+      body: { token: 'a'.repeat(64), password: 'NewSecurePassword123!' },
     });
 
     expect(res.statusCode).toBe(200);
@@ -217,6 +257,9 @@ describe('Reset Password Flow (POST /api/auth/reset-password)', () => {
       ([sql]) => typeof sql === 'string' && sql.includes('UPDATE public.password_reset_token SET used = true')
     );
     expect(updateTokenCall).toBeDefined();
+    const lookup = mockClient.query.mock.calls.find(([sql]) => sql.startsWith('SELECT token_hash'));
+    expect(lookup[0]).toContain("created_at > now() - interval '15 minutes'");
+    expect(lookup[1]).toEqual([expect.stringMatching(/^email:[a-f0-9]{64}$/)]);
   });
 
   it('rejects expired or non-existent token with 400', async () => {
@@ -228,10 +271,19 @@ describe('Reset Password Flow (POST /api/auth/reset-password)', () => {
     });
 
     const res = await invokeHandler(resetPassword, {
-      body: { token: 'expired-token', password: 'NewSecurePassword123!' },
+      body: { token: 'b'.repeat(64), password: 'NewSecurePassword123!' },
     });
 
     expect(res.statusCode).toBe(400);
     expect(res.body.error.message).toMatch(/Invalid or expired reset token/i);
+  });
+
+  it('rejects a reset if the account was blocked or made pending after the link was issued', async () => {
+    const original = mockClient.query.getMockImplementation();
+    mockClient.query.mockImplementation((sql, params) => sql.startsWith('UPDATE public.app_user SET password_hash') ? { rows: [] } : original(sql, params));
+    const res = await invokeHandler(resetPassword, { body: { token: 'a'.repeat(64), password: 'NewSecurePassword123!' } });
+    expect(res.statusCode).toBe(400);
+    expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(mockClient.query).not.toHaveBeenCalledWith('COMMIT');
   });
 });

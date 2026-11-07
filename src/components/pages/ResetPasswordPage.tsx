@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react"
-import { Link, useSearchParams } from "react-router"
+import { Link, useLocation, useSearchParams } from "react-router"
 
 import { authApi } from "../../lib/auth"
 import { safeErrorMessage } from "../../lib/api-errors"
@@ -14,7 +14,8 @@ import PasswordStrengthMeter from "../auth/PasswordStrengthMeter"
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams()
-  const token = searchParams.get("token") || ""
+  const { hash } = useLocation()
+  const token = new URLSearchParams(hash.slice(1)).get("token") || searchParams.get("token") || ""
   const [password, setPassword] = useState("")
   const [confirm, setConfirm] = useState("")
   const [errors, setErrors] = useState<Errors>({})
@@ -63,7 +64,7 @@ export default function ResetPasswordPage() {
             >
               Create New Password
             </h1>
-            <p className="mt-2 text-[13px] leading-5 text-neutral-500">{token ? "Choose a new password using your reset link." : "A valid password-reset link is required. Contact your administrator to request one."}</p>
+            <p className="mt-2 text-[13px] leading-5 text-neutral-500">{token ? "Choose a new password. Your reset link expires after 15 minutes and can be used once." : "A valid password-reset link is required. Request a new link from the sign-in page."}</p>
           </div>
 
           {token && !done && <form onSubmit={submit} noValidate className="mt-7">

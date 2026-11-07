@@ -19,20 +19,26 @@ export default function ForgotPasswordModal({ open, onClose, onSuccess }: Forgot
   const [serverError, setServerError] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
-  const [resetToken, setResetToken] = useState<string | null>(null)
+  const requestPending = useRef(false)
+  const returnButton = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     if (open) {
-      setEmail("")
       setError("")
       setServerError("")
-      setIsSuccess(false)
-      setResetToken(null)
       if (!dialogRef.current?.contains(document.activeElement)) {
-        document.getElementById("forgot-email")?.focus()
+        if (isSuccess) returnButton.current?.focus()
+        else document.getElementById("forgot-email")?.focus()
       }
     }
   }, [open])
+
+  useEffect(() => {
+    if (!isSuccess) return
+    returnButton.current?.focus()
+    const timer = window.setTimeout(() => setIsSuccess(false), 15 * 60 * 1000)
+    return () => window.clearTimeout(timer)
+  }, [isSuccess])
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
@@ -43,7 +49,7 @@ export default function ForgotPasswordModal({ open, onClose, onSuccess }: Forgot
     if (event.key !== "Tab") return
 
     const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), a[href]',
+      'button:not(:disabled), input:not(:disabled), a[href]',
     )
     if (!focusable?.length) return
     const first = focusable[0]
@@ -60,6 +66,7 @@ export default function ForgotPasswordModal({ open, onClose, onSuccess }: Forgot
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    if (requestPending.current || isSuccess) return
     if (!emailOk(email)) {
       setError("Enter a valid work email address.")
       return
@@ -68,19 +75,18 @@ export default function ForgotPasswordModal({ open, onClose, onSuccess }: Forgot
     setError("")
     setServerError("")
     setSubmitting(true)
+    requestPending.current = true
 
     try {
-      const res = await authApi.forgotPassword(email.trim().toLowerCase())
+      await authApi.forgotPassword(email.trim().toLowerCase())
       setIsSuccess(true)
-      if (res?.token) {
-        setResetToken(res.token)
-      }
       notifyToast("Password reset request sent.")
       onSuccess?.()
     } catch (err) {
       setServerError(safeErrorMessage(err))
     } finally {
       setSubmitting(false)
+      requestPending.current = false
     }
   }
 
@@ -117,7 +123,7 @@ export default function ForgotPasswordModal({ open, onClose, onSuccess }: Forgot
             Reset password
           </h2>
           <p id="forgot-password-description" className="mt-1.5 text-xs text-neutral-500">
-            Enter your work email address and we’ll generate a secure time-limited password reset link.
+            Enter your work email address. We’ll email you a reset link that expires after 15 minutes.
           </p>
         </div>
 
@@ -133,27 +139,18 @@ export default function ForgotPasswordModal({ open, onClose, onSuccess }: Forgot
               <div>
                 <p className="font-semibold">Reset instructions sent!</p>
                 <p className="mt-1 text-xs text-emerald-800">
-                  If an active account exists for that email, password reset instructions and a secure token have been generated.
+                  If an active account exists for that work email, a reset link has been sent. It expires in 15 minutes and can be used once.
                 </p>
               </div>
             </div>
 
-            {resetToken && (
-              <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-xs">
-                <p className="font-semibold text-neutral-700">Dev/Demo Reset Link:</p>
-                <a
-                  href={`/reset-password?token=${resetToken}`}
-                  className="mt-1 block truncate text-blue-700 underline hover:text-blue-900"
-                >
-                  /reset-password?token={resetToken}
-                </a>
-              </div>
-            )}
+            <button type="button" disabled className="workspace-primary-action w-full">Reset link sent</button>
 
             <button
+              ref={returnButton}
               type="button"
               onClick={onClose}
-              className="workspace-primary-action w-full"
+              className="workspace-secondary-action w-full"
             >
               Return to sign in
             </button>
@@ -166,7 +163,7 @@ export default function ForgotPasswordModal({ open, onClose, onSuccess }: Forgot
               </p>
             )}
 
-            <Field
+            <fieldset disabled={submitting}><Field
               id="forgot-email"
               label="Work email"
               type="email"
@@ -181,7 +178,7 @@ export default function ForgotPasswordModal({ open, onClose, onSuccess }: Forgot
                 if (serverError) setServerError("")
               }}
               error={error}
-            />
+            /></fieldset>
 
             <Submit loading={submitting} loadingLabel="Sending reset link…">
               Send reset link

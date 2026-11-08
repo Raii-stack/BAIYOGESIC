@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router"
 
+import { useAuth } from "../components/auth/AuthProvider"
 import CustomerCombobox from "../components/sales/CustomerCombobox"
 import EmployeeCombobox from "../components/sales/EmployeeCombobox"
+import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import DashboardLayout from "../layouts/DashboardLayout"
 import {
   getLineSubtotal,
@@ -44,6 +46,8 @@ function resolveProductPrice(
 
 export default function CreateSalePage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const employeeDefaultApplied = useRef(false)
   const [customerOptions, setCustomerOptions] = useState<Customer[]>([])
   const [employeeOptions, setEmployeeOptions] = useState<Employee[]>([])
   const [productOptions, setProductOptions] = useState<SaleCatalogProduct[]>([])
@@ -98,6 +102,15 @@ export default function CreateSalePage() {
       .finally(() => { if (!controller.signal.aborted) setCatalogLoading(false) })
     return () => controller.abort()
   }, [catalogRetry])
+
+  useEffect(() => {
+    const employeeNumber = user?.empno
+    if (employeeDefaultApplied.current || catalogLoading || catalogError || !employeeNumber) return
+    employeeDefaultApplied.current = true
+    if (employeeOptions.some((employee) => employee.id === employeeNumber)) {
+      setEmployeeId((current) => current || employeeNumber)
+    }
+  }, [catalogError, catalogLoading, employeeOptions, user?.empno])
 
   const handleSalesDateChange = (nextDate: string) => {
     setSalesDate(nextDate)
@@ -437,14 +450,16 @@ export default function CreateSalePage() {
                           <td data-label="Line subtotal" className="whitespace-nowrap text-right text-sm font-bold tabular-nums text-slate-950">
                             {currency.format(lineSubtotal)}
                           </td>
-                          <td data-label="Actions" className="workspace-table-actions">
+                          <td data-label="Actions" className="workspace-table-actions bg-white">
                             <button
                               type="button"
                               disabled={lines.length <= 1}
                               onClick={() => removeLineItem(line.id)}
-                              className="workspace-text-action text-red-700 disabled:opacity-40"
+                              aria-label={`Remove line item ${index + 1}`}
+                              title="Remove line item"
+                              className="workspace-icon-action workspace-icon-action--danger disabled:opacity-40"
                             >
-                              Remove
+                              <DashboardIcon name="archive" className="h-4 w-4" />
                             </button>
                           </td>
                         </tr>

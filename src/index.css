@@ -211,9 +211,16 @@ input.workspace-control[type="date"]:disabled::-webkit-calendar-picker-indicator
 .workspace-badge[data-unit="pkg"], .workspace-badge[data-term="COD"] { background: #fff1db; color: #92400e; }
 .workspace-badge[data-unit="ltr"], .workspace-badge[data-role="employee"] { background: #dff7fa; color: #0e6475; }
 .workspace-module-icon { border-color: #dedede; background: #f7f7f7; color: #616161; }
-.workspace-icon-action { display: inline-grid; width: var(--workspace-control-height); height: var(--workspace-control-height); flex-shrink: 0; place-items: center; border-radius: 8px; color: #616161; transition: background 150ms, color 150ms; }
+.workspace-icon-action { display: inline-grid; width: var(--workspace-control-height); height: var(--workspace-control-height); flex-shrink: 0; place-items: center; border-radius: 8px; color: #525252; transition: background 150ms, color 150ms; }
 .workspace-icon-action:hover, .workspace-icon-action[aria-expanded="true"] { background: #e8e8e8; color: #202020; }
-.workspace-icon-action--danger:hover { background: #fee2e2; color: #b91c1c; }
+.workspace-icon-action--primary { color: #1d4ed8; }
+.workspace-icon-action--primary:hover { background: #dbeafe; color: #1e40af; }
+.workspace-icon-action--success { color: #047857; }
+.workspace-icon-action--success:hover { background: #d1fae5; color: #065f46; }
+.workspace-icon-action--warning { color: #b45309; }
+.workspace-icon-action--warning:hover { background: #fef3c7; color: #92400e; }
+.workspace-icon-action--danger { color: #b91c1c; }
+.workspace-icon-action--danger:hover { background: #fee2e2; color: #991b1b; }
 .workspace-icon-action:focus-visible, .workspace-text-action:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 .workspace-icon-action:disabled, .workspace-text-action:disabled { cursor: wait; opacity: 0.5; }
 .workspace-text-action { display: inline-flex; min-height: var(--workspace-control-height); align-items: center; border-radius: 8px; padding: 8px; font-size: 13px; line-height: 20px; font-weight: 500; transition: background 150ms; }

@@ -15,7 +15,7 @@ export default function EmployeeCombobox({
   const selectedEmployee = employees.find(
     (employee) => employee.id === selectedEmployeeId,
   )
-  const [query, setQuery] = useState(selectedEmployee?.fullName ?? "")
+  const [query, setQuery] = useState("")
   const [open, setOpen] = useState(false)
 
   const matches = useMemo(() => {
@@ -56,7 +56,7 @@ export default function EmployeeCombobox({
           aria-expanded={open}
           aria-controls="employee-options"
           aria-autocomplete="list"
-          value={query}
+          value={selectedEmployee?.fullName ?? query}
           onFocus={() => setOpen(true)}
           onKeyDown={(event) => {
             if (event.key === "ArrowDown") {

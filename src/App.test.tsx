@@ -112,8 +112,8 @@ test("filters dashboard tiles, sidebar links, sales actions, and report choices 
   expect(await screen.findByRole("heading", { name: "Sales" })).toBeInTheDocument()
   expect(screen.queryByRole("link", { name: "Create sale" })).not.toBeInTheDocument()
   expect(screen.queryByRole("columnheader", { name: "Stamp" })).not.toBeInTheDocument()
-  expect(screen.queryByRole("button", { name: "Delete" })).not.toBeInTheDocument()
-  expect((await screen.findAllByRole("button", { name: "Details" })).length).toBeGreaterThan(0)
+  expect(screen.queryByRole("button", { name: /^Archive / })).not.toBeInTheDocument()
+  expect((await screen.findAllByRole("button", { name: /^Details for / })).length).toBeGreaterThan(0)
 
   cleanup()
 

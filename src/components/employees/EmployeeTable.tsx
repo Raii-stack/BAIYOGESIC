@@ -1,10 +1,11 @@
-import TableSkeleton, { TableSkeletonRows } from "../common/TableSkeleton"
+import { TableSkeletonRows } from "../common/TableSkeleton"
 import { Fragment, useEffect, useState } from "react"
 import { Link } from "react-router"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
 import { employeeApi, type EmployeePagination } from "../../lib/employee-api"
 import type { Employee, JobHistoryEntry } from "../../types/employee"
 import JobTimeline from "./JobTimeline"
+import { CareerTimelineSkeleton } from "./CareerTimeline"
 
 const pages = (current: number, total: number) => {
   const count = Math.min(total, 5)
@@ -49,7 +50,7 @@ function JobHistory({
         </div>
         <div className="workspace-panel" aria-busy={loading}>
           {loading ? (
-            <TableSkeleton label="Loading job history" headings={["Effective date", "Job title", "Department", "Salary", ...(showAudit ? ["Last change"] : [])]} />
+            <CareerTimelineSkeleton showAudit={showAudit} />
           ) : error ? (
             <div role="alert" className="flex items-center justify-between gap-3 p-4 text-sm text-red-700">
               <span>{error}</span>
@@ -194,7 +195,7 @@ export default function EmployeeTable({
                                 onClick={() => onEdit(employee)}
                                 aria-label={`Edit ${employee.fullName}`}
                                 title="Edit employee"
-                                className="workspace-icon-action"
+                                className="workspace-icon-action workspace-icon-action--primary"
                               >
                                 <DashboardIcon name="edit" className="h-4 w-4" />
                               </button>
@@ -218,7 +219,7 @@ export default function EmployeeTable({
                             disabled={restoringId === employee.id}
                             aria-label={`Restore ${employee.fullName}`}
                             title="Restore employee"
-                            className="workspace-icon-action"
+                            className="workspace-icon-action workspace-icon-action--success"
                           >
                             <DashboardIcon name="restore" className="h-4 w-4" />
                           </button>

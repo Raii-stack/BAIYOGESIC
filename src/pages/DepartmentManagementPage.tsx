@@ -114,7 +114,7 @@ const DepartmentTableRow = memo(function DepartmentTableRow({
                     onClick={() => onEdit(department)}
                     aria-label={`Edit ${department.name}`}
                     title="Edit department"
-                    className="workspace-icon-action"
+                    className="workspace-icon-action workspace-icon-action--primary"
                   >
                     <DashboardIcon name="edit" className="h-4 w-4" />
                   </button>
@@ -138,7 +138,7 @@ const DepartmentTableRow = memo(function DepartmentTableRow({
                 disabled={restoringCode === department.code}
                 aria-label={`Restore ${department.name}`}
                 title="Restore department"
-                className="workspace-icon-action"
+                className="workspace-icon-action workspace-icon-action--success"
               >
                 <DashboardIcon name="restore" className="h-4 w-4" />
               </button>

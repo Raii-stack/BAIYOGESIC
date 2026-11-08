@@ -10,7 +10,7 @@ export function safeApiMessage(status: number, response?: ErrorEnvelope | null):
     : "You do not have permission to do that."
   if (status >= 500 || status === 0) return "The service is temporarily unavailable. Please try again."
   const detail = response?.error?.message?.trim()
-  if ((status === 400 || status === 404 || status === 409) && detail && detail.length <= 160 && !unsafe.test(detail)) return detail
+  if ((status === 400 || status === 404 || status === 409 || status === 429) && detail && detail.length <= 160 && !unsafe.test(detail)) return detail
   return "That request could not be completed. Please try again."
 }
 

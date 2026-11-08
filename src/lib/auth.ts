@@ -107,8 +107,11 @@ export const authApi = {
   changePassword: (currentPassword: string, newPassword: string) =>
     request<{ message: string }>("/change-password", { currentPassword, newPassword }),
   logout: () => request<{ message: string }>("/logout", {}),
-  register: (payload: { firstName: string; lastName: string; email: string; password?: string }) =>
+  sendRegistrationCode: (email: string) => request<{ expiresAt: string; resendAt: string }>("/register/send-code", { email }),
+  register: (payload: { firstName: string; lastName: string; email: string; password: string; verificationCode: string }) =>
     request<{ message: string; user: AuthUser }>("/register", payload),
+  validateResetToken: (token: string, signal?: AbortSignal) =>
+    request<{ status: "valid" | "expired" | "used" | "invalid"; expiresAt?: string }>("/reset-password/validate", { token }, signal),
   forgotPassword: (email: string) =>
     request<{ message: string }>("/forgot-password", { email }),
   resetPassword: (token: string, password: string) =>

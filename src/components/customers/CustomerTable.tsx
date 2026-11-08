@@ -93,7 +93,7 @@ const CustomerTableRow = memo(function CustomerTableRow({
                     onClick={() => onEdit(customer)}
                     aria-label={`Edit ${customer.company}`}
                     title="Edit customer"
-                    className="workspace-icon-action"
+                    className="workspace-icon-action workspace-icon-action--primary"
                   >
                     <DashboardIcon name="edit" className="h-4 w-4" />
                   </button>
@@ -117,7 +117,7 @@ const CustomerTableRow = memo(function CustomerTableRow({
                 disabled={restoringId === customer.id}
                 aria-label={`Restore ${customer.company}`}
                 title="Restore customer"
-                className="workspace-icon-action"
+                className="workspace-icon-action workspace-icon-action--success"
               >
                 <DashboardIcon name="restore" className="h-4 w-4" />
               </button>

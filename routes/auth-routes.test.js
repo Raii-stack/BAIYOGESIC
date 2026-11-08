@@ -11,6 +11,8 @@ test('auth routes expose register, forgot-password, reset-password, login, sessi
   expect(routePaths).toContain('/forgot-password');
   expect(routePaths).toContain('/reset-password');
   expect(routePaths).toContain('/register');
+  expect(routePaths).toContain('/register/send-code');
+  expect(routePaths).toContain('/reset-password/validate');
   expect(routePaths).toEqual(expect.arrayContaining(['/login', '/session', '/logout', '/change-password']));
 });
 

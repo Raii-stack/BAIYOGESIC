@@ -5,6 +5,8 @@ const {
   logout,
   changePassword,
   register,
+  sendRegistrationCode,
+  validateResetToken,
   forgotPassword,
   resetPassword,
   setPassword
@@ -25,7 +27,9 @@ router.get('/session', authenticate, session);
 router.post('/logout', authenticate, logout);
 router.post('/change-password', authenticate, changePassword);
 router.post('/register', register);
+router.post('/register/send-code', sendRegistrationCode);
 router.post('/forgot-password', forgotPassword);
+router.post('/reset-password/validate', validateResetToken);
 router.post('/reset-password', resetPassword);
 router.post('/set-password', setPassword);
 

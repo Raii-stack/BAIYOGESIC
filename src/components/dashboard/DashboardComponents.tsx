@@ -82,6 +82,10 @@ export function DashboardIcon({
     archive: <path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" />,
     restore: <path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5" />,
     history: <path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2" />,
+    arrowUpRight: <path d="M7 17 17 7M9 7h8v8" />,
+    arrowRight: <path d="M5 12h14m-5-5 5 5-5 5" />,
+    arrowDown: <path d="M12 5v14m5-5-5 5-5-5" />,
+    arrowUp: <path d="M12 19V5m-5 5 5-5 5 5" />,
     collapse: (
       <>
         <rect x="3" y="4" width="18" height="16" rx="2" />

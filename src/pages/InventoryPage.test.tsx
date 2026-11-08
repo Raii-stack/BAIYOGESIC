@@ -279,7 +279,7 @@ test("allows an employee to review products without edit or archive controls", a
 })
 
 
-test("opens PriceHistoryModal on clicking Prices button, displays history with active indicator, and allows adding price", async () => {
+test("opens PriceHistoryModal from expanded history and allows adding price", async () => {
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), "http://localhost")
     if (url.pathname === "/api/auth/session") return success({ user: admin })
@@ -308,8 +308,9 @@ test("opens PriceHistoryModal on clicking Prices button, displays history with a
   render(<MemoryRouter><AuthProvider><InventoryPage /></AuthProvider></MemoryRouter>)
   await screen.findByText("Product 1")
 
-  // Click "Prices" button
-  await user.click(screen.getByRole("button", { name: "Prices for PX0001" }))
+  expect(screen.queryByRole("button", { name: "Prices for PX0001" })).not.toBeInTheDocument()
+  await user.click(screen.getByRole("button", { name: "Show price history for PX0001" }))
+  await user.click(screen.getByRole("button", { name: "Manage prices" }))
 
   // Modal appears with header
   const modal = await screen.findByRole("dialog", { name: /Price History/i })
@@ -362,12 +363,11 @@ test("hides Status and Stamp in PriceHistoryModal for standard user", async () =
     throw new Error(`Unexpected request: ${url.pathname}`)
   })
   vi.stubGlobal("fetch", fetchMock)
-  const user = userEvent.setup()
+  render(<MemoryRouter initialEntries={["/inventory?notificationProduct=PX0001"]}><AuthProvider><InventoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByRole("cell", { name: "Product 1" })
 
-  render(<MemoryRouter><AuthProvider><InventoryPage /></AuthProvider></MemoryRouter>)
-  await screen.findByText("Product 1")
-
-  await user.click(screen.getByRole("button", { name: "Prices for PX0001" }))
+  expect(screen.queryByRole("button", { name: "Prices for PX0001" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Manage prices" })).not.toBeInTheDocument()
   expect(await screen.findByText("Price History — PX0001")).toBeInTheDocument()
   expect(screen.queryByRole("columnheader", { name: "Status" })).not.toBeInTheDocument()
   expect(screen.queryByRole("columnheader", { name: "Stamp" })).not.toBeInTheDocument()

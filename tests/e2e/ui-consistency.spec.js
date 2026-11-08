@@ -153,9 +153,10 @@ test('registration page submits pending applications and its sign-in link works'
   await page.setViewportSize({ width: 390, height: 844 });
   await page.route('**/api/auth/session', route => route.fulfill({ status: 401, json: { success: false, error: { message: 'Authentication required' } } }));
   await page.route('**/api/auth/register', async route => {
-    expect(route.request().postDataJSON()).toEqual({ firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', password: 'SecurePass123!' });
+    expect(route.request().postDataJSON()).toEqual({ firstName: 'Jane', lastName: 'Doe', email: 'jane@example.com', password: 'SecurePass123!', verificationCode: '012345' });
     await route.fulfill({ json: { success: true, data: { message: 'Pending approval', user: { status: 'pending' } } } });
   });
+  await page.route('**/api/auth/register/send-code', route => route.fulfill({ json: { success: true, data: { expiresAt: new Date(Date.now() + 600000).toISOString(), resendAt: new Date(Date.now() + 60000).toISOString() } } }));
   await page.goto('/login');
   await page.getByRole('link', { name: 'Register', exact: true }).click();
   await expect(page).toHaveURL(/\/register$/);
@@ -166,8 +167,11 @@ test('registration page submits pending applications and its sign-in link works'
   await page.getByLabel('Work email').fill('jane@example.com');
   await page.getByLabel('Password', { exact: true }).fill('SecurePass123!');
   await page.getByLabel('Confirm password', { exact: true }).fill('SecurePass123!');
-  await page.getByRole('button', { name: 'Register account' }).click();
-  await expect(page.getByRole('region', { name: 'Create your account' }).getByRole('status')).toContainText('Your account is pending approval.');
+  await page.getByRole('button', { name: 'Send verification code' }).click();
+  await expect(page.getByRole('heading', { name: 'Verify your email' })).toBeVisible();
+  await page.getByLabel('Verification code').fill('012345');
+  await page.getByRole('button', { name: 'Verify and submit registration' }).click();
+  await expect(page.getByRole('region', { name: 'Awaiting approval' }).getByRole('status')).toContainText('Your account is pending approval.');
   await page.getByRole('link', { name: 'Sign in', exact: true }).click();
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('heading', { name: 'Log in to HOPE, Inc.' })).toBeVisible();

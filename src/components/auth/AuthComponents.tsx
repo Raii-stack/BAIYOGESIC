@@ -53,6 +53,8 @@ export function Field({
   placeholder,
   passwordToggle = false,
   className = "mb-4",
+  inputMode,
+  maxLength,
 }: {
   id: string
   label: string
@@ -65,6 +67,8 @@ export function Field({
   placeholder: string
   passwordToggle?: boolean
   className?: string
+  inputMode?: "numeric"
+  maxLength?: number
 }) {
   const [visible, setVisible] = useState(false)
   const errorId = `${id}-error`
@@ -92,6 +96,8 @@ export function Field({
           type={inputType}
           value={value}
           autoComplete={autoComplete}
+          inputMode={inputMode}
+          maxLength={maxLength}
           placeholder={placeholder}
           onChange={(event) => onChange(event.target.value)}
           aria-invalid={Boolean(error)}

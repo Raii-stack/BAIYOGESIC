@@ -5,6 +5,7 @@ test("replaces internal server details with safe errors while preserving actiona
   expect(safeApiMessage(500, { error: { message: "SQL error: password_hash at db.js:42" } })).toBe("The service is temporarily unavailable. Please try again.")
   expect(safeApiMessage(400, { error: { message: "syntax error in column email" } })).toBe("That request could not be completed. Please try again.")
   expect(safeApiMessage(409, { error: { message: "Cannot archive customer while active sales records exist." } })).toContain("active sales records")
+  expect(safeApiMessage(429, { error: { message: "Please wait 60 seconds between codes." } })).toContain("60 seconds")
 })
 
 test("notifies the app when a data API session expires", () => {

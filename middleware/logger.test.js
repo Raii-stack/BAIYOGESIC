@@ -5,6 +5,7 @@ test('sanitize masks sensitive keys like password, token, and salary', () => {
   const payload = {
     username: 'admin',
     password: 'secretPassword123',
+    verificationCode: '123456',
     nested: {
       salary: 50000,
       token: 'jwt-token-string',
@@ -19,6 +20,7 @@ test('sanitize masks sensitive keys like password, token, and salary', () => {
   const clean = sanitize(payload);
   expect(clean.username).toBe('admin');
   expect(clean.password).toBe('[REDACTED]');
+  expect(clean.verificationCode).toBe('[REDACTED]');
   expect(clean.nested.salary).toBe('[REDACTED]');
   expect(clean.nested.token).toBe('[REDACTED]');
   expect(clean.nested.role).toBe('manager');

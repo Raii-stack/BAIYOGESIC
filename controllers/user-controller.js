@@ -3,6 +3,7 @@ const { requirePool } = require('../db');
 const { invalidateUserCache } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error-handler');
 const { isSuperAdminRole, isAdminOrSuperAdmin } = require('../middleware/permissions');
+const { rejectionEmailMailer } = require('../lib/password-reset-email');
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -547,6 +548,14 @@ function registrationDecision(approve) {
     });
 
     invalidateUserCache(userId);
+    if (!approve && updated?.email) {
+      try {
+        const sendRejection = rejectionEmailMailer();
+        await sendRejection(updated.email, updated.firstName || updated.name || '');
+      } catch (err) {
+        console.error('Could not send registration rejection email:', err.message);
+      }
+    }
     res.json({ success: true, data: { user: updated } });
   });
 }

@@ -37,6 +37,15 @@ require.cache[require.resolve('../../db')] = {
   id: require.resolve('../../db'), filename: require.resolve('../../db'), loaded: true,
   exports: { requirePool: () => ({ query, connect: async () => client }), supabase: {} },
 };
+const sendRejectionEmail = vi.fn().mockResolvedValue(undefined);
+require.cache[require.resolve('../../lib/password-reset-email')] = {
+  id: require.resolve('../../lib/password-reset-email'), filename: require.resolve('../../lib/password-reset-email'), loaded: true,
+  exports: {
+    rejectionEmailMailer: () => sendRejectionEmail,
+    passwordResetMailer: () => vi.fn(),
+    registrationCodeMailer: () => vi.fn(),
+  },
+};
 const authRoutes = require('../../routes/auth-routes');
 const userRoutes = require('../../routes/user-routes');
 const { auditContext } = require('../../middleware/audit-context');
@@ -51,6 +60,7 @@ const cookie = (number) => `access_token=${jwt.sign({ sub: id(number) }, process
 beforeEach(() => {
   vi.stubEnv('JWT_SECRET', 'registration-approval-tests-only');
   query.mockClear();
+  sendRejectionEmail.mockClear();
   accounts = [
     { user_id: id(1), email: 'hr@hope.inc', role: 'employee', rights: ['hr.employee.edit'] },
     { user_id: id(2), email: 'staff@hope.inc', role: 'employee', rights: ['hr.access'] },
@@ -86,6 +96,7 @@ test.each([1, 3, 4])('approver %s can reject a pending application and it cannot
   expect((await request(app).post('/api/auth/login').send({ email: 'new@hope.inc', password })).status).toBe(401);
   expect((await request(app).get('/api/auth/registration-notifications').set('Cookie', cookie(approver))).body.data.total).toBe(0);
   expect((await request(app).post(`/api/users/${id(5)}/approve`).set('Cookie', cookie(approver))).status).toBe(409);
+  expect(sendRejectionEmail).toHaveBeenCalledWith('new@hope.inc', expect.any(String));
 });
 
 test('rejection enforces permission, target role, ID and pending-state checks', async () => {

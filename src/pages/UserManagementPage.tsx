@@ -7,6 +7,7 @@ import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import RightsModal from "../components/users/RightsModal"
 import UserPanel from "../components/users/UserPanel"
 import UserTable from "../components/users/UserTable"
+import DeleteUserModal from "../components/users/DeleteUserModal"
 import AuditLogViewer from "../components/users/AuditLogViewer"
 import useDebouncedValue from "../hooks/useDebouncedValue"
 import usePageQuery from "../hooks/usePageQuery"
@@ -40,7 +41,7 @@ export default function UserManagementPage() {
   const debouncedQuery = useDebouncedValue(query.trim())
   const searchPending = query.trim() !== debouncedQuery
   const [roleFilter, setRoleFilter] = useState<"all" | UserRole>(() => searchParams.get("status") === "pending" ? "employee" : "all")
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "blocked" | "pending">(() => searchParams.get("status") === "pending" ? "pending" : "all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "blocked" | "pending" | "disabled">(() => searchParams.get("status") === "pending" ? "pending" : (searchParams.get("status") === "disabled" || searchParams.get("status") === "rejected" ? "disabled" : "all"))
   const [page, setPage] = usePageQuery()
   const [users, setUsers] = useState<SystemUser[]>([])
   const [pagination, setPagination] = useState<UserPagination>(emptyPagination)
@@ -55,7 +56,12 @@ export default function UserManagementPage() {
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
+  const [reReviewingId, setReReviewingId] = useState<string | null>(null)
+  const [deletingUser, setDeletingUser] = useState<SystemUser | null>(null)
+  const [deletingLoading, setDeletingLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState("")
   const [notice, setNotice] = useState<{ id: number; message: string } | null>(null)
+
 
   useEffect(() => {
     if (navigationState === handledNotification.current || typeof navigationState?.registrationEmail !== "string") return
@@ -214,6 +220,41 @@ export default function UserManagementPage() {
     }
   }
 
+  const handleReReviewUser = async (target: SystemUser) => {
+    setReReviewingId(target.userId)
+    try {
+      const updated = await userApi.reReview(target.userId)
+      setUsers((current) =>
+        current.map((user) => (user.userId === updated.userId ? updated : user)),
+      )
+      showNotice(`${target.name} has been moved to pending for re-review.`)
+      window.dispatchEvent(new Event("hope:registrations-changed"))
+      if (statusFilter === "disabled") setRefresh((current) => current + 1)
+    } catch {
+      // Shared error toast is emitted by apiFailure
+    } finally {
+      setReReviewingId(null)
+    }
+  }
+
+  const handleDeleteUserPermanently = async () => {
+    if (!deletingUser) return
+    setDeletingLoading(true)
+    setDeleteError("")
+    try {
+      await userApi.deletePermanently(deletingUser.userId)
+      setUsers((current) => current.filter((u) => u.userId !== deletingUser.userId))
+      showNotice(`${deletingUser.name}'s account has been permanently deleted.`)
+      window.dispatchEvent(new Event("hope:registrations-changed"))
+      setDeletingUser(null)
+      setRefresh((current) => current + 1)
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to permanently delete account")
+    } finally {
+      setDeletingLoading(false)
+    }
+  }
+
   const handleSaveRights = async (userId: string, rights: string[], role: UserRole) => {
     const updated = await userApi.updateRights(userId, rights, role)
     setUsers((current) =>
@@ -323,7 +364,7 @@ export default function UserManagementPage() {
                         disabled={approvalOnly}
                         onChange={(event) => {
                           setStatusFilter(
-                            event.target.value as "all" | "active" | "blocked" | "pending",
+                            event.target.value as "all" | "active" | "blocked" | "pending" | "disabled",
                           )
                           setPage(1)
                         }}
@@ -333,6 +374,7 @@ export default function UserManagementPage() {
                         <option value="active">Active</option>
                         <option value="blocked">Blocked</option>
                         <option value="pending">Pending</option>
+                        <option value="disabled">Rejected</option>
                       </select>
                     </span>
                   </label>
@@ -374,9 +416,15 @@ export default function UserManagementPage() {
                   togglingId={togglingId}
                   approvingId={approvingId}
                   rejectingId={rejectingId}
+                  reReviewingId={reReviewingId}
                   onPageChange={setPage}
                   onApprove={handleApproveUser}
                   onReject={handleRejectUser}
+                  onReReview={handleReReviewUser}
+                  onDeletePermanently={(user) => {
+                    setDeleteError("")
+                    setDeletingUser(user)
+                  }}
                   onToggleBlock={handleToggleBlock}
                   onOpenRights={setRightsUser}
                   onEdit={openEditPanel}
@@ -402,6 +450,20 @@ export default function UserManagementPage() {
           canAssignAdmin={isSuperAdmin}
           onClose={() => setRightsUser(null)}
           onSave={handleSaveRights}
+        />
+
+        <DeleteUserModal
+          user={deletingUser}
+          open={Boolean(deletingUser)}
+          onCancel={() => {
+            if (!deletingLoading) {
+              setDeletingUser(null)
+              setDeleteError("")
+            }
+          }}
+          onConfirm={handleDeleteUserPermanently}
+          loading={deletingLoading}
+          error={deleteError}
         />
 
         {notice && (

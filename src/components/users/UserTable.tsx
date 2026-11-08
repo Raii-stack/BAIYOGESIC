@@ -24,9 +24,12 @@ export default function UserTable({
   togglingId,
   approvingId,
   rejectingId,
+  reReviewingId,
   onPageChange,
   onApprove,
   onReject,
+  onReReview,
+  onDeletePermanently,
   onToggleBlock,
   onOpenRights,
   onEdit,
@@ -41,9 +44,12 @@ export default function UserTable({
   togglingId: string | null
   approvingId: string | null
   rejectingId: string | null
+  reReviewingId?: string | null
   onPageChange: (page: number) => void
   onApprove: (user: SystemUser) => void
   onReject: (user: SystemUser) => void
+  onReReview?: (user: SystemUser) => void
+  onDeletePermanently?: (user: SystemUser) => void
   onToggleBlock: (user: SystemUser) => void
   onOpenRights: (user: SystemUser) => void
   onEdit: (user: SystemUser) => void
@@ -99,7 +105,9 @@ export default function UserTable({
                 const canManageRow = isSuperAdmin || user.role === "employee"
                 const canBlockRow = !approvalOnly && canManageRow && !isSelf && user.status === "active"
                 const canRejectRow = canManageRow && !isSelf && user.status === "pending"
-                const deciding = approvingId === user.userId || rejectingId === user.userId
+                const canReReviewRow = canManageRow && !isSelf && user.status === "disabled" && Boolean(onReReview)
+                const canDeletePermanently = isSuperAdmin && !isSelf && user.status === "disabled" && Boolean(onDeletePermanently)
+                const deciding = approvingId === user.userId || rejectingId === user.userId || reReviewingId === user.userId
                 const canAssignRights = !approvalOnly && (isSuperAdmin
                   ? !isSelf
                   : canManageRow && user.role === "employee")
@@ -163,10 +171,32 @@ export default function UserTable({
                             >
                               {approvingId === user.userId ? <span role="status" aria-label="Accepting registration">…</span> : <DashboardIcon name="check" className="h-4 w-4" />}
                             </button>
+                          ) : canReReviewRow ? (
+                            <button
+                              type="button"
+                              disabled={deciding}
+                              onClick={() => onReReview && onReReview(user)}
+                              aria-label={`Re-review ${user.name}`}
+                              title="Re-review registration"
+                              className="workspace-icon-action workspace-icon-action--warning h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                            >
+                              {reReviewingId === user.userId ? <span role="status" aria-label="Re-reviewing registration">…</span> : <DashboardIcon name="restore" className="h-4 w-4" />}
+                            </button>
                           ) : <span aria-hidden="true" className="hidden md:block" />}
                           {canRejectRow ? (
                             <button type="button" disabled={deciding} onClick={() => onReject(user)} aria-label={`Reject ${user.name}`} title="Reject registration" className="workspace-icon-action workspace-icon-action--danger h-8 w-8">
                               {rejectingId === user.userId ? <span role="status" aria-label="Rejecting registration">…</span> : <DashboardIcon name="close" className="h-4 w-4" />}
+                            </button>
+                          ) : canDeletePermanently ? (
+                            <button
+                              type="button"
+                              disabled={deciding}
+                              onClick={() => onDeletePermanently && onDeletePermanently(user)}
+                              aria-label={`Permanently delete ${user.name}`}
+                              title="Permanently delete account"
+                              className="workspace-icon-action workspace-icon-action--danger h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <DashboardIcon name="archive" className="h-4 w-4" />
                             </button>
                           ) : canBlockRow ? (
                             <button

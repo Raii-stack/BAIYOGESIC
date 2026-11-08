@@ -93,7 +93,7 @@ export const userApi = {
       limit: number
       search: string
       role: "all" | UserRole
-      status: "all" | "active" | "blocked" | "pending"
+      status: "all" | "active" | "blocked" | "pending" | "disabled"
     },
     signal?: AbortSignal,
   ) {
@@ -148,6 +148,16 @@ export const userApi = {
     const data = await request<{ user: SystemUser }>(`/${encodeURIComponent(userId)}/reject`, "POST")
     return normalizeUserRow(data.user)
   },
+  async reReview(userId: string) {
+    const data = await request<{ user: SystemUser }>(`/${encodeURIComponent(userId)}/re-review`, "POST")
+    return normalizeUserRow(data.user)
+  },
+  async deletePermanently(userId: string) {
+    return request<{ user: { userId: string }; message?: string }>(
+      `/${encodeURIComponent(userId)}`,
+      "DELETE",
+    )
+  },
   async updateRights(userId: string, rights: string[], role: UserRole) {
     const data = await request<{ user: SystemUser }>(
       `/${encodeURIComponent(userId)}/rights`,
@@ -157,3 +167,4 @@ export const userApi = {
     return normalizeUserRow(data.user)
   },
 }
+

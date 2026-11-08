@@ -744,3 +744,108 @@ test("displays Audit Logs tab for superadmin and toggles to AuditLogViewer", asy
   expect(await screen.findByText(/Append-Only Audit Log/i)).toBeInTheDocument()
   expect(await screen.findByText("SO-1234")).toBeInTheDocument()
 })
+
+test("re-reviewing a rejected user updates the status back to pending", async () => {
+  const rejectedUser = { ...makeUser(5, "employee"), status: "disabled" as const }
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: superAdminSession })
+    if (url.pathname === "/api/users/options") return success({ availableEmployees: [] })
+    if (url.pathname === "/api/users" && (!init?.method || init.method === "GET")) {
+      return success({ users: [rejectedUser], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    }
+    if (url.pathname === `/api/users/${rejectedUser.userId}/re-review` && init?.method === "POST") {
+      return success({ user: { ...rejectedUser, status: "pending" as const } })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <UserManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  await screen.findByRole("row", { name: "User5 Account", exact: true })
+  expect(screen.getByText("Disabled")).toBeInTheDocument()
+  const reReviewBtn = screen.getByRole("button", { name: "Re-review User5 Account" })
+  expect(reReviewBtn).toBeInTheDocument()
+  await user.click(reReviewBtn)
+
+  expect(await screen.findByRole("status")).toHaveTextContent("User5 Account has been moved to pending for re-review.")
+  expect(within(screen.getByRole("row", { name: "User5 Account", exact: true })).getByText("Pending")).toBeInTheDocument()
+})
+
+test("superadmin can permanently delete a rejected user with confirmation", async () => {
+  let deleted = false
+  const rejectedUser = { ...makeUser(5, "employee"), status: "disabled" as const }
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: superAdminSession })
+    if (url.pathname === "/api/users/options") return success({ availableEmployees: [] })
+    if (url.pathname === "/api/users" && (!init?.method || init.method === "GET")) {
+      return success({ users: deleted ? [] : [rejectedUser], pagination: { page: 1, limit: 10, total: deleted ? 0 : 1, totalPages: deleted ? 0 : 1 } })
+    }
+    if (url.pathname === `/api/users/${rejectedUser.userId}` && init?.method === "DELETE") {
+      deleted = true
+      return success({ user: { userId: rejectedUser.userId }, message: "Account permanently deleted" })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <UserManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  await screen.findByRole("row", { name: "User5 Account", exact: true })
+  const deleteBtn = screen.getByRole("button", { name: "Permanently delete User5 Account" })
+  expect(deleteBtn).toBeInTheDocument()
+  await user.click(deleteBtn)
+
+  const dialog = await screen.findByRole("alertdialog")
+  expect(dialog).toBeInTheDocument()
+  expect(within(dialog).getByRole("heading", { name: "Permanently delete this account?" })).toBeInTheDocument()
+  expect(within(dialog).getByText(/User5 Account/)).toBeInTheDocument()
+
+  await user.click(within(dialog).getByRole("button", { name: "Yes, Delete Permanently" }))
+
+  expect(await screen.findByRole("status")).toHaveTextContent("User5 Account's account has been permanently deleted.")
+  expect(screen.queryByRole("row", { name: "User5 Account", exact: true })).not.toBeInTheDocument()
+})
+
+test("admin can re-review rejected accounts but cannot permanently delete them", async () => {
+  const rejectedUser = { ...makeUser(5, "employee"), status: "disabled" as const }
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: adminSession })
+    if (url.pathname === "/api/users/options") return success({ availableEmployees: [] })
+    if (url.pathname === "/api/users" && (!init?.method || init.method === "GET")) {
+      return success({ users: [rejectedUser], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+
+  render(
+    <MemoryRouter>
+      <AuthProvider>
+        <UserManagementPage />
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  await screen.findByRole("row", { name: "User5 Account", exact: true })
+  expect(screen.getByRole("button", { name: "Re-review User5 Account" })).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Permanently delete User5 Account" })).not.toBeInTheDocument()
+})
+

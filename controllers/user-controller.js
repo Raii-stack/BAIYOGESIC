@@ -3,7 +3,8 @@ const { requirePool } = require('../db');
 const { invalidateUserCache } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error-handler');
 const { isSuperAdminRole, isAdminOrSuperAdmin } = require('../middleware/permissions');
-const { rejectionEmailMailer } = require('../lib/password-reset-email');
+const { rejectionEmailMailer, approvalEmailMailer } = require('../lib/password-reset-email');
+
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -104,7 +105,7 @@ const listUsers = asyncHandler(async (req, res) => {
   if (!['all', 'superadmin', 'admin', 'employee'].includes(roleFilter)) {
     throw requestError('Invalid role filter', 400);
   }
-  if (!['all', 'active', 'blocked', 'pending'].includes(statusFilter)) {
+  if (!['all', 'active', 'blocked', 'pending', 'disabled', 'rejected'].includes(statusFilter)) {
     throw requestError('Invalid status filter', 400);
   }
 
@@ -139,6 +140,8 @@ const listUsers = asyncHandler(async (req, res) => {
     filters.push(`u.is_blocked = false AND u.status = 'active'`);
   } else if (statusFilter === 'pending') {
     filters.push(`u.is_blocked = false AND u.status = 'pending'`);
+  } else if (statusFilter === 'disabled' || statusFilter === 'rejected') {
+    filters.push(`u.status = 'disabled'`);
   }
 
   const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
@@ -555,6 +558,13 @@ function registrationDecision(approve) {
       } catch (err) {
         console.error('Could not send registration rejection email:', err.message);
       }
+    } else if (approve && updated?.email) {
+      try {
+        const sendApproval = approvalEmailMailer();
+        await sendApproval(updated.email, updated.firstName || updated.name || '');
+      } catch (err) {
+        console.error('Could not send registration approval email:', err.message);
+      }
     }
     res.json({ success: true, data: { user: updated } });
   });
@@ -562,6 +572,100 @@ function registrationDecision(approve) {
 
 const approveUser = registrationDecision(true);
 const rejectUser = registrationDecision(false);
+
+const reReviewUser = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  if (!UUID_PATTERN.test(String(userId || ''))) {
+    throw requestError('Invalid user ID', 400);
+  }
+
+  const requesterIsSuperAdmin = isSuperAdminRole(req.user && req.user.role);
+  const actor = auditActor(req);
+
+  const updated = await withAudit(actor, async (client) => {
+    const existingResult = await client.query(
+      `SELECT user_id, role, status, is_blocked FROM public.app_user WHERE user_id = $1::uuid FOR UPDATE`,
+      [userId]
+    );
+    const existing = existingResult.rows[0];
+    if (!existing) {
+      throw requestError('User account not found', 404);
+    }
+
+    if (!requesterIsSuperAdmin && existing.role !== 'employee') {
+      throw requestError('You can only re-review Employee accounts', 403);
+    }
+
+    if (existing.status !== 'disabled') {
+      throw requestError('Only rejected accounts can be moved to re-review', 409);
+    }
+
+    await client.query(
+      `UPDATE public.app_user
+       SET status = 'pending',
+           stamp = public.audit_stamp('EDIT'),
+           updated_at = now()
+       WHERE user_id = $1::uuid`,
+      [userId]
+    );
+
+    return fetchUserById(client, userId);
+  });
+
+  invalidateUserCache(userId);
+  res.json({ success: true, data: { user: updated } });
+});
+
+const deleteUserPermanently = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  if (!UUID_PATTERN.test(String(userId || ''))) {
+    throw requestError('Invalid user ID', 400);
+  }
+
+  const requesterIsSuperAdmin = isSuperAdminRole(req.user && req.user.role);
+  if (!requesterIsSuperAdmin) {
+    throw requestError('Only superadmins can permanently delete accounts', 403);
+  }
+
+  if (String(req.user && req.user.sub) === String(userId)) {
+    throw requestError('You cannot delete your own account', 400);
+  }
+
+  const actor = auditActor(req);
+
+  const deleted = await withAudit(actor, async (client) => {
+    const existingResult = await client.query(
+      `SELECT user_id, email, role, status FROM public.app_user WHERE user_id = $1::uuid FOR UPDATE`,
+      [userId]
+    );
+    const existing = existingResult.rows[0];
+    if (!existing) {
+      throw requestError('User account not found', 404);
+    }
+
+    if (existing.status !== 'disabled' && existing.status !== 'pending') {
+      throw requestError('Only rejected or pending accounts can be permanently deleted', 409);
+    }
+
+    await client.query(`DELETE FROM public.password_reset_token WHERE user_id = $1::uuid`, [userId]);
+    await client.query(`DELETE FROM public.app_user_presence WHERE user_id = $1::uuid`, [userId]);
+    await client.query(`DELETE FROM public.app_user_right WHERE user_id = $1::uuid`, [userId]);
+    await client.query(`DELETE FROM public.app_user_preferences WHERE user_id = $1::uuid`, [userId]);
+    await client.query(`DELETE FROM public.app_notification WHERE user_id = $1::uuid`, [userId]);
+    await client.query(`DELETE FROM public.app_user WHERE user_id = $1::uuid`, [userId]);
+
+    await client.query(
+      `INSERT INTO public.audit_log (table_name, action, record_key, old_values, action_by, action_at)
+       VALUES ('app_user', 'DELETE', $1, $2, $3, now())`,
+      [userId, JSON.stringify({ email: existing.email, role: existing.role, status: existing.status }), actor]
+    );
+
+    return existing;
+  });
+
+  invalidateUserCache(userId);
+  res.json({ success: true, data: { user: deleted, message: 'Account permanently deleted' } });
+});
 
 const setBlockStatus = asyncHandler(async (req, res) => {
   const { userId } = req.params;
@@ -734,7 +838,10 @@ module.exports = {
   updateUser,
   approveUser,
   rejectUser,
+  reReviewUser,
+  deleteUserPermanently,
   registrationNotifications,
   setBlockStatus,
   updateUserRights
 };
+

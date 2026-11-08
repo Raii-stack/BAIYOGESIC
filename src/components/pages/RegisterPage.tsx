@@ -23,6 +23,18 @@ export default function RegisterPage() {
   const [serverError, setServerError] = useState("")
   const [submitting, setSubmitting] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
+  const [verification, setVerification] = useState<{ expiresAt: string; resendAt: string } | null>(null)
+  const [verificationCode, setVerificationCode] = useState("")
+  const [now, setNow] = useState(Date.now())
+  const resendSeconds = verification ? Math.max(0, Math.ceil((Date.parse(verification.resendAt) - now) / 1000)) : 0
+  const codeExpired = Boolean(verification && Date.parse(verification.expiresAt) <= now)
+
+  useEffect(() => {
+    if (!verification || isSuccess) return
+    document.getElementById("register-code")?.focus()
+    const timer = window.setInterval(() => setNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [verification, isSuccess])
 
   const set = (key: keyof typeof form) => (value: string) => {
     setForm((curr) => ({ ...curr, [key]: value }))
@@ -36,8 +48,25 @@ export default function RegisterPage() {
     document.title = "Register | HOPE, Inc."
   }, [])
 
+  const sendCode = async () => {
+    setSubmitting(true)
+    setServerError("")
+    try {
+      const result = await authApi.sendRegistrationCode(form.email.trim())
+      setNow(Date.now())
+      setVerification(result)
+      setVerificationCode("")
+      setErrors({})
+    } catch (error) {
+      setServerError(safeErrorMessage(error))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    if (submitting) return
     const nextErrors: Errors = {}
     if (!form.firstName.trim()) nextErrors.firstName = "First name is required."
     if (!form.lastName.trim()) nextErrors.lastName = "Last name is required."
@@ -46,10 +75,13 @@ export default function RegisterPage() {
     if (!form.confirmPassword || form.confirmPassword !== form.password) {
       nextErrors.confirmPassword = "Passwords do not match."
     }
+    if (verification && !/^\d{6}$/.test(verificationCode)) nextErrors.verificationCode = "Enter the 6-digit code from your email."
 
     setErrors(nextErrors)
     setServerError("")
     if (Object.keys(nextErrors).length) return
+    if (!verification) return sendCode()
+    if (codeExpired) return
 
     setSubmitting(true)
     try {
@@ -58,9 +90,11 @@ export default function RegisterPage() {
         lastName: form.lastName.trim(),
         email: form.email.trim(),
         password: form.password,
+        verificationCode,
       })
       setIsSuccess(true)
       setForm((current) => ({ ...current, password: "", confirmPassword: "" }))
+      setVerificationCode("")
       notifyToast("Registration submitted. Your account is pending approval.")
     } catch (err) {
       setServerError(safeErrorMessage(err))
@@ -73,7 +107,7 @@ export default function RegisterPage() {
   if (user) return <Navigate to="/dashboard" replace />
 
   return (
-    <AuthShell page="create" title="Create your account" subtitle="New accounts start pending. HR, an admin, or a superadmin must approve your account before you can sign in.">
+    <AuthShell page="create" title={isSuccess ? "Awaiting approval" : verification ? "Verify your email" : "Create your account"} subtitle="Verify your email, then submit your registration. HR, an admin, or a superadmin must approve your account before you can sign in.">
 
         {isSuccess ? (
           <div className="mt-6 space-y-4">
@@ -106,6 +140,7 @@ export default function RegisterPage() {
               </p>
             )}
 
+            {!verification ? <fieldset disabled={submitting} className="flex min-w-0 flex-col gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
                 id="register-first-name"
@@ -178,12 +213,34 @@ export default function RegisterPage() {
             <div className="rounded-md border border-neutral-200 bg-neutral-50 px-3 py-2 text-[11px] text-neutral-600">
               Role: <span className="font-semibold text-neutral-800">User (Employee)</span>. Administrator roles must be granted by existing system administrators.
             </div>
+            </fieldset> : <>
+              <div role="status" className={`rounded-lg border p-4 text-sm ${codeExpired ? "border-amber-200 bg-amber-50 text-amber-900" : "border-blue-200 bg-blue-50 text-blue-900"}`}>
+                <p className="font-semibold">{codeExpired ? "Verification code expired" : "Check your inbox"}</p>
+                <p className="mt-1 break-words">{codeExpired ? "Request a new code to continue. Your registration has not been submitted." : `We sent a 6-digit code to ${form.email.trim()}. It expires in 10 minutes. Check your spam folder too.`}</p>
+              </div>
+              {!codeExpired && <fieldset disabled={submitting}>
+                <Field id="register-code" label="Verification code" icon="lock" placeholder="6-digit code"
+                  autoComplete="one-time-code" inputMode="numeric" maxLength={6} className="mb-0"
+                  value={verificationCode} onChange={(value) => { setVerificationCode(value.replace(/\D/g, "")); setErrors({}); setServerError("") }}
+                  error={errors.verificationCode} />
+              </fieldset>}
+              <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+                <button type="button" className="font-medium text-blue-700 underline underline-offset-2 disabled:opacity-50"
+                  disabled={submitting || resendSeconds > 0} onClick={sendCode}>
+                  {resendSeconds > 0 ? `Resend code in ${resendSeconds}s` : "Resend code"}
+                </button>
+                <button type="button" className="font-medium text-neutral-600 underline underline-offset-2 disabled:opacity-50"
+                  disabled={submitting} onClick={() => { setVerification(null); setVerificationCode(""); setErrors({}); setServerError("") }}>
+                  Edit registration details
+                </button>
+              </div>
+            </>}
 
-            <div>
-              <Submit loading={submitting} loadingLabel="Creating account…">
-                Register account
+            {!codeExpired && <div>
+              <Submit loading={submitting} loadingLabel={verification ? "Verifying and submitting…" : "Sending code…"}>
+                {verification ? "Verify and submit registration" : "Send verification code"}
               </Submit>
-            </div>
+            </div>}
 
             <p className="text-center text-xs text-neutral-500">
               Already have an account?{" "}

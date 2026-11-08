@@ -5,7 +5,7 @@ const { supabase, requirePool } = require('../db');
 const { primeUserCache, invalidateUserCache } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error-handler');
 const { endActivity } = require('./activity-controller');
-const { passwordResetMailer } = require('../lib/password-reset-email');
+const { passwordResetMailer, registrationCodeMailer } = require('../lib/password-reset-email');
 
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '1h';
 const PASSWORD_MIN_LENGTH = 8;
@@ -64,6 +64,51 @@ function resetTokenHash(token) {
   return `email:${crypto.createHash('sha256').update(token).digest('hex')}`;
 }
 
+function registrationCodeHash(email, code) {
+  return crypto.createHmac('sha256', getJwtSecret()).update(`registration:${email}:${code}`).digest('hex');
+}
+
+const sendRegistrationCode = asyncHandler(async (req, res) => {
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  if (email.length > 254 || !EMAIL_PATTERN.test(email) || /[<>,;:"()[\]\\]/.test(email)) {
+    throw requestError('A valid email is required', 400);
+  }
+
+  const sendCode = registrationCodeMailer();
+  const code = crypto.randomInt(0, 1000000).toString().padStart(6, '0');
+  const codeHash = registrationCodeHash(email, code);
+  const client = await requirePool().connect();
+  try {
+    await client.query('BEGIN');
+    const existing = await client.query('SELECT user_id FROM public.app_user WHERE lower(email) = $1 LIMIT 1', [email]);
+    if (existing.rows.length) throw requestError('A user with that email already exists', 409);
+
+    // One row per email serializes resends across server instances and keeps the hourly budget.
+    const issued = await client.query(
+      `INSERT INTO public.registration_email_verification AS verification (email, code_hash, expires_at)
+       VALUES ($1, $2, now() + interval '10 minutes')
+       ON CONFLICT (email) DO UPDATE SET
+         code_hash = EXCLUDED.code_hash, expires_at = EXCLUDED.expires_at, sent_at = now(), attempts = 0, used = false,
+         window_started_at = CASE WHEN verification.window_started_at <= now() - interval '1 hour' THEN now() ELSE verification.window_started_at END,
+         send_count = CASE WHEN verification.window_started_at <= now() - interval '1 hour' THEN 1 ELSE verification.send_count + 1 END
+       WHERE verification.sent_at <= now() - interval '60 seconds'
+         AND (verification.window_started_at <= now() - interval '1 hour' OR verification.send_count < 3)
+       RETURNING expires_at, sent_at + interval '60 seconds' AS resend_at`,
+      [email, codeHash]
+    );
+    if (!issued.rows.length) throw requestError('Please wait 60 seconds between codes. You can request up to 3 codes per hour.', 429);
+    // shortcut: a failed commit can invalidate an emailed code; add an outbox if delivery guarantees are needed.
+    await sendCode(email, code);
+    await client.query('COMMIT');
+    res.json({ success: true, data: { expiresAt: issued.rows[0].expires_at, resendAt: issued.rows[0].resend_at } });
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+});
+
 function formatAuthUser(user) {
   return {
     userId: user.user_id,
@@ -83,18 +128,19 @@ function formatAuthUser(user) {
 }
 
 const register = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, password } = req.body || {};
+  const { firstName, lastName, email, password, verificationCode } = req.body || {};
   const normalizedEmail = typeof email === 'string' ? email.trim().toLowerCase() : '';
   const trimmedFirst = String(firstName || '').trim();
   const trimmedLast = String(lastName || '').trim();
 
-  if (!trimmedFirst || !trimmedLast || !EMAIL_PATTERN.test(normalizedEmail)) {
+  if (!trimmedFirst || !trimmedLast || normalizedEmail.length > 254 || !EMAIL_PATTERN.test(normalizedEmail)) {
     throw requestError('firstName, lastName, and email are required', 400);
   }
 
   const rawPassword = typeof password === 'string' ? password : '';
-  if (rawPassword && rawPassword.length < 8) {
-    throw requestError('password must be at least 8 characters', 400);
+  validatePassword(rawPassword);
+  if (typeof verificationCode !== 'string' || !/^\d{6}$/.test(verificationCode)) {
+    throw requestError('Enter the 6-digit verification code sent to your email.', 400);
   }
 
   const pool = requirePool();
@@ -110,7 +156,24 @@ const register = asyncHandler(async (req, res) => {
       throw requestError('A user with that email already exists', 409);
     }
 
-    const passwordHash = rawPassword ? await bcrypt.hash(rawPassword, 12) : null;
+    const verification = await client.query(
+      `SELECT code_hash, attempts, used, expires_at <= now() AS expired
+       FROM public.registration_email_verification WHERE email = $1 FOR UPDATE`, [normalizedEmail]
+    );
+    const record = verification.rows[0];
+    if (!record || record.used) throw requestError('Request a new email verification code before registering.', 400);
+    if (record.expired) throw requestError('Your verification code has expired. Request a new code.', 400);
+    if (record.attempts >= 5) throw requestError('Too many incorrect codes. Request a new code.', 400);
+    const suppliedHash = registrationCodeHash(normalizedEmail, verificationCode);
+    if (!crypto.timingSafeEqual(Buffer.from(record.code_hash, 'hex'), Buffer.from(suppliedHash, 'hex'))) {
+      await client.query('UPDATE public.registration_email_verification SET attempts = attempts + 1 WHERE email = $1', [normalizedEmail]);
+      // Failed attempts must survive the failed registration, including concurrent guesses.
+      await client.query('COMMIT');
+      return res.status(400).json({ success: false, error: { message: record.attempts === 4
+        ? 'Too many incorrect codes. Request a new code.' : 'The verification code is incorrect. Please try again.' } });
+    }
+
+    const passwordHash = await bcrypt.hash(rawPassword, 12);
     const role = 'employee';
     const status = 'pending';
 
@@ -145,6 +208,7 @@ const register = asyncHandler(async (req, res) => {
       }
     } catch {}
 
+    await client.query('UPDATE public.registration_email_verification SET used = true WHERE email = $1', [normalizedEmail]);
     await client.query('COMMIT');
 
     res.status(201).json({
@@ -217,6 +281,27 @@ const forgotPassword = asyncHandler(async (req, res) => {
   }
 });
 
+async function findResetToken(client, rawToken, lock = false) {
+  if (typeof rawToken !== 'string' || !/^[a-f0-9]{64}$/.test(rawToken)) return null;
+  const result = await client.query(
+    `SELECT t.user_id, LEAST(t.expires_at, t.created_at + interval '15 minutes') AS expires_at,
+       CASE WHEN t.used THEN 'used'
+            WHEN t.expires_at <= now() OR t.created_at <= now() - interval '15 minutes' THEN 'expired'
+            WHEN u.status != 'active' OR u.is_blocked THEN 'invalid'
+            ELSE 'valid' END AS status
+     FROM public.password_reset_token t JOIN public.app_user u ON u.user_id = t.user_id
+     WHERE t.token_hash = $1 ${lock ? 'FOR UPDATE OF t' : ''}`, [resetTokenHash(rawToken)]
+  );
+  return result.rows[0] || null;
+}
+
+const validateResetToken = asyncHandler(async (req, res) => {
+  const record = await findResetToken(requirePool(), req.body?.token);
+  res.set('Cache-Control', 'no-store');
+  res.json({ success: true, data: { status: record?.status || 'invalid',
+    ...(record?.status === 'valid' ? { expiresAt: record.expires_at } : {}) } });
+});
+
 const resetPassword = asyncHandler(async (req, res) => {
   const { token, password, newPassword } = req.body || {};
   const rawToken = String(token || '').trim();
@@ -231,20 +316,14 @@ const resetPassword = asyncHandler(async (req, res) => {
     throw requestError('Password must be at least 8 characters', 400);
   }
 
-  const tokenHash = resetTokenHash(rawToken);
   const pool = requirePool();
   const client = await pool.connect();
 
   try {
     await client.query('BEGIN');
 
-    const tokenResult = await client.query(
-      "SELECT token_hash, user_id, expires_at, used FROM public.password_reset_token WHERE token_hash = $1 AND used = false AND expires_at > now() AND created_at > now() - interval '15 minutes' LIMIT 1 FOR UPDATE",
-      [tokenHash]
-    );
-
-    const resetRecord = tokenResult.rows[0];
-    if (!resetRecord) {
+    const resetRecord = await findResetToken(client, rawToken, true);
+    if (resetRecord?.status !== 'valid') {
       throw requestError('Invalid or expired reset token', 400);
     }
 
@@ -471,6 +550,8 @@ const changePassword = asyncHandler(async (req, res) => {
 
 module.exports = {
   register,
+  sendRegistrationCode,
+  validateResetToken,
   setPassword,
   login,
   session,

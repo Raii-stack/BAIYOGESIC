@@ -1,12 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import bcrypt from 'bcrypt';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import crypto from 'node:crypto';
 
 let mockClient;
 let mockPool;
 let sendResetEmail;
+let sendCodeEmail;
+const codeHash = (email, code = '123456') => crypto.createHmac('sha256', process.env.JWT_SECRET).update(`registration:${email}:${code}`).digest('hex');
 require.cache[require.resolve('../../lib/password-reset-email')] = {
   id: require.resolve('../../lib/password-reset-email'), filename: require.resolve('../../lib/password-reset-email'), loaded: true,
-  exports: { passwordResetMailer: () => sendResetEmail },
+  exports: { passwordResetMailer: () => sendResetEmail, registrationCodeMailer: () => sendCodeEmail },
 };
 
 require.cache[require.resolve('../../db')] = {
@@ -23,6 +25,8 @@ const {
   register,
   forgotPassword,
   resetPassword,
+  sendRegistrationCode,
+  validateResetToken,
 } = require('../../controllers/auth-controller');
 
 function invokeHandler(handler, { body = {}, user, query = {} } = {}) {
@@ -31,6 +35,7 @@ function invokeHandler(handler, { body = {}, user, query = {} } = {}) {
     const res = {
       statusCode: 200,
       body: undefined,
+      set: vi.fn(),
       status(code) {
         this.statusCode = code;
         return this;
@@ -55,9 +60,13 @@ function invokeHandler(handler, { body = {}, user, query = {} } = {}) {
 }
 
 beforeEach(() => {
+  vi.stubEnv('JWT_SECRET', 'registration-tests-only');
   sendResetEmail = vi.fn().mockResolvedValue(undefined);
+  sendCodeEmail = vi.fn().mockResolvedValue(undefined);
   mockClient = {
     query: vi.fn(async (sql, params) => {
+      if (sql.includes('INSERT INTO public.registration_email_verification')) return { rows: [{ expires_at: new Date(Date.now() + 600000), resend_at: new Date(Date.now() + 60000) }] };
+      if (sql.includes('SELECT code_hash')) return { rows: [{ code_hash: codeHash(params[0]), attempts: 0, used: false, expired: false }] };
       if (typeof sql === 'string' && sql.includes('SELECT user_id, email, status, is_blocked FROM public.app_user')) {
         return { rows: params[0] === 'existing@hope.inc' ? [{ user_id: '99', email: params[0], status: 'active', is_blocked: false }] : [] };
       }
@@ -83,7 +92,7 @@ beforeEach(() => {
           ],
         };
       }
-      if (typeof sql === 'string' && sql.includes('SELECT token_hash, user_id, expires_at, used FROM public.password_reset_token')) {
+      if (typeof sql === 'string' && sql.includes('FROM public.password_reset_token t JOIN')) {
         return {
           rows: [
             {
@@ -91,6 +100,7 @@ beforeEach(() => {
               user_id: '99',
               expires_at: new Date(Date.now() + 3600000),
               used: false,
+              status: 'valid',
             },
           ],
         };
@@ -113,6 +123,7 @@ beforeEach(() => {
     }),
   };
 });
+afterEach(() => vi.unstubAllEnvs());
 
 describe('User Self-Registration (POST /api/auth/register)', () => {
   it('validates required fields: firstName, lastName, email', async () => {
@@ -138,7 +149,7 @@ describe('User Self-Registration (POST /api/auth/register)', () => {
     });
 
     const res = await invokeHandler(register, {
-      body: { firstName: 'Jane', lastName: 'Doe', email: 'duplicate@hope.inc', password: 'ValidPassword123!' },
+      body: { firstName: 'Jane', lastName: 'Doe', email: 'duplicate@hope.inc', password: 'ValidPassword123!', verificationCode: '123456' },
     });
     expect(res.statusCode).toBe(409);
     expect(res.body.error.message).toMatch(/already exists/i);
@@ -151,6 +162,7 @@ describe('User Self-Registration (POST /api/auth/register)', () => {
         lastName: 'Doe',
         email: 'jane@hope.inc',
         password: 'ValidPassword123!',
+        verificationCode: '123456',
         role: 'superadmin', // Privilege escalation attempt
         status: 'active',
       },
@@ -170,6 +182,75 @@ describe('User Self-Registration (POST /api/auth/register)', () => {
     expect(insertAppUserCall).toBeDefined();
     expect(insertAppUserCall[1][4]).toBe('employee'); // role parameter
     expect(insertAppUserCall[1][3]).toBe('pending');
+    expect(mockClient.query).toHaveBeenCalledWith('UPDATE public.registration_email_verification SET used = true WHERE email = $1', ['jane@hope.inc']);
+  });
+
+  it.each([undefined, '', 123456, '12345', 'abcdef'])('rejects missing or malformed verification code: %s', async (verificationCode) => {
+    const res = await invokeHandler(register, { body: { firstName: 'Jane', lastName: 'Doe', email: 'jane@hope.inc', password: 'ValidPassword123!', verificationCode } });
+    expect(res.statusCode).toBe(400);
+    expect(mockPool.connect).not.toHaveBeenCalled();
+  });
+
+  it.each([null, { used: true }, { expired: true }, { attempts: 5 }])('rejects missing, used, expired or exhausted codes: %j', async (record) => {
+    const original = mockClient.query.getMockImplementation();
+    mockClient.query.mockImplementation((sql, params) => sql.includes('SELECT code_hash') ? { rows: record ? [record] : [] } : original(sql, params));
+    const res = await invokeHandler(register, { body: { firstName: 'Jane', lastName: 'Doe', email: 'jane@hope.inc', password: 'ValidPassword123!', verificationCode: '123456' } });
+    expect(res.statusCode).toBe(400);
+    expect(mockClient.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO public.employee'))).toBe(false);
+    expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+  });
+
+  it('commits incorrect attempts without creating an account', async () => {
+    const res = await invokeHandler(register, { body: { firstName: 'Jane', lastName: 'Doe', email: 'jane@hope.inc', password: 'ValidPassword123!', verificationCode: '000000' } });
+    expect(res.statusCode).toBe(400);
+    expect(mockClient.query).toHaveBeenCalledWith('UPDATE public.registration_email_verification SET attempts = attempts + 1 WHERE email = $1', ['jane@hope.inc']);
+    expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
+    expect(mockClient.query).not.toHaveBeenCalledWith('ROLLBACK');
+    expect(mockClient.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO public.employee'))).toBe(false);
+  });
+
+  it('rolls back account creation failure without consuming the code', async () => {
+    const original = mockClient.query.getMockImplementation();
+    mockClient.query.mockImplementation((sql, params) => sql.startsWith('INSERT INTO public.app_user (') ? Promise.reject(new Error('write failed')) : original(sql, params));
+    const res = await invokeHandler(register, { body: { firstName: 'Jane', lastName: 'Doe', email: 'jane@hope.inc', password: 'ValidPassword123!', verificationCode: '123456' } });
+    expect(res.statusCode).toBe(500);
+    expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(mockClient.query).not.toHaveBeenCalledWith('COMMIT');
+  });
+});
+
+describe('Registration verification email', () => {
+  it.each(['invalid', 'person@example.com,other', 'Name<person@example.com>', 'person(comment)@example.com'])('rejects malformed addresses and mail recipient syntax: %s', async (email) => {
+    const res = await invokeHandler(sendRegistrationCode, { body: { email } });
+    expect(res.statusCode).toBe(400);
+    expect(sendCodeEmail).not.toHaveBeenCalled();
+    expect(mockPool.connect).not.toHaveBeenCalled();
+  });
+
+  it('normalizes email, stores only a keyed hash, and does not create an account or return the code', async () => {
+    const res = await invokeHandler(sendRegistrationCode, { body: { email: ' Jane@Hope.inc ' } });
+    expect(res.statusCode).toBe(200);
+    expect(sendCodeEmail).toHaveBeenCalledWith('jane@hope.inc', expect.stringMatching(/^\d{6}$/));
+    const code = sendCodeEmail.mock.calls[0][1];
+    expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO public.registration_email_verification'), ['jane@hope.inc', codeHash('jane@hope.inc', code)]);
+    expect(JSON.stringify(res.body)).not.toContain(code);
+    expect(mockClient.query.mock.calls.some(([sql]) => sql.includes('INSERT INTO public.app_user'))).toBe(false);
+  });
+
+  it('does not send when the persistent resend budget is exhausted', async () => {
+    const original = mockClient.query.getMockImplementation();
+    mockClient.query.mockImplementation((sql, params) => sql.includes('INSERT INTO public.registration_email_verification') ? { rows: [] } : original(sql, params));
+    const res = await invokeHandler(sendRegistrationCode, { body: { email: 'jane@hope.inc' } });
+    expect(res.statusCode).toBe(429);
+    expect(sendCodeEmail).not.toHaveBeenCalled();
+  });
+
+  it('rolls back failed delivery so the user can retry', async () => {
+    sendCodeEmail.mockRejectedValueOnce(Object.assign(new Error('Delivery failed'), { statusCode: 503 }));
+    const res = await invokeHandler(sendRegistrationCode, { body: { email: 'jane@hope.inc' } });
+    expect(res.statusCode).toBe(503);
+    expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+    expect(mockClient.query).not.toHaveBeenCalledWith('COMMIT');
   });
 });
 
@@ -257,14 +338,15 @@ describe('Reset Password Flow (POST /api/auth/reset-password)', () => {
       ([sql]) => typeof sql === 'string' && sql.includes('UPDATE public.password_reset_token SET used = true')
     );
     expect(updateTokenCall).toBeDefined();
-    const lookup = mockClient.query.mock.calls.find(([sql]) => sql.startsWith('SELECT token_hash'));
-    expect(lookup[0]).toContain("created_at > now() - interval '15 minutes'");
+    const lookup = mockClient.query.mock.calls.find(([sql]) => sql.includes('FROM public.password_reset_token t JOIN'));
+    expect(lookup[0]).toContain("t.created_at <= now() - interval '15 minutes'");
+    expect(lookup[0]).toContain('FOR UPDATE OF t');
     expect(lookup[1]).toEqual([expect.stringMatching(/^email:[a-f0-9]{64}$/)]);
   });
 
   it('rejects expired or non-existent token with 400', async () => {
     mockClient.query = vi.fn(async (sql) => {
-      if (typeof sql === 'string' && sql.includes('SELECT token_hash, user_id, expires_at, used FROM public.password_reset_token')) {
+      if (typeof sql === 'string' && sql.includes('FROM public.password_reset_token t JOIN')) {
         return { rows: [] }; // Token not found or expired
       }
       return { rows: [] };
@@ -285,5 +367,21 @@ describe('Reset Password Flow (POST /api/auth/reset-password)', () => {
     expect(res.statusCode).toBe(400);
     expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
     expect(mockClient.query).not.toHaveBeenCalledWith('COMMIT');
+  });
+});
+
+describe('Reset link validation before displaying the form', () => {
+  it.each(['valid', 'expired', 'used', 'invalid'])('returns %s without changing the password or consuming the token', async (status) => {
+    mockPool.query.mockResolvedValueOnce({ rows: [{ status, expires_at: '2026-11-08T12:00:00.000Z', user_id: 'private' }] });
+    const res = await invokeHandler(validateResetToken, { body: { token: 'a'.repeat(64) } });
+    expect(res.body.data).toEqual({ status, ...(status === 'valid' ? { expiresAt: '2026-11-08T12:00:00.000Z' } : {}) });
+    expect(res.set).toHaveBeenCalledWith('Cache-Control', 'no-store');
+    expect(mockPool.connect).not.toHaveBeenCalled();
+  });
+
+  it.each(['', 'malformed', undefined])('treats missing or malformed links as invalid without querying: %s', async (token) => {
+    const res = await invokeHandler(validateResetToken, { body: { token } });
+    expect(res.body.data.status).toBe('invalid');
+    expect(mockPool.query).not.toHaveBeenCalled();
   });
 });

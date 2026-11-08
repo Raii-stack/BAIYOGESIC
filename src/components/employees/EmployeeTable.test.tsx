@@ -152,4 +152,23 @@ describe("EmployeeTable status badge rendering", () => {
     expect(badge).toBeInTheDocument()
     expect(badge).toHaveClass("bg-neutral-100", "text-neutral-600")
   })
+
+  test("does not render email or salary lock icon below the first name", () => {
+    const employee = createEmployee({
+      firstName: "Nelson",
+      lastName: "Aguinaldo",
+      email: "nelson@example.com",
+      canViewSalary: false,
+    })
+    render(
+      <MemoryRouter>
+        <EmployeeTable {...defaultProps} canViewSalary={false} employees={[employee]} />
+      </MemoryRouter>,
+    )
+
+    const row = screen.getByRole("row", { name: /Nelson Aguinaldo/ })
+    expect(within(row).getByRole("link", { name: /Nelson/ })).toBeInTheDocument()
+    expect(within(row).queryByText("nelson@example.com")).not.toBeInTheDocument()
+    expect(within(row).queryByLabelText("Salary hidden due to permissions")).not.toBeInTheDocument()
+  })
 })

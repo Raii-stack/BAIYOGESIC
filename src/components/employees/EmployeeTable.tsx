@@ -150,7 +150,6 @@ export default function EmployeeTable({
                       ? "bg-red-100 text-red-800"
                       : "bg-neutral-100 text-neutral-600"
               const expanded = expandedEmployee === employee.id
-              const hasSalaryPermission = canViewSalary || Boolean(employee.canViewSalary)
               return (
                 <Fragment key={employee.id}>
                   <tr className={`border-b border-slate-100 transition-colors last:border-0 ${expanded ? "is-expanded" : employee.archived ? "is-muted" : isBlocked ? "bg-red-50/40 hover:bg-red-50/70" : "hover:bg-neutral-50"}`}>
@@ -166,13 +165,6 @@ export default function EmployeeTable({
                       <Link to={`/employees/${encodeURIComponent(employee.id)}?view=details`} className="text-[13px] font-medium text-neutral-900 underline-offset-4 hover:text-blue-800 hover:underline">
                         {employee.firstName || "—"} <span className="sr-only">{employee.fullName}</span>
                       </Link>
-                      <p className="mt-0.5 text-xs text-slate-500">{employee.email || "—"}</p>
-                      {!hasSalaryPermission && (
-                        <span aria-label="Salary hidden due to permissions" className="inline-flex items-center gap-1 text-xs text-slate-400">
-                          <DashboardIcon name="lock" className="h-3.5 w-3.5 inline" />
-                          <span className="sr-only">••••••••</span>
-                        </span>
-                      )}
                     </td>
                     <td data-label="Gender" className="whitespace-nowrap text-sm font-medium text-slate-700">
                       {employee.gender || "—"}

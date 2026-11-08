@@ -17,6 +17,8 @@ export type Employee = {
   departmentCode?: string
   effectiveDate?: string
   archived?: boolean
+  userStatus?: string | null
+  isBlocked?: boolean
 }
 
 export type JobHistoryEntry = {

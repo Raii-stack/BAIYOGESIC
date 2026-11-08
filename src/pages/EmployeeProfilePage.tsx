@@ -81,10 +81,28 @@ export default function EmployeeProfilePage() {
                                 ? "bg-slate-200 text-slate-700"
                                 : employee.separationDate
                                 ? "bg-amber-100 text-amber-900"
+                                : employee.isBlocked
+                                ? "bg-red-100 text-red-800"
+                                : employee.userStatus === "disabled" || employee.userStatus === "rejected"
+                                ? "bg-neutral-100 text-neutral-600"
+                                : employee.userStatus === "pending"
+                                ? "bg-amber-100 text-amber-900"
                                 : "bg-emerald-100 text-emerald-800"
                             }`}
                           >
-                            {employee.archived ? "Archived" : employee.separationDate ? "Separated" : "Active"}
+                            {employee.archived
+                              ? "Archived"
+                              : employee.separationDate
+                              ? "Separated"
+                              : employee.isBlocked
+                              ? "Blocked"
+                              : employee.userStatus === "rejected"
+                              ? "Rejected"
+                              : employee.userStatus === "disabled"
+                              ? "Disabled"
+                              : employee.userStatus === "pending"
+                              ? "Pending"
+                              : "Active"}
                           </span>
                         )}
                       </div>

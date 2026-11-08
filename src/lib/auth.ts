@@ -30,11 +30,13 @@ export function getUserInitials(user: AuthUser | null | undefined): string {
 }
 
 export function isSuperAdminRole(role?: string | null): boolean {
-  return role === "superadmin" || role === "administrator"
+  const normalized = String(role || "").trim().toLowerCase()
+  return normalized === "superadmin" || normalized === "administrator"
 }
 
 export function isAdminRole(role?: string | null): boolean {
-  return isSuperAdminRole(role) || role === "admin"
+  const normalized = String(role || "").trim().toLowerCase()
+  return isSuperAdminRole(normalized) || normalized === "admin"
 }
 
 export function hasUserRight(user: AuthUser | null | undefined, ...rightCodes: string[]): boolean {

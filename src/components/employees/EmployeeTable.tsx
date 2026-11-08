@@ -126,12 +126,34 @@ export default function EmployeeTable({
             {loading ? (
               <TableSkeletonRows headings={headings} />
             ) : employees.map((employee) => {
-              const status = employee.archived ? "Archived" : employee.separationDate ? "Separated" : "Active"
+              const isBlocked = Boolean(employee.isBlocked)
+              const userStatus = String(employee.userStatus || "").trim().toLowerCase()
+              const isRejected = userStatus === "disabled" || userStatus === "rejected"
+              const isPending = userStatus === "pending"
+              const status = employee.archived
+                ? "Archived"
+                : employee.separationDate
+                  ? "Separated"
+                  : isBlocked
+                    ? "Blocked"
+                    : isRejected
+                      ? (userStatus === "rejected" ? "Rejected" : "Disabled")
+                      : isPending
+                        ? "Pending"
+                        : "Active"
+              const statusBadgeStyle =
+                status === "Active"
+                  ? "bg-emerald-100 text-emerald-800"
+                  : status === "Separated" || status === "Pending"
+                    ? "bg-amber-100 text-amber-900"
+                    : status === "Blocked"
+                      ? "bg-red-100 text-red-800"
+                      : "bg-neutral-100 text-neutral-600"
               const expanded = expandedEmployee === employee.id
               const hasSalaryPermission = canViewSalary || Boolean(employee.canViewSalary)
               return (
                 <Fragment key={employee.id}>
-                  <tr className={`border-b border-slate-100 transition-colors last:border-0 ${expanded ? "is-expanded" : employee.archived ? "is-muted" : "hover:bg-neutral-50"}`}>
+                  <tr className={`border-b border-slate-100 transition-colors last:border-0 ${expanded ? "is-expanded" : employee.archived ? "is-muted" : isBlocked ? "bg-red-50/40 hover:bg-red-50/70" : "hover:bg-neutral-50"}`}>
                     <td data-label="Emp No" className="whitespace-nowrap font-mono text-xs font-medium text-neutral-600">
                       <Link to={`/employees/${encodeURIComponent(employee.id)}?view=details`} className="underline-offset-4 hover:underline">
                         {employee.id}
@@ -165,7 +187,7 @@ export default function EmployeeTable({
                       {employee.separationDate || "—"}
                     </td>
                     <td data-label="Status" className="whitespace-nowrap">
-                      <span className={`workspace-badge ${status === "Active" ? "bg-emerald-100 text-emerald-800" : status === "Separated" ? "bg-amber-100 text-amber-900" : "bg-neutral-100 text-neutral-600"}`}>
+                      <span className={`workspace-badge ${statusBadgeStyle}`}>
                         {status}
                       </span>
                     </td>

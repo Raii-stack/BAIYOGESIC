@@ -134,8 +134,8 @@ test('re-reviewing fails if user is not in disabled status', async () => {
 
 test('permanently deleting an account removes dependent rows, user row, and records audit log', async () => {
   client.query.mockImplementation(async (sql) => {
-    if (sql.includes('SELECT user_id, email, role, status FROM public.app_user')) {
-      return { rows: [{ user_id: targetUserId, email: 'rejected@hope.inc', role: 'employee', status: 'disabled' }] };
+    if (sql.includes('FROM public.app_user WHERE user_id = $1::uuid FOR UPDATE')) {
+      return { rows: [{ user_id: targetUserId, empno: '00005', email: 'rejected@hope.inc', role: 'employee', status: 'disabled' }] };
     }
     return { rows: [] };
   });
@@ -178,8 +178,8 @@ test('superadmin cannot delete their own account', async () => {
 
 test('cannot delete an active account', async () => {
   client.query.mockImplementation(async (sql) => {
-    if (sql.includes('SELECT user_id, email, role, status FROM public.app_user')) {
-      return { rows: [{ user_id: targetUserId, email: 'active@hope.inc', role: 'employee', status: 'active' }] };
+    if (sql.includes('FROM public.app_user WHERE user_id = $1::uuid FOR UPDATE')) {
+      return { rows: [{ user_id: targetUserId, empno: '00005', email: 'active@hope.inc', role: 'employee', status: 'active' }] };
     }
     return { rows: [] };
   });

@@ -39,7 +39,9 @@ function employeeSelect(salaryAllowed) {
     e.sepdate::text AS sepdate, e.is_deleted, e.stamp,
     h.jobcode, h.deptcode, h.effdate::text AS effdate,
     j.jobdesc, d.deptname,
-    ${salaryAllowed ? 'h.salary' : 'NULL::numeric'} AS salary`;
+    ${salaryAllowed ? 'h.salary' : 'NULL::numeric'} AS salary,
+    u.status AS user_status,
+    COALESCE(u.is_blocked, false) AS user_is_blocked`;
 }
 
 const latestJob = `LEFT JOIN LATERAL (
@@ -50,7 +52,14 @@ const latestJob = `LEFT JOIN LATERAL (
   LIMIT 1
 ) h ON true
 LEFT JOIN public.job j ON j.jobcode = h.jobcode
-LEFT JOIN public.department d ON d.deptcode = h.deptcode`;
+LEFT JOIN public.department d ON d.deptcode = h.deptcode
+LEFT JOIN LATERAL (
+  SELECT status, is_blocked
+  FROM public.app_user
+  WHERE empno = e.empno OR (e.email IS NOT NULL AND lower(email) = lower(e.email))
+  ORDER BY CASE WHEN status = 'active' AND NOT is_blocked THEN 0 ELSE 1 END, updated_at DESC
+  LIMIT 1
+) u ON true`;
 
 const listEmployees = asyncHandler(async (req, res) => {
   const page = positiveInteger(req.query.page, 1, 100000);
@@ -58,8 +67,10 @@ const listEmployees = asyncHandler(async (req, res) => {
   const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
   const department = typeof req.query.department === 'string' ? req.query.department.trim() : '';
   const job = typeof req.query.job === 'string' ? req.query.job.trim() : '';
-  const status = typeof req.query.status === 'string' ? req.query.status.trim() : 'all';
-  if (!['all', 'active', 'separated', 'archived'].includes(status)) throw requestError('Invalid employee status', 400);
+  const status = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
+  if (!['all', 'active', 'separated', 'archived', 'blocked', 'disabled', 'rejected', 'pending'].includes(status)) {
+    throw requestError('Invalid employee status', 400);
+  }
   const values = [];
   const filters = [];
   if (search) {
@@ -68,9 +79,19 @@ const listEmployees = asyncHandler(async (req, res) => {
   }
   if (department) { values.push(department); filters.push(`h.deptcode = $${values.length}`); }
   if (job) { values.push(job); filters.push(`h.jobcode = $${values.length}`); }
-  if (status === 'archived') filters.push('e.is_deleted = true');
-  if (status === 'active') filters.push('e.is_deleted = false AND e.sepdate IS NULL');
-  if (status === 'separated') filters.push('e.is_deleted = false AND e.sepdate IS NOT NULL');
+  if (status === 'archived') {
+    filters.push('e.is_deleted = true');
+  } else if (status === 'separated') {
+    filters.push('e.is_deleted = false AND e.sepdate IS NOT NULL');
+  } else if (status === 'blocked') {
+    filters.push('e.is_deleted = false AND u.is_blocked = true');
+  } else if (status === 'disabled' || status === 'rejected') {
+    filters.push("e.is_deleted = false AND (u.status = 'disabled' OR u.status = 'rejected')");
+  } else if (status === 'pending') {
+    filters.push("e.is_deleted = false AND u.status = 'pending'");
+  } else if (status === 'active') {
+    filters.push("e.is_deleted = false AND e.sepdate IS NULL AND COALESCE(u.is_blocked, false) = false AND (u.status IS NULL OR u.status = 'active')");
+  }
   const where = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
   const from = `FROM public.employee e ${latestJob} ${where}`;
   if (!process.env.VITEST) {

@@ -63,10 +63,18 @@ export function normalizeUserRow(raw: Partial<SystemUser> & { userId: string; em
   const firstName = raw.firstName ?? ""
   const lastName = raw.lastName ?? ""
   const fullName = (raw.name || `${firstName} ${lastName}`).trim() || raw.email
+  const normalizedRole = String(raw.role || "").trim().toLowerCase()
   const role: UserRole =
-    raw.role === "superadmin" || raw.role === "admin" || raw.role === "employee"
-      ? raw.role
+    normalizedRole === "superadmin" || normalizedRole === "admin" || normalizedRole === "administrator"
+      ? (normalizedRole === "administrator" ? "superadmin" : normalizedRole as UserRole)
       : "employee"
+  const rawStatus = String(raw.status || "active").trim().toLowerCase()
+  const status: "active" | "pending" | "disabled" =
+    rawStatus === "disabled" || rawStatus === "rejected"
+      ? "disabled"
+      : rawStatus === "pending"
+        ? "pending"
+        : "active"
   return {
     userId: String(raw.userId),
     empno: raw.empno ?? null,
@@ -75,8 +83,9 @@ export function normalizeUserRow(raw: Partial<SystemUser> & { userId: string; em
     name: fullName,
     email: raw.email,
     role,
-    status: raw.status ?? "active",
+    status,
     isBlocked: Boolean(raw.isBlocked),
+
     mustChangePassword: Boolean(raw.mustChangePassword),
     jobTitle: raw.jobTitle ?? null,
     departmentName: raw.departmentName ?? null,

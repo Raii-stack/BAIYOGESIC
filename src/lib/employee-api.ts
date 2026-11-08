@@ -7,6 +7,7 @@ type Row = {
   sepdate: string | null; is_deleted: boolean; stamp: string | null
   jobcode: string | null; deptcode: string | null; effdate: string | null
   jobdesc: string | null; deptname: string | null; salary: string | null
+  user_status?: string | null; user_is_blocked?: boolean
 }
 type HistoryRow = { empno: string; jobcode: string; deptcode: string | null; effdate: string; jobdesc: string | null; deptname: string | null; salary: string | null; stamp: string | null }
 export type EmployeePagination = { page: number; limit: number; total: number; totalPages: number }
@@ -45,6 +46,8 @@ export function toEmployee(row: Row): Employee {
     effectiveDate: row.effdate || "", jobTitle: row.jobdesc || "Unassigned",
     department: row.deptname || "Unassigned", salary: row.salary == null ? 0 : Number(row.salary),
     canViewSalary: row.salary != null, archived: row.is_deleted, stamp: row.stamp || "",
+    userStatus: row.user_status ?? null,
+    isBlocked: Boolean(row.user_is_blocked),
   }
 }
 

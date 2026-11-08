@@ -102,27 +102,32 @@ export default function UserTable({
               users.map((user) => {
                 const expanded = expandedUser === user.userId
                 const isSelf = String(user.userId) === String(currentUserId)
-                const canManageRow = isSuperAdmin || user.role === "employee"
-                const canBlockRow = !approvalOnly && canManageRow && !isSelf && user.status === "active"
-                const canRejectRow = canManageRow && !isSelf && user.status === "pending"
-                const canReReviewRow = canManageRow && !isSelf && user.status === "disabled" && Boolean(onReReview)
-                const canDeletePermanently = isSuperAdmin && !isSelf && user.status === "disabled" && Boolean(onDeletePermanently)
+                const normalizedStatus = String(user.status || "active").trim().toLowerCase()
+                const isRejected = normalizedStatus === "disabled" || normalizedStatus === "rejected"
+                const isPending = normalizedStatus === "pending"
+                const isBlocked = Boolean(user.isBlocked)
+                const normalizedRole = String(user.role || "").trim().toLowerCase()
+                const canManageRow = isSuperAdmin || normalizedRole === "employee"
+                const canBlockRow = !approvalOnly && canManageRow && !isSelf && normalizedStatus === "active"
+                const canRejectRow = canManageRow && !isSelf && isPending
+                const canReReviewRow = canManageRow && !isSelf && isRejected && Boolean(onReReview)
+                const canDeletePermanently = isSuperAdmin && !isSelf && (isRejected || isPending) && Boolean(onDeletePermanently)
                 const deciding = approvingId === user.userId || rejectingId === user.userId || reReviewingId === user.userId
                 const canAssignRights = !approvalOnly && (isSuperAdmin
                   ? !isSelf
-                  : canManageRow && user.role === "employee")
-                const canApproveRow = canManageRow && user.status === "pending" && !user.isBlocked
+                  : canManageRow && normalizedRole === "employee")
+                const canApproveRow = canManageRow && isPending && !isBlocked
 
-                const statusLabel = user.isBlocked
+                const statusLabel = isBlocked
                   ? "Blocked"
-                  : user.status === "pending"
+                  : isPending
                     ? "Pending"
-                    : user.status === "disabled" ? "Disabled" : "Active"
-                const statusBadgeStyle = user.isBlocked
+                    : isRejected ? "Disabled" : "Active"
+                const statusBadgeStyle = isBlocked
                   ? "bg-red-100 text-red-800"
-                  : user.status === "pending"
+                  : isPending
                     ? "bg-amber-100 text-amber-900"
-                    : user.status === "disabled" ? "bg-neutral-100 text-neutral-600" : "bg-emerald-100 text-emerald-800"
+                    : isRejected ? "bg-neutral-100 text-neutral-600" : "bg-emerald-100 text-emerald-800"
 
                 return (
                   <Fragment key={user.userId}>
@@ -141,7 +146,7 @@ export default function UserTable({
                     <td data-label="Email" className="[overflow-wrap:anywhere]">{user.email}</td>
                     <td data-label="Role" className="[overflow-wrap:anywhere]">
                       <span className="workspace-badge workspace-badge--neutral" data-role={user.role}>
-                        {userRoleLabels[user.role]}
+                        {userRoleLabels[normalizedRole] || userRoleLabels[user.role] || user.role}
                       </span>
                     </td>
                     <td data-label="Access" className="whitespace-nowrap">

@@ -635,7 +635,7 @@ const deleteUserPermanently = asyncHandler(async (req, res) => {
 
   const deleted = await withAudit(actor, async (client) => {
     const existingResult = await client.query(
-      `SELECT user_id, email, role, status FROM public.app_user WHERE user_id = $1::uuid FOR UPDATE`,
+      `SELECT user_id, empno, email, role, status FROM public.app_user WHERE user_id = $1::uuid FOR UPDATE`,
       [userId]
     );
     const existing = existingResult.rows[0];
@@ -653,6 +653,27 @@ const deleteUserPermanently = asyncHandler(async (req, res) => {
     await client.query(`DELETE FROM public.app_user_preferences WHERE user_id = $1::uuid`, [userId]);
     await client.query(`DELETE FROM public.app_notification WHERE user_id = $1::uuid`, [userId]);
     await client.query(`DELETE FROM public.app_user WHERE user_id = $1::uuid`, [userId]);
+
+    if (existing.empno) {
+      try {
+        const historyCheck = await client.query(
+          `SELECT 1 FROM public.jobhistory WHERE empno = $1 LIMIT 1`,
+          [existing.empno]
+        );
+        if (historyCheck.rows.length === 0) {
+          try {
+            await client.query(`DELETE FROM public.employee WHERE empno = $1`, [existing.empno]);
+          } catch {
+            await client.query(
+              `UPDATE public.employee SET is_deleted = true, stamp = public.audit_stamp('DELETE') WHERE empno = $1`,
+              [existing.empno]
+            );
+          }
+        }
+      } catch {
+        // Employee cleanup is best-effort
+      }
+    }
 
     await client.query(
       `INSERT INTO public.audit_log (table_name, action, record_key, old_values, action_by, action_at)

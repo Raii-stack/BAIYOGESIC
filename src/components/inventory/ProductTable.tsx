@@ -10,7 +10,8 @@ import type { PriceHistoryEntry, Product } from "../../types/product"
 
 const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
 
-function PriceHistory({ code, canViewAudit }: { code: string; canViewAudit: boolean }) {
+function PriceHistory({ product, canViewAudit, onViewPrices }: { product: Product; canViewAudit: boolean; onViewPrices?: (product: Product) => void }) {
+  const code = product.code
   const [entries, setEntries] = useState<PriceHistoryEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -34,6 +35,7 @@ function PriceHistory({ code, canViewAudit }: { code: string; canViewAudit: bool
           <p className="text-sm font-semibold text-neutral-700">Price history</p>
           <p className="mt-2 font-mono text-sm font-semibold text-neutral-900">{code}</p>
           <p className="mt-1 text-xs leading-5 text-slate-500">Recorded effective prices for this product.</p>
+          {onViewPrices && <button type="button" onClick={() => onViewPrices(product)} className="workspace-secondary-action mt-3">Manage prices</button>}
         </div>
         <div className="workspace-panel" aria-busy={loading}>
           {loading ? <TableSkeleton label="Loading price history" headings={["Effective date", "Unit price", ...(canViewAudit ? ["Last change"] : [])]} />
@@ -59,7 +61,6 @@ type ProductTableRowProps = {
   product: Product
   expanded: boolean
   canViewAudit: boolean
-  showActions: boolean
   canEdit: boolean
   canDelete: boolean
   restoringCode?: string | null
@@ -75,7 +76,6 @@ const ProductTableRow = memo(function ProductTableRow({
   product,
   expanded,
   canViewAudit,
-  showActions,
   canEdit,
   canDelete,
   restoringCode,
@@ -104,34 +104,8 @@ const ProductTableRow = memo(function ProductTableRow({
             {product.unitType}
           </span>
         </td>
-        <td data-label="Unit price" className="whitespace-nowrap">
-          <div className="flex items-center justify-end gap-2">
-            <span className="text-[13px] font-semibold tabular-nums text-neutral-900">
-              {product.currentPrice === null ? "No price" : currency.format(product.currentPrice)}
-            </span>
-            {onViewPrices && (
-              <button
-                type="button"
-                onClick={() => onViewPrices(product)}
-                aria-label={`Prices for ${product.code}`}
-                title="Manage prices"
-                className="workspace-icon-action workspace-icon-action--warning"
-              >
-                <DashboardIcon name="currency" className="h-4 w-4" />
-              </button>
-            )}
-            <button
-              type="button"
-              aria-label={`${expanded ? "Hide" : "Show"} price history for ${product.code}`}
-              aria-expanded={expanded}
-              aria-controls={`price-history-${product.code}`}
-              title="Price history"
-              onClick={() => onToggleExpand(product.code)}
-              className="workspace-icon-action"
-            >
-              <DashboardIcon name="history" className="h-4 w-4" />
-            </button>
-          </div>
+        <td data-label="Unit price" className="whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-neutral-900">
+          {product.currentPrice === null ? "No price" : currency.format(product.currentPrice)}
         </td>
         <td data-label="Effective" className="whitespace-nowrap font-mono text-xs text-slate-600">
           {product.priceEffectiveDate || "—"}
@@ -152,12 +126,22 @@ const ProductTableRow = memo(function ProductTableRow({
             {product.stamp || "—"}
           </td>
         )}
-        {showActions && (
-          <td
-            data-label="Actions"
-            className={`workspace-table-actions ${product.status === "Active" ? "bg-white" : "bg-slate-50"}`}
-          >
+        <td
+          data-label="Actions"
+          className={`workspace-table-actions ${product.status === "Active" ? "bg-white" : "bg-slate-50"}`}
+        >
             <div className="flex items-center gap-1">
+              <button
+                type="button"
+                aria-label={`${expanded ? "Hide" : "Show"} price history for ${product.code}`}
+                aria-expanded={expanded}
+                aria-controls={`price-history-${product.code}`}
+                title="Price history"
+                onClick={() => onToggleExpand(product.code)}
+                className="workspace-icon-action"
+              >
+                <DashboardIcon name="history" className="h-4 w-4" />
+              </button>
               {product.status === "Active" ? (
                 <>
                   {canEdit && (
@@ -194,19 +178,14 @@ const ProductTableRow = memo(function ProductTableRow({
                 >
                   <DashboardIcon name="restore" className="h-4 w-4" />
                 </button>
-              ) : (
-                <span className="px-2 text-slate-400" aria-label="No actions for archived product">
-                  —
-                </span>
-              )}
+              ) : null}
             </div>
-          </td>
-        )}
+        </td>
       </tr>
       {expanded && (
         <tr className="border-b border-slate-200">
           <td colSpan={headingsCount} className="workspace-table-expansion">
-            <PriceHistory code={product.code} canViewAudit={canViewAudit} />
+            <PriceHistory product={product} canViewAudit={canViewAudit} onViewPrices={canEdit ? onViewPrices : undefined} />
           </td>
         </tr>
       )}
@@ -239,7 +218,6 @@ export default function ProductTable({ products, pagination, loading, error, onP
   onViewPrices?: (product: Product) => void
 }) {
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null)
-  const showActions = canEdit || canDelete
   const start = pagination.total ? (pagination.page - 1) * pagination.limit + 1 : 0
   const end = pagination.total ? Math.min(start + products.length - 1, pagination.total) : 0
   const headings = [
@@ -249,7 +227,7 @@ export default function ProductTable({ products, pagination, loading, error, onP
     "Unit price",
     "Effective",
     ...(canViewAudit ? ["Status", "Last change"] : []),
-    ...(showActions ? ["Actions"] : []),
+    "Actions",
   ]
 
   return (
@@ -278,7 +256,6 @@ export default function ProductTable({ products, pagination, loading, error, onP
                   product={product}
                   expanded={expandedProduct === product.code}
                   canViewAudit={canViewAudit}
-                  showActions={showActions}
                   canEdit={canEdit}
                   canDelete={canDelete}
                   restoringCode={restoringCode}

@@ -40,10 +40,16 @@ afterEach(() => {
 
 describe("CareerTimeline", () => {
   test("renders skeleton loader when loading is true", () => {
-    render(<CareerTimeline entries={[]} loading={true} />)
+    const { rerender } = render(<CareerTimeline entries={[]} loading={true} />)
 
-    expect(screen.getByRole("status", { name: "Loading career timeline" })).toBeInTheDocument()
+    const skeleton = screen.getByRole("status", { name: "Loading career timeline" })
+    expect(skeleton.querySelectorAll(".workspace-job-timeline-item")).toHaveLength(2)
+    expect(skeleton.querySelectorAll(".workspace-job-timeline-card")).toHaveLength(2)
+    expect(skeleton.querySelectorAll(".workspace-job-timeline-audit")).toHaveLength(2)
     expect(screen.queryByRole("list", { name: "Job history timeline" })).not.toBeInTheDocument()
+
+    rerender(<CareerTimeline entries={[]} loading={true} showAudit={false} />)
+    expect(skeleton.querySelectorAll(".workspace-job-timeline-audit")).toHaveLength(0)
   })
 
   test("renders friendly empty state when entries are empty", () => {

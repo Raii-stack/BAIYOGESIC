@@ -17,23 +17,23 @@ export type CareerTimelineProps = {
   onToggleReveal?: () => void
 }
 
-export function CareerTimelineSkeleton() {
+export function CareerTimelineSkeleton({ showAudit = true }: { showAudit?: boolean }) {
   return (
     <div
       role="status"
       aria-label="Loading career timeline"
-      className="space-y-6 p-6"
+      className="workspace-job-timeline"
     >
       {[1, 2].map((i) => (
-        <div key={i} className="flex gap-4">
-          <div className="flex flex-col items-center">
-            <div className="h-3.5 w-3.5 animate-pulse rounded-full bg-slate-200" />
-            <div className="mt-1 h-20 w-0.5 animate-pulse bg-slate-200" />
+        <div key={i} className="workspace-job-timeline-item">
+          <div className="workspace-job-timeline-rail" aria-hidden="true">
+            <span className="workspace-job-timeline-marker animate-pulse" />
           </div>
-          <div className="flex-1 space-y-2.5">
-            <div className="h-4 w-24 animate-pulse rounded bg-slate-200" />
-            <div className="h-5 w-48 animate-pulse rounded bg-slate-200" />
-            <div className="h-4 w-32 animate-pulse rounded bg-slate-200" />
+          <div className="workspace-job-timeline-card" aria-hidden="true">
+            <div className="workspace-job-timeline-date"><div className="h-4 w-24 animate-pulse rounded bg-slate-200" /></div>
+            <div className="workspace-job-timeline-assignment space-y-2"><div className="h-4 w-36 max-w-full animate-pulse rounded bg-slate-200" /><div className="h-5 w-28 animate-pulse rounded bg-slate-200" /></div>
+            <div className="workspace-job-timeline-salary space-y-2"><div className="h-3 w-12 animate-pulse rounded bg-slate-200" /><div className="h-4 w-20 animate-pulse rounded bg-slate-200" /></div>
+            {showAudit && <div className="workspace-job-timeline-audit space-y-2"><div className="h-3 w-20 animate-pulse rounded bg-slate-200" /><div className="h-4 w-32 max-w-full animate-pulse rounded bg-slate-200" /></div>}
           </div>
         </div>
       ))}
@@ -68,7 +68,7 @@ export default function CareerTimeline({
       : entries.some((e) => e.canViewSalary)
 
   if (loading) {
-    return <CareerTimelineSkeleton />
+    return <CareerTimelineSkeleton showAudit={showAudit} />
   }
 
   if (entries.length === 0) {

@@ -98,12 +98,17 @@ test("saves employee edits through the API and refreshes the directory", async (
 
 test("expands inline job history and archives an employee through the API", async () => {
   let archived = false
+  let releaseHistory: (() => void) | undefined
+  const historyGate = new Promise<void>((resolve) => { releaseHistory = resolve })
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = new URL(String(input), "http://localhost")
     if (url.pathname === "/api/auth/session") return response({ user: auth("administrator") })
     if (url.pathname === "/api/employees/options") return response({ departments: [{ code: "IT", name: "Information Tech" }], jobs: [{ code: "DEV", name: "Developer" }] })
     if (url.pathname === "/api/employees" && init?.method === "GET") return response({ employees: [{ ...row(1), is_deleted: archived }], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
-    if (url.pathname === "/api/employees/00001" && init?.method === "GET") return response({ employee: row(1), history: [{ empno: "00001", jobcode: "DEV", deptcode: "IT", effdate: "2024-01-01", jobdesc: "Senior Developer", deptname: "Information Tech", salary: "65000", stamp: "EDIT admin" }] })
+    if (url.pathname === "/api/employees/00001" && init?.method === "GET") {
+      await historyGate
+      return response({ employee: row(1), history: [{ empno: "00001", jobcode: "DEV", deptcode: "IT", effdate: "2024-01-01", jobdesc: "Senior Developer", deptname: "Information Tech", salary: "65000", stamp: "EDIT admin" }] })
+    }
     if (url.pathname === "/api/employees/00001" && init?.method === "DELETE") {
       expect(init.credentials).toBe("include")
       archived = true
@@ -121,6 +126,8 @@ test("expands inline job history and archives an employee through the API", asyn
   render(<MemoryRouter><AuthProvider><EmployeeDirectoryPage /></AuthProvider></MemoryRouter>)
   await screen.findByText("Person1 Example")
   await user.click(screen.getByRole("button", { name: "Show job history for Person1 Example" }))
+  expect(screen.getByRole("status", { name: "Loading career timeline" }).querySelectorAll(".workspace-job-timeline-card")).toHaveLength(2)
+  releaseHistory?.()
   expect(await screen.findByText("Senior Developer")).toBeInTheDocument()
   expect(screen.getByText("$65,000")).toBeInTheDocument()
   expect(screen.getByRole("button", { name: "Hide job history for Person1 Example" })).toHaveAttribute("aria-expanded", "true")

@@ -130,6 +130,7 @@ test("CreateSalePage calculates line totals with price-as-of-date lookup and sub
     const url = String(input)
     if (url.endsWith("/api/sales") && init?.method === "POST") {
       const body = JSON.parse(String(init.body || "{}"))
+      expect(body.empno).toBe("00002")
       return new Response(
         JSON.stringify({
           success: true,
@@ -154,7 +155,10 @@ test("CreateSalePage calculates line totals with price-as-of-date lookup and sub
           success: true,
           data: {
             customers: [{ custno: "C0001", custname: "Northstar Office Group", payterm: "30D" }],
-            employees: [{ empno: "00001", firstname: "Employee", lastname: "Record 01" }],
+            employees: [
+              { empno: "00001", firstname: "Employee", lastname: "Record 01" },
+              { empno: "00002", firstname: "Employee", lastname: "Record 02" },
+            ],
             products: [{ prodcode: "P-001", description: "Industrial Widget A", unit: "pc", unitprice: 13.75, priceHistory: [] }],
           },
         }),
@@ -173,6 +177,7 @@ test("CreateSalePage calculates line totals with price-as-of-date lookup and sub
         data: {
           user: {
             userId: "1",
+            empno: "00001",
             email: "preview@hope.inc",
             role: "superadmin",
             status: "active",
@@ -198,12 +203,15 @@ test("CreateSalePage calculates line totals with price-as-of-date lookup and sub
 
   expect(await screen.findByRole("heading", { name: "Create sale" })).toBeInTheDocument()
 
-  // Select Customer and Employee
+  // The logged-in employee is selected by default and remains changeable.
   const comboboxes = screen.getAllByRole("combobox")
+  const salesperson = screen.getByPlaceholderText("Search salesperson name or ID")
+  expect(await screen.findByDisplayValue("Employee Record 01")).toBe(salesperson)
   await user.click(comboboxes[0])
   await user.click(screen.getByRole("option", { name: /Northstar Office Group/i }))
-  await user.click(comboboxes[1])
-  await user.click(screen.getByRole("option", { name: /Employee Record 01/i }))
+  await user.clear(salesperson)
+  await user.click(screen.getByRole("option", { name: /Employee Record 02/i }))
+  expect(salesperson).toHaveValue("Employee Record 02")
 
   // Update quantity to 0 and verify validation error
   const qtyInput = screen.getByLabelText("Quantity 1")

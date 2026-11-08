@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router"
 
+import { useAuth } from "../components/auth/AuthProvider"
 import CustomerCombobox from "../components/sales/CustomerCombobox"
 import EmployeeCombobox from "../components/sales/EmployeeCombobox"
 import { DashboardIcon } from "../components/dashboard/DashboardComponents"
@@ -45,6 +46,8 @@ function resolveProductPrice(
 
 export default function CreateSalePage() {
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const employeeDefaultApplied = useRef(false)
   const [customerOptions, setCustomerOptions] = useState<Customer[]>([])
   const [employeeOptions, setEmployeeOptions] = useState<Employee[]>([])
   const [productOptions, setProductOptions] = useState<SaleCatalogProduct[]>([])
@@ -99,6 +102,15 @@ export default function CreateSalePage() {
       .finally(() => { if (!controller.signal.aborted) setCatalogLoading(false) })
     return () => controller.abort()
   }, [catalogRetry])
+
+  useEffect(() => {
+    const employeeNumber = user?.empno
+    if (employeeDefaultApplied.current || catalogLoading || catalogError || !employeeNumber) return
+    employeeDefaultApplied.current = true
+    if (employeeOptions.some((employee) => employee.id === employeeNumber)) {
+      setEmployeeId((current) => current || employeeNumber)
+    }
+  }, [catalogError, catalogLoading, employeeOptions, user?.empno])
 
   const handleSalesDateChange = (nextDate: string) => {
     setSalesDate(nextDate)

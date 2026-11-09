@@ -19,6 +19,8 @@ export default function UserTable({
   loading,
   error,
   isSuperAdmin,
+  isItAdmin = false,
+  canViewAudit = false,
   approvalOnly = false,
   currentUserId,
   togglingId,
@@ -39,6 +41,8 @@ export default function UserTable({
   loading: boolean
   error: boolean
   isSuperAdmin: boolean
+  isItAdmin?: boolean
+  canViewAudit?: boolean
   approvalOnly?: boolean
   currentUserId: string
   togglingId: string | null
@@ -107,15 +111,13 @@ export default function UserTable({
                 const isPending = normalizedStatus === "pending"
                 const isBlocked = Boolean(user.isBlocked)
                 const normalizedRole = String(user.role || "").trim().toLowerCase()
-                const canManageRow = isSuperAdmin || normalizedRole === "employee"
+                const canManageRow = isSuperAdmin || normalizedRole === "employee" || (isItAdmin && normalizedRole === "admin")
                 const canBlockRow = !approvalOnly && canManageRow && !isSelf && normalizedStatus === "active"
                 const canRejectRow = canManageRow && !isSelf && isPending
                 const canReReviewRow = canManageRow && !isSelf && isRejected && Boolean(onReReview)
                 const canDeletePermanently = isSuperAdmin && !isSelf && (isRejected || isPending) && Boolean(onDeletePermanently)
                 const deciding = approvingId === user.userId || rejectingId === user.userId || reReviewingId === user.userId
-                const canAssignRights = !approvalOnly && (isSuperAdmin
-                  ? !isSelf
-                  : canManageRow && normalizedRole === "employee")
+                const canAssignRights = normalizedRole !== "it_admin" && !approvalOnly && (isSuperAdmin ? !isSelf : canManageRow && !isSelf)
                 const canApproveRow = canManageRow && isPending && !isBlocked
 
                 const statusLabel = isBlocked
@@ -256,7 +258,7 @@ export default function UserTable({
                                 ? <time dateTime={user.lastActiveAt}>{new Date(user.lastActiveAt).toLocaleString()}</time>
                                 : "No recorded activity"}
                             </dd></div>
-                            <div><dt className="text-xs text-neutral-500">Last change</dt><dd className="mt-1">{user.stamp || "—"}</dd></div>
+                            {canViewAudit && <div><dt className="text-xs text-neutral-500">Last change</dt><dd className="mt-1">{user.stamp || "—"}</dd></div>}
                           </dl>
                         </div>
                       </td>

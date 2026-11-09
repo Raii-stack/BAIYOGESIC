@@ -31,7 +31,8 @@ export default function UserManagementPage() {
   const { state: navigationState } = useLocation()
   const handledNotification = useRef<unknown>(null)
   const isSuperAdmin = isSuperAdminRole(currentUser?.role)
-  const approvalOnly = !isAdminRole(currentUser?.role)
+  const isItAdmin = currentUser?.role === "it_admin"
+  const approvalOnly = !isAdminRole(currentUser?.role) && !isItAdmin
   const currentUserId = String(currentUser?.userId ?? "")
   const [activeView, setActiveView] = useState<"users" | "audit">(() =>
     searchParams.get("view") === "audit" && isSuperAdmin ? "audit" : "users",
@@ -350,6 +351,7 @@ export default function UserManagementPage() {
                       >
                         <option value="all">All roles</option>
                         {isSuperAdmin && <option value="superadmin">Superadmin</option>}
+                        <option value="it_admin">IT Admin</option>
                         <option value="admin">{userRoleLabels.admin}</option>
                         <option value="employee">Employee</option>
                       </select>
@@ -405,12 +407,13 @@ export default function UserManagementPage() {
                   </div>
                 )}
 
-                <UserTable
+                <UserTable canViewAudit={isAdminRole(currentUser?.role) || isItAdmin}
                   users={users}
                   pagination={pagination}
                   loading={loading}
                   error={Boolean(loadError)}
                   isSuperAdmin={isSuperAdmin}
+          isItAdmin={isItAdmin}
                   approvalOnly={approvalOnly}
                   currentUserId={currentUserId}
                   togglingId={togglingId}
@@ -438,6 +441,7 @@ export default function UserManagementPage() {
           user={selectedUser}
           open={panelOpen}
           isSuperAdmin={isSuperAdmin}
+          isItAdmin={isItAdmin}
           currentUserId={currentUserId}
           availableEmployees={availableEmployees}
           onClose={() => setPanelOpen(false)}
@@ -447,7 +451,7 @@ export default function UserManagementPage() {
 
         <RightsModal
           user={rightsUser}
-          canAssignAdmin={isSuperAdmin}
+          canAssignAdmin={isSuperAdmin || isItAdmin}
           onClose={() => setRightsUser(null)}
           onSave={handleSaveRights}
         />

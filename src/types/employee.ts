@@ -1,5 +1,6 @@
 export type Employee = {
   id: string
+  canManage?: boolean
   fullName: string
   department: string
   jobTitle: string

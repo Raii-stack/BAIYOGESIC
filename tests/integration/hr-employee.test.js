@@ -144,6 +144,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
   describe('Department Child-Record Delete Constraints (archiveDepartment & restoreDepartment)', () => {
     beforeEach(() => {
       mockClient.query.mockImplementation(async (sql, params) => {
+        if (sql.includes('AS department,') && sql.includes('FROM public.employee e')) return { rows: [{ empno: params[0], department: 'IT', role: 'employee' }] };
         if (typeof sql === 'string' && sql.includes('SELECT deptcode FROM public.department WHERE deptcode = $1 AND is_deleted = false FOR UPDATE')) {
           if (params?.[0] === 'NONEXISTENT') return { rows: [] };
           return { rows: [{ deptcode: params?.[0] }] };
@@ -173,7 +174,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
     });
 
     test('blocks department deletion with HTTP 409 Conflict if active employees/jobhistory are assigned', async () => {
-      const req = { params: { deptcode: 'IT' }, user: { email: 'admin@hope.inc' } };
+      const req = { params: { deptcode: 'IT' }, user: { role: 'superadmin', email: 'admin@hope.inc' } };
       let capturedError = null;
       const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
 
@@ -185,7 +186,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
     });
 
     test('catches PostgreSQL P0001 trg_check_children exception on department soft-delete and returns HTTP 409 Conflict', async () => {
-      const req = { params: { deptcode: 'TRG' }, user: { email: 'admin@hope.inc' } };
+      const req = { params: { deptcode: 'TRG' }, user: { role: 'superadmin', email: 'admin@hope.inc' } };
       let capturedError = null;
       const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
 
@@ -197,7 +198,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
     });
 
     test('archives and restores an unreferenced department cleanly', async () => {
-      const req = { params: { deptcode: 'TMP' }, user: { email: 'admin@hope.inc' } };
+      const req = { params: { deptcode: 'TMP' }, user: { role: 'superadmin', email: 'admin@hope.inc' } };
       let archiveBody = null;
       const res = { json: (d) => { archiveBody = d; return res; }, status: () => res };
 
@@ -216,6 +217,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
   describe('Job Child-Record Delete Constraints (archiveJob & restoreJob)', () => {
     beforeEach(() => {
       mockClient.query.mockImplementation(async (sql, params) => {
+        if (sql.includes('AS department,') && sql.includes('FROM public.employee e')) return { rows: [{ empno: params[0], department: 'IT', role: 'employee' }] };
         if (typeof sql === 'string' && sql.includes('SELECT jobcode FROM public.job WHERE jobcode = $1 AND is_deleted = false FOR UPDATE')) {
           if (params?.[0] === 'NONEXISTENT') return { rows: [] };
           return { rows: [{ jobcode: params?.[0] }] };
@@ -245,7 +247,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
     });
 
     test('blocks job deletion with HTTP 409 Conflict if active employees/jobhistory are assigned', async () => {
-      const req = { params: { jobcode: 'PR1' }, user: { email: 'admin@hope.inc' } };
+      const req = { params: { jobcode: 'PR1' }, user: { role: 'superadmin', email: 'admin@hope.inc' } };
       let capturedError = null;
       const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
 
@@ -257,7 +259,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
     });
 
     test('catches PostgreSQL P0001 trg_check_children exception on job soft-delete and returns HTTP 409 Conflict', async () => {
-      const req = { params: { jobcode: 'TRGJ' }, user: { email: 'admin@hope.inc' } };
+      const req = { params: { jobcode: 'TRGJ' }, user: { role: 'superadmin', email: 'admin@hope.inc' } };
       let capturedError = null;
       const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
 
@@ -269,7 +271,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
     });
 
     test('archives and restores an unreferenced job cleanly', async () => {
-      const req = { params: { jobcode: 'TMPJ' }, user: { email: 'admin@hope.inc' } };
+      const req = { params: { jobcode: 'TMPJ' }, user: { role: 'superadmin', email: 'admin@hope.inc' } };
       let archiveBody = null;
       const res = { json: (d) => { archiveBody = d; return res; }, status: () => res };
 
@@ -288,6 +290,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
   describe('Employee Child-Record Delete Constraints & Job History Tracking', () => {
     beforeEach(() => {
       mockClient.query.mockImplementation(async (sql, params) => {
+        if (sql.includes('AS department,') && sql.includes('FROM public.employee e')) return { rows: [{ empno: params[0], department: 'IT', role: 'employee' }] };
         if (typeof sql === 'string' && sql.includes('SELECT empno, hiredate::text AS hiredate, sepdate::text AS sepdate FROM public.employee WHERE empno = $1 AND is_deleted = false FOR UPDATE')) {
           if (params?.[0] === 'NONEXISTENT') return { rows: [] };
           return { rows: [{ empno: params?.[0], hiredate: '2010-05-11', sepdate: null }] };
@@ -318,7 +321,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
     });
 
     test('blocks archiving an employee referenced by active sales orders with HTTP 409 Conflict', async () => {
-      const req = { params: { empno: '00005' }, body: {}, user: { email: 'admin@hope.inc' } };
+      const req = { params: { empno: '00005' }, body: {}, user: { role: 'superadmin', email: 'admin@hope.inc' } };
       let capturedError = null;
       const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
 
@@ -330,7 +333,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
     });
 
     test('catches PostgreSQL P0001 trg_check_children exception on employee soft-delete and returns HTTP 409 Conflict', async () => {
-      const req = { params: { empno: 'E-TRG-FAIL' }, body: {}, user: { email: 'admin@hope.inc' } };
+      const req = { params: { empno: 'E-TRG-FAIL' }, body: {}, user: { role: 'superadmin', email: 'admin@hope.inc' } };
       let capturedError = null;
       const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
 
@@ -356,7 +359,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
           effdate: '2025-01-15',
           salary: 75000
         },
-        user: { email: 'admin@hope.inc' }
+        user: { role: 'superadmin', email: 'admin@hope.inc' }
       };
       let responseBody = null;
       const res = { json: (d) => { responseBody = d; return res; }, status: () => res };
@@ -386,7 +389,7 @@ describe('[S3-DBA-04 & S3-DBA-05] HR Child-Record Delete Constraints, Salary Con
           effdate: '2020-01-01',
           salary: 75000
         },
-        user: { email: 'admin@hope.inc' }
+        user: { role: 'superadmin', email: 'admin@hope.inc' }
       };
       let capturedError = null;
       const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
@@ -583,6 +586,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
 
   test('blocks department archiving with HTTP 409 Conflict if active employees are assigned directly', async () => {
     mockClient.query.mockImplementation(async (sql, params) => {
+        if (sql.includes('AS department,') && sql.includes('FROM public.employee e')) return { rows: [{ empno: params[0], department: 'IT', role: 'employee' }] };
       if (typeof sql === 'string' && sql.includes('SELECT deptcode FROM public.department WHERE deptcode = $1 AND is_deleted = false FOR UPDATE')) {
         return { rows: [{ deptcode: params?.[0] || 'IT' }] };
       }
@@ -595,7 +599,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
       return { rows: [] };
     });
 
-    const req = { params: { deptcode: 'IT' }, user: { email: 'admin@hope.inc' } };
+    const req = { params: { deptcode: 'IT' }, user: { role: 'superadmin', email: 'admin@hope.inc' } };
     let capturedError = null;
     const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
 
@@ -608,6 +612,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
 
   test('catches PostgreSQL 23503 foreign key violation on department archiving and returns HTTP 409 Conflict', async () => {
     mockClient.query.mockImplementation(async (sql, params) => {
+        if (sql.includes('AS department,') && sql.includes('FROM public.employee e')) return { rows: [{ empno: params[0], department: 'IT', role: 'employee' }] };
       if (typeof sql === 'string' && sql.includes('SELECT deptcode FROM public.department WHERE deptcode = $1 AND is_deleted = false FOR UPDATE')) {
         return { rows: [{ deptcode: params?.[0] || 'IT' }] };
       }
@@ -625,7 +630,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
       return { rows: [] };
     });
 
-    const req = { params: { deptcode: 'IT' }, user: { email: 'admin@hope.inc' } };
+    const req = { params: { deptcode: 'IT' }, user: { role: 'superadmin', email: 'admin@hope.inc' } };
     let capturedError = null;
     const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
 
@@ -638,6 +643,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
 
   test('blocks duplicate promotion effective dates via composite unique key violation (23505) returning HTTP 400', async () => {
     mockClient.query.mockImplementation(async (sql, params) => {
+        if (sql.includes('AS department,') && sql.includes('FROM public.employee e')) return { rows: [{ empno: params[0], department: 'IT', role: 'employee' }] };
       if (typeof sql === 'string' && sql.includes('SELECT empno, firstname, lastname')) {
         return { rows: [{ empno: '00001', firstname: 'John', lastname: 'Smith', hiredate: '2010-05-11', is_deleted: false }] };
       }
@@ -666,7 +672,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
         effdate: '2025-01-15',
         salary: 75000
       },
-      user: { email: 'admin@hope.inc' }
+      user: { role: 'superadmin', email: 'admin@hope.inc' }
     };
     let capturedError = null;
     const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
@@ -680,6 +686,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
 
   test('blocks job archiving with HTTP 409 Conflict if active employees are assigned directly', async () => {
     mockClient.query.mockImplementation(async (sql, params) => {
+        if (sql.includes('AS department,') && sql.includes('FROM public.employee e')) return { rows: [{ empno: params[0], department: 'IT', role: 'employee' }] };
       if (typeof sql === 'string' && sql.includes('SELECT jobcode FROM public.job WHERE jobcode = $1 AND is_deleted = false FOR UPDATE')) {
         return { rows: [{ jobcode: params?.[0] || 'PR1' }] };
       }
@@ -692,7 +699,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
       return { rows: [] };
     });
 
-    const req = { params: { jobcode: 'PR1' }, user: { email: 'admin@hope.inc' } };
+    const req = { params: { jobcode: 'PR1' }, user: { role: 'superadmin', email: 'admin@hope.inc' } };
     let capturedError = null;
     const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
 
@@ -705,6 +712,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
 
   test('catches PostgreSQL 23503 foreign key violation on job archiving and returns HTTP 409 Conflict', async () => {
     mockClient.query.mockImplementation(async (sql, params) => {
+        if (sql.includes('AS department,') && sql.includes('FROM public.employee e')) return { rows: [{ empno: params[0], department: 'IT', role: 'employee' }] };
       if (typeof sql === 'string' && sql.includes('SELECT jobcode FROM public.job WHERE jobcode = $1 AND is_deleted = false FOR UPDATE')) {
         return { rows: [{ jobcode: params?.[0] || 'PR1' }] };
       }
@@ -722,7 +730,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
       return { rows: [] };
     });
 
-    const req = { params: { jobcode: 'PR1' }, user: { email: 'admin@hope.inc' } };
+    const req = { params: { jobcode: 'PR1' }, user: { role: 'superadmin', email: 'admin@hope.inc' } };
     let capturedError = null;
     const res = { json: vi.fn(), status: vi.fn().mockReturnThis() };
 
@@ -740,6 +748,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
     let capturedUpdateParams = null;
 
     mockClient.query.mockImplementation(async (sql, params) => {
+        if (sql.includes('AS department,') && sql.includes('FROM public.employee e')) return { rows: [{ empno: params[0], department: 'IT', role: 'employee' }] };
       if (typeof sql === 'string' && sql.includes('BEGIN')) return { rows: [] };
       if (typeof sql === 'string' && sql.includes('set_config')) return { rows: [] };
       if (typeof sql === 'string' && sql.includes('pg_advisory_xact_lock')) return { rows: [] };
@@ -782,7 +791,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
         jobcode: 'PR1',
         salary: 60000
       },
-      user: { email: 'admin@hope.inc' }
+      user: { role: 'superadmin', email: 'admin@hope.inc' }
     };
     const createRes = { json: vi.fn(), status: vi.fn().mockReturnThis() };
     await createEmployee(createReq, createRes, vi.fn());
@@ -803,7 +812,7 @@ describe('[S3-DBA-02] Database: Employee Foreign Key Delete Rules and Department
         jobcode: 'HRS',
         salary: 65000
       },
-      user: { email: 'admin@hope.inc' }
+      user: { role: 'superadmin', email: 'admin@hope.inc' }
     };
     const updateRes = { json: vi.fn(), status: vi.fn().mockReturnThis() };
     await updateEmployee(updateReq, updateRes, vi.fn());

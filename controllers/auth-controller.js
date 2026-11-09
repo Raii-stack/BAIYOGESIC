@@ -18,6 +18,9 @@ const AUTH_SELECT = `
          TRIM(concat_ws(' ', e.firstname, e.lastname)) AS name,
          j.jobdesc AS "jobTitle",
          d.deptname AS "departmentName",
+         lj.deptcode AS "departmentCode",
+         (SELECT max(action_at)::text FROM public.audit_log
+          WHERE table_name IN ('employee', 'jobhistory', 'app_user', 'app_user_right')) AS "authorizationVersion",
          COALESCE(
            ARRAY(
              SELECT ur.right_code
@@ -31,7 +34,7 @@ const AUTH_SELECT = `
   LEFT JOIN LATERAL (
     SELECT jobcode, deptcode
     FROM public.jobhistory jh
-    WHERE jh.empno = u.empno AND jh.is_deleted = false
+    WHERE jh.empno = u.empno AND (e.is_deleted OR NOT jh.is_deleted) AND jh.effdate <= CURRENT_DATE
     ORDER BY effdate DESC, jobcode DESC
     LIMIT 1
   ) lj ON true
@@ -123,6 +126,8 @@ function formatAuthUser(user) {
     mustChangePassword: user.must_change_password,
     jobTitle: user.jobTitle || null,
     departmentName: user.departmentName || null,
+    departmentCode: user.departmentCode || null,
+    authorizationVersion: user.authorizationVersion || null,
     rights: Array.isArray(user.rights) ? user.rights : [],
   };
 }

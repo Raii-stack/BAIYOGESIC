@@ -1,3 +1,4 @@
+const { peopleScope } = require('../lib/people-access');
 const crypto = require('crypto');
 const { requirePool } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
@@ -65,7 +66,7 @@ const listActiveEmployees = asyncHandler(async (req, res) => {
      JOIN public.app_user u ON u.user_id = activity.user_id
      JOIN public.employee e ON e.empno = u.empno
      WHERE u.status = 'active' AND NOT u.is_blocked
-       AND NOT u.must_change_password AND NOT e.is_deleted
+       AND NOT u.must_change_password AND NOT e.is_deleted AND ${peopleScope(req.user, 'e.empno')}
      ORDER BY activity.last_seen_at DESC, e.empno`);
   res.json({ success: true, data: { employees: result.rows } });
 });

@@ -9,6 +9,7 @@ type UserPanelProps = {
   user: SystemUser | null
   open: boolean
   isSuperAdmin: boolean
+  isItAdmin?: boolean
   currentUserId: string
   availableEmployees: AvailableEmployee[]
   onClose: () => void
@@ -45,6 +46,7 @@ export default function UserPanel({
   user,
   open,
   isSuperAdmin,
+  isItAdmin = false,
   currentUserId,
   availableEmployees,
   onClose,
@@ -243,8 +245,8 @@ export default function UserPanel({
               </p>
               <p className="mt-1 text-xs leading-5 text-blue-800">
                 {isSuperAdmin
-                  ? "Superadmins can assign Superadmin, Admin, or Employee roles. Employee accounts use granular module rights."
-                  : "Admins can provision and manage Employee accounts and their module rights."}
+                  ? "Superadmins can assign Superadmin, IT Admin, Admin, or Employee roles. Employee accounts use granular module rights."
+                  : isItAdmin ? "IT Admin can manage employee and department-manager accounts. Business modules remain unavailable." : "Admins can manage Employee accounts within their department scope."}
               </p>
             </div>
 
@@ -374,13 +376,14 @@ export default function UserPanel({
                 </span>
                 <select
                   value={role}
-                  disabled={!isSuperAdmin || isEditingSelf}
+                  disabled={(!isSuperAdmin && !isItAdmin) || isEditingSelf}
                   aria-describedby={user && role !== user.role ? "role-permission-reset" : undefined}
                   onChange={(event) => setRole(event.target.value as UserRole)}
                   className="workspace-control disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                 >
+                  {isSuperAdmin && <option value="it_admin">IT Admin (Account Administration)</option>}
                   {isSuperAdmin && <option value="superadmin">Superadmin (System Owner)</option>}
-                  {isSuperAdmin && <option value="admin">{userRoleLabels.admin}</option>}
+                  {(isSuperAdmin || isItAdmin) && <option value="admin">{userRoleLabels.admin}</option>}
                   <option value="employee">Employee (Granular Rights)</option>
                 </select>
               </label>
@@ -389,7 +392,7 @@ export default function UserPanel({
                 <p id="role-permission-reset" className="text-xs text-slate-600">
                   {role === "employee"
                     ? "Saving this role replaces current permissions with Employee read-only access to Customers, Products, Human Resources, and Sales."
-                    : "Saving this role replaces current permissions with full access to all modules."}
+                    : role === "it_admin" ? "IT Admin is limited to account administration; business permissions do not apply." : "Saving this role replaces current permissions with full access to all modules."}
                   {" "}Use Rights to customize permissions afterward.
                 </p>
               )}

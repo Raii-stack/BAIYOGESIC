@@ -1,3 +1,4 @@
+const { peopleScope, assertPerson } = require('../lib/people-access');
 const { requirePool } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
 
@@ -64,27 +65,28 @@ const topProducts = asyncHandler(async (req, res) => {
   sendReport(res, 'top-products', result.rows);
 });
 
-const activeEmployees = asyncHandler(async (_req, res) => {
-  const result = await requirePool().query('SELECT * FROM public.report_active_employees');
+const activeEmployees = asyncHandler(async (req, res) => {
+  const result = await requirePool().query(`SELECT * FROM public.report_active_employees r WHERE ${peopleScope(req.user, 'r.empno')}`);
   sendReport(res, 'active-employees', result.rows);
 });
 
-const allEmployees = asyncHandler(async (_req, res) => {
-  const result = await requirePool().query('SELECT * FROM public.report_all_employees');
+const allEmployees = asyncHandler(async (req, res) => {
+  const result = await requirePool().query(`SELECT * FROM public.report_all_employees r WHERE ${peopleScope(req.user, 'r.empno')}`);
   sendReport(res, 'all-employees', result.rows);
 });
 
 const jobHistory = asyncHandler(async (req, res) => {
   const empno = String(req.query.empno || '').trim();
   const pool = requirePool();
+  if (empno) await assertPerson(pool, req.user, empno);
   const [rows, employees] = await Promise.all([
     empno
       ? pool.query('SELECT * FROM public.report_employee_job_history($1::varchar)', [empno])
       : Promise.resolve({ rows: [] }),
     pool.query(
       `SELECT empno, TRIM(CONCAT_WS(' ', firstname, lastname)) AS fullname
-       FROM public.employee
-       WHERE is_deleted = false AND sepdate IS NULL
+       FROM public.employee e
+       WHERE is_deleted = false AND sepdate IS NULL AND ${peopleScope(req.user, 'e.empno')}
        ORDER BY lastname, firstname, empno`
     )
   ]);
@@ -97,7 +99,12 @@ const jobHistory = asyncHandler(async (req, res) => {
 const topSales = asyncHandler(async (req, res) => {
   const { startDate, endDate, limit } = reportFilters(req.query);
   const result = await requirePool().query(
-    'SELECT * FROM public.report_top_sales($1::date, $2::date, $3::integer)',
+    `SELECT row_number() OVER (ORDER BY r.total DESC, r.salesdate DESC, r.transno DESC) AS rank,
+      r.transno, r.salesdate, r.custname, r.employeename, r.total
+     FROM public.report_top_sales_view r JOIN public.sales s ON s.transno = r.transno
+     WHERE ($1::date IS NULL OR r.salesdate >= $1) AND ($2::date IS NULL OR r.salesdate <= $2)
+       AND ${peopleScope(req.user, 's.empno')}
+     ORDER BY r.total DESC, r.salesdate DESC, r.transno DESC LIMIT $3`,
     [startDate, endDate, limit]
   );
   sendReport(res, 'top-sales', result.rows);

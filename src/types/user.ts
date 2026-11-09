@@ -1,4 +1,4 @@
-export type UserRole = "superadmin" | "admin" | "employee"
+export type UserRole = "superadmin" | "it_admin" | "admin" | "employee"
 export type AccountStatus = "active" | "pending" | "disabled"
 
 export type SystemUser = {

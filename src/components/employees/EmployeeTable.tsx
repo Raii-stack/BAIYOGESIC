@@ -99,7 +99,7 @@ export default function EmployeeTable({
   const [expandedEmployee, setExpandedEmployee] = useState<string | null>(null)
   const start = pagination.total ? (pagination.page - 1) * pagination.limit + 1 : 0
   const end = pagination.total ? Math.min(start + employees.length - 1, pagination.total) : 0
-  const headings = ["Emp No", "Last name", "First name", "Gender", "Birth date", "Hire date", "Sep date", "Status", "Last change", "Actions"]
+  const headings = ["Emp No", "Last name", "First name", "Gender", "Birth date", "Hire date", "Sep date", "Status", ...(canViewAudit ? ["Last change"] : []), "Actions"]
   return (
     <section aria-label="Employee records" className="workspace-panel">
       <div className="workspace-table-header">
@@ -183,9 +183,7 @@ export default function EmployeeTable({
                         {status}
                       </span>
                     </td>
-                    <td data-label="Last change" className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">
-                      {employee.stamp || "—"}
-                    </td>
+                    {canViewAudit && <td data-label="Last change" className="max-w-52 font-mono text-[11px] leading-5 text-slate-500">{employee.stamp || "—"}</td>}
                     <td data-label="Actions" className={`workspace-table-actions ${employee.archived ? "bg-slate-50" : "bg-white"}`}>
                       <div className="flex items-center gap-1">
                         {canViewHistory && (
@@ -203,7 +201,7 @@ export default function EmployeeTable({
                         )}
                         {!employee.archived ? (
                           <>
-                            {canEdit && (
+                            {canEdit && employee.canManage !== false && (
                               <button
                                 type="button"
                                 onClick={() => onEdit(employee)}
@@ -214,7 +212,7 @@ export default function EmployeeTable({
                                 <DashboardIcon name="edit" className="h-4 w-4" />
                               </button>
                             )}
-                            {canDelete && onArchive && (
+                            {canDelete && employee.canManage !== false && onArchive && (
                               <button
                                 type="button"
                                 onClick={() => onArchive(employee)}
@@ -226,7 +224,7 @@ export default function EmployeeTable({
                               </button>
                             )}
                           </>
-                        ) : canDelete && onRestore ? (
+                        ) : canDelete && employee.canManage !== false && onRestore ? (
                           <button
                             type="button"
                             onClick={() => onRestore(employee)}

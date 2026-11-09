@@ -13,6 +13,8 @@ export type AuthUser = {
   mustChangePassword: boolean
   jobTitle?: string | null
   departmentName?: string | null
+  departmentCode?: string | null
+  authorizationVersion?: string | null
   rights?: string[]
 }
 
@@ -40,7 +42,7 @@ export function isAdminRole(role?: string | null): boolean {
 }
 
 export function hasUserRight(user: AuthUser | null | undefined, ...rightCodes: string[]): boolean {
-  if (!user) return false
+  if (!user || user.role === "it_admin") return false
   if (isAdminRole(user.role)) return true
   if (!Array.isArray(user.rights)) return false
   return rightCodes.some((code) => user.rights!.includes(code))

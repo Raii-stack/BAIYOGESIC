@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react"
 
 import { authApi, AuthApiError, type AuthUser } from "../../lib/auth"
 import { clearDashboardStats } from "../../lib/dashboard-api"
@@ -18,6 +18,10 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
+  const [authorizationRevision, setAuthorizationRevision] = useState(0)
+  const userRef = useRef(user)
+  userRef.current = user
+  const scopeKey = (value: AuthUser | null) => JSON.stringify([value?.role, value?.departmentCode, value?.rights, value?.authorizationVersion])
 
   useEffect(() => {
     clearDashboardStats()
@@ -80,6 +84,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user?.userId, user?.mustChangePassword])
 
+  useEffect(() => {
+    if (!user) return
+    let disposed = false
+    let pending = false
+    const refresh = async () => {
+      if (pending || document.visibilityState === "hidden") return
+      pending = true
+      try {
+        const { user: next } = await authApi.session()
+        const current = userRef.current
+        if (!disposed && current && next && String(current.userId) === String(next.userId) && JSON.stringify(current) !== JSON.stringify(next)) {
+          if (scopeKey(current) !== scopeKey(next)) { clearDashboardStats(); setAuthorizationRevision(value => value + 1) }
+          setUser(next)
+        }
+      } catch (error) {
+        if (!disposed && error instanceof AuthApiError && error.status === 401) { clearDashboardStats(); setUser(null) }
+      } finally { pending = false }
+    }
+    const timer = window.setInterval(refresh, 30000)
+    window.addEventListener("focus", refresh)
+    window.addEventListener("hope:authorization-changed", refresh)
+    return () => { disposed = true; window.clearInterval(timer); window.removeEventListener("focus", refresh); window.removeEventListener("hope:authorization-changed", refresh) }
+  }, [user?.userId])
+
   const login = async (email: string, password: string) => {
     const { user: signedInUser } = await authApi.login(email.trim().toLowerCase(), password)
     clearDashboardStats()
@@ -110,7 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ user, loading, login, changePassword, logout, refreshUser }}>
-      <WorkspaceProvider user={user}>{children}</WorkspaceProvider>
+      <WorkspaceProvider key={authorizationRevision} user={user}>{children}</WorkspaceProvider>
     </AuthContext.Provider>
   )
 }

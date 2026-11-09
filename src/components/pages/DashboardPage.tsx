@@ -36,7 +36,7 @@ export default function DashboardPage() {
   const [refreshCount, setRefreshCount] = useState(0)
 
   useEffect(() => {
-    if (user?.mustChangePassword) {
+    if (user?.mustChangePassword || user?.role === "it_admin") {
       setStatsLoading(false)
       return
     }

@@ -81,7 +81,7 @@ const LEGACY_EMPLOYEE_DEFAULT_RIGHTS = new Set([
 ])
 
 export function hasRight(user: AuthUser | null | undefined, rightCode: string): boolean {
-  if (!user) return false
+  if (!user || user.role === "it_admin") return false
 
   if (isAdminRole(user.role)) {
     if (Array.isArray(user.rights) && user.rights.length > 0) {
@@ -106,6 +106,7 @@ export function canAccessModule(
   moduleKey: ErpModuleKey,
 ): boolean {
   if (!user) return false
+  if (user.role === "it_admin") return moduleKey === "users"
   if (moduleKey === "users") {
     return hasUserRight(user, "hr.employee.edit")
   }
@@ -181,7 +182,7 @@ export function hasActionRight(
     action = actionOrUser as string
   }
 
-  if (!user) return false
+  if (!user || user.role === "it_admin") return false
 
   const normalizedModule = String(moduleName || "").toLowerCase().trim()
   const normalizedAction = String(action || "").toLowerCase().trim()
@@ -266,11 +267,7 @@ export function getHrPermissions(user: AuthUser | null | undefined) {
   const canAddDepartment = hasRight(user, "hr.department.add")
   const canEditDepartment = hasRight(user, "hr.department.edit")
   const canDeleteDepartment = hasRight(user, "hr.department.delete")
-  const canViewAudit =
-    isAdminRole(user?.role) ||
-    canDeleteEmployee ||
-    canDeleteJob ||
-    canDeleteDepartment
+  const canViewAudit = isAdminRole(user?.role)
 
   return {
     canAddEmployee,

@@ -1,26 +1,7 @@
 const { requirePool } = require('../db');
 const { asyncHandler } = require('../middleware/error-handler');
 
-const canViewSalary = (user) => {
-  if (!user) return false;
-  const role = String(user.role || '').toLowerCase().trim();
-  if (['superadmin', 'administrator', 'admin', 'hr', 'hr_manager'].includes(role)) {
-    return true;
-  }
-  const userRights = [
-    ...(Array.isArray(user.rights) ? user.rights : []),
-    ...(Array.isArray(user.permissions) ? user.permissions : [])
-  ].map((r) => String(r).toLowerCase().trim());
-
-  return userRights.some((r) => [
-    'hr.employee.edit',
-    'hr.history.edit',
-    'hr.view_salary',
-    'hr.salary',
-    'hr:salary:view',
-    'hr:view_salary'
-  ].includes(r));
-};
+const { peopleScope, assertPerson, assertDepartment, canViewSalary } = require('../lib/people-access');
 
 function requestError(message, statusCode) {
   const error = new Error(message);
@@ -33,8 +14,9 @@ function positiveInteger(value, fallback, maximum) {
   return Number.isSafeInteger(parsed) && parsed > 0 ? Math.min(parsed, maximum) : fallback;
 }
 
-function employeeSelect(salaryAllowed) {
-  return `e.empno, e.firstname, e.lastname, e.email, e.gender,
+function employeeSelect(salaryAllowed, user) {
+  return `${['superadmin', 'administrator'].includes(user?.role) ? 'TRUE' : "COALESCE((SELECT role FROM public.app_user au WHERE au.empno = e.empno), 'employee') IN ('employee', 'user')"} AS "canManage",
+  e.empno, e.firstname, e.lastname, e.email, e.gender,
     e.birthdate::text AS birthdate, e.hiredate::text AS hiredate,
     e.sepdate::text AS sepdate, e.is_deleted, e.stamp,
     h.jobcode, h.deptcode, h.effdate::text AS effdate,
@@ -47,7 +29,7 @@ function employeeSelect(salaryAllowed) {
 const latestJob = `LEFT JOIN LATERAL (
   SELECT jobcode, deptcode, effdate, salary
   FROM public.jobhistory
-  WHERE empno = e.empno AND is_deleted = e.is_deleted
+  WHERE empno = e.empno AND (e.is_deleted OR NOT is_deleted) AND effdate <= CURRENT_DATE
   ORDER BY effdate DESC, jobcode DESC
   LIMIT 1
 ) h ON true
@@ -72,7 +54,7 @@ const listEmployees = asyncHandler(async (req, res) => {
     throw requestError('Invalid employee status', 400);
   }
   const values = [];
-  const filters = [];
+  const filters = [peopleScope(req.user, 'e.empno')];
   if (search) {
     values.push(`%${search}%`);
     filters.push(`(e.empno ILIKE $${values.length} OR e.firstname ILIKE $${values.length} OR e.lastname ILIKE $${values.length} OR concat_ws(' ', e.firstname, e.lastname) ILIKE $${values.length} OR e.email ILIKE $${values.length})`);
@@ -97,7 +79,7 @@ const listEmployees = asyncHandler(async (req, res) => {
   if (!process.env.VITEST) {
     const offset = (page - 1) * limit;
     const records = await requirePool().query(
-      `SELECT ${employeeSelect(canViewSalary(req.user))}, count(*) OVER()::integer AS _total
+      `SELECT ${employeeSelect(canViewSalary(req.user), req.user)}, count(*) OVER()::integer AS _total
        ${from}
        ORDER BY e.lastname NULLS LAST, e.firstname NULLS LAST, e.empno
        LIMIT $${values.length + 1} OFFSET $${values.length + 2}`,
@@ -116,7 +98,7 @@ const listEmployees = asyncHandler(async (req, res) => {
   }
   const [count, records] = await Promise.all([
     requirePool().query(`SELECT count(*)::integer AS total ${from}`, values),
-    requirePool().query(`SELECT ${employeeSelect(canViewSalary(req.user))} ${from} ORDER BY e.lastname NULLS LAST, e.firstname NULLS LAST, e.empno LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, [...values, limit, (page - 1) * limit])
+    requirePool().query(`SELECT ${employeeSelect(canViewSalary(req.user), req.user)} ${from} ORDER BY e.lastname NULLS LAST, e.firstname NULLS LAST, e.empno LIMIT $${values.length + 1} OFFSET $${values.length + 2}`, [...values, limit, (page - 1) * limit])
   ]);
   const total = count.rows[0].total;
   res.json({ success: true, data: {
@@ -134,14 +116,15 @@ const listOptions = asyncHandler(async (_req, res) => {
 });
 
 const getEmployee = asyncHandler(async (req, res) => {
-  const record = await requirePool().query(`SELECT ${employeeSelect(canViewSalary(req.user))} FROM public.employee e ${latestJob} WHERE e.empno = $1`, [req.params.empno]);
+  await assertPerson(requirePool(), req.user, req.params.empno);
+  const record = await requirePool().query(`SELECT ${employeeSelect(canViewSalary(req.user), req.user)} FROM public.employee e ${latestJob} WHERE e.empno = $1`, [req.params.empno]);
   if (!record.rows[0]) throw requestError('Employee not found', 404);
   const history = await requirePool().query(`SELECT h.empno, h.jobcode, h.deptcode, h.effdate::text AS effdate,
     j.jobdesc, d.deptname, ${canViewSalary(req.user) ? 'h.salary' : 'NULL::numeric'} AS salary, h.stamp
     FROM public.jobhistory h
     LEFT JOIN public.job j ON j.jobcode = h.jobcode
     LEFT JOIN public.department d ON d.deptcode = h.deptcode
-    WHERE h.empno = $1 AND h.is_deleted = $2 ORDER BY h.effdate DESC, h.jobcode DESC`, [req.params.empno, record.rows[0].is_deleted]);
+    WHERE h.empno = $1 AND h.is_deleted = $2 AND ${peopleScope(req.user, 'h.empno')} ORDER BY h.effdate DESC, h.jobcode DESC`, [req.params.empno, record.rows[0].is_deleted]);
   res.json({ success: true, data: { employee: record.rows[0], history: history.rows } });
 });
 
@@ -223,6 +206,7 @@ const recordPromotion = asyncHandler(async (req, res) => {
 
   try {
     const result = await withAudit(req.user?.email || actorUserId, async (client) => {
+      await assertPerson(client, req.user, empno, { write: true, department: deptcode });
       const empResult = await client.query(
         `SELECT empno, firstname, lastname, email, gender,
                 birthdate::text AS birthdate, hiredate::text AS hiredate,
@@ -432,6 +416,7 @@ const createEmployee = asyncHandler(async (req, res) => {
   const values = validatePayload(req.body, true);
   try {
     const empno = await withAudit(req.user.email, async (client) => {
+      await assertDepartment(client, req.user, values.deptcode);
       await validateReferences(client, values);
       await client.query('SELECT pg_advisory_xact_lock($1)', [710031]);
       const next = await client.query(`SELECT coalesce(max(empno::integer), 0) + 1 AS id FROM public.employee WHERE empno ~ '^[0-9]{5}$'`);
@@ -485,6 +470,7 @@ const archiveEmployee = asyncHandler(async (req, res) => {
   let archived;
   try {
     archived = await withAudit(req.user.email, async (client) => {
+      await assertPerson(client, req.user, empno, { write: true });
       const existing = await client.query('SELECT empno, hiredate::text AS hiredate, sepdate::text AS sepdate FROM public.employee WHERE empno = $1 AND is_deleted = false FOR UPDATE', [empno]);
       if (!existing.rows.length) return null;
       const currentEmployee = existing.rows[0];
@@ -518,6 +504,7 @@ const restoreEmployee = asyncHandler(async (req, res) => {
   const empno = String(req.params.empno || '').trim();
   if (!empno) throw requestError('Employee number is required', 400);
   const restoredEmpno = await withAudit(req.user.email, async (client) => {
+      await assertPerson(client, req.user, empno, { write: true });
     const existing = await client.query('SELECT empno FROM public.employee WHERE empno = $1 AND is_deleted = true FOR UPDATE', [empno]);
     if (!existing.rows.length) return null;
     const result = await client.query('UPDATE public.employee SET is_deleted = false, sepdate = NULL WHERE empno = $1 AND is_deleted = true RETURNING empno', [empno]);

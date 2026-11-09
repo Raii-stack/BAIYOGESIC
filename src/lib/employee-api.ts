@@ -2,6 +2,7 @@ import type { Employee, JobHistoryEntry } from "../types/employee"
 import { apiFailure } from "./api-errors"
 
 type Row = {
+  canManage?: boolean;
   empno: string; firstname: string | null; lastname: string | null; email: string
   gender: "M" | "F" | null; birthdate: string | null; hiredate: string | null
   sepdate: string | null; is_deleted: boolean; stamp: string | null
@@ -33,11 +34,13 @@ async function request<T>(path: string, method = "GET", body?: object, signal?: 
   const result = await response.json().catch(() => null) as { success: boolean; data?: T; error?: { message?: string } } | null
   if (!response.ok || !result?.success || !result.data) throw apiFailure(response.status, result)
   if (method !== "GET") window.dispatchEvent(new Event("hope:notifications-changed"))
+  if (method !== "GET") window.dispatchEvent(new Event("hope:authorization-changed"))
   return result.data
 }
 
 export function toEmployee(row: Row): Employee {
   return {
+    canManage: row.canManage,
     id: row.empno, firstName: row.firstname || "", lastName: row.lastname || "",
     fullName: [row.firstname, row.lastname].filter(Boolean).join(" ") || row.empno,
     email: row.email, gender: row.gender, birthDate: row.birthdate || "",

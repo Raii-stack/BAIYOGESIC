@@ -36,16 +36,16 @@ function notificationId(req) {
   return id;
 }
 
-const visible = 'user_id = $1::uuid AND public.workspace_notice_visible($1::uuid, category)';
+const visible = (req) => `user_id = $1::uuid AND public.workspace_notice_visible($1::uuid, category)${req.user.role === 'it_admin' ? " AND category = 'account'" : ''}`;
 const listNotifications = asyncHandler(async (req, res) => {
   const page = req.query.page === undefined ? 1 : Number(req.query.page);
   if (!Number.isSafeInteger(page) || page < 1 || page > 1000000) throw fail('Invalid inbox page.');
   const pool = requirePool();
   const [items, counts] = await Promise.all([
     pool.query(`SELECT notification_id::text AS id, category, title, message, created_at AS "createdAt", read_at AS "readAt"
-      FROM public.app_notification WHERE ${visible} ORDER BY created_at DESC, notification_id DESC LIMIT 20 OFFSET $2`, [req.user.sub, (page - 1) * 20]),
+      FROM public.app_notification WHERE ${visible(req)} ORDER BY created_at DESC, notification_id DESC LIMIT 20 OFFSET $2`, [req.user.sub, (page - 1) * 20]),
     pool.query(`SELECT count(*)::integer AS total, count(*) FILTER (WHERE read_at IS NULL)::integer AS "unreadCount"
-      FROM public.app_notification WHERE ${visible}`, [req.user.sub]),
+      FROM public.app_notification WHERE ${visible(req)}`, [req.user.sub]),
   ]);
   const { total, unreadCount } = counts.rows[0];
   res.json({ success: true, data: { items: items.rows, unreadCount, total, page, totalPages: Math.max(1, Math.ceil(total / 20)) } });
@@ -53,19 +53,19 @@ const listNotifications = asyncHandler(async (req, res) => {
 
 const markNotificationRead = asyncHandler(async (req, res) => {
   const result = await requirePool().query(`UPDATE public.app_notification SET read_at = COALESCE(read_at, now())
-    WHERE ${visible} AND notification_id = $2::bigint RETURNING notification_id`, [req.user.sub, notificationId(req)]);
+    WHERE ${visible(req)} AND notification_id = $2::bigint RETURNING notification_id`, [req.user.sub, notificationId(req)]);
   if (!result.rows.length) throw fail('Notification not found.', 404);
   res.json({ success: true, data: { message: 'Notification marked as read.' } });
 });
 
 const markAllRead = asyncHandler(async (req, res) => {
-  await requirePool().query(`UPDATE public.app_notification SET read_at = now() WHERE ${visible} AND read_at IS NULL`, [req.user.sub]);
+  await requirePool().query(`UPDATE public.app_notification SET read_at = now() WHERE ${visible(req)} AND read_at IS NULL`, [req.user.sub]);
   res.json({ success: true, data: { message: 'Inbox marked as read.' } });
 });
 
 const openNotification = asyncHandler(async (req, res) => {
   const pool = requirePool();
-  const result = await pool.query(`SELECT target_kind, target_key FROM public.app_notification WHERE ${visible} AND notification_id = $2::bigint`, [req.user.sub, notificationId(req)]);
+  const result = await pool.query(`SELECT target_kind, target_key FROM public.app_notification WHERE ${visible(req)} AND notification_id = $2::bigint`, [req.user.sub, notificationId(req)]);
   if (!result.rows.length) throw fail('Notification not found or access has changed.', 404);
   const item = result.rows[0];
   let href = item.target_kind === 'settings' ? '/settings?section=security' : item.target_kind === 'profile' ? '/profile?view=account' : null;

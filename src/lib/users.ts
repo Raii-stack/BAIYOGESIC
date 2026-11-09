@@ -2,6 +2,7 @@ import type { DepartmentPermissionPreset, PermissionGroup, SystemUser, UserRole 
 
 export const userRoleLabels: Record<UserRole, string> = {
   superadmin: "Superadmin",
+  it_admin: "IT Admin",
   admin: "Manager (Admin)",
   employee: "Employee",
 }
@@ -14,6 +15,7 @@ export function getDepartmentPermissionPreset(rights: string[]) {
 }
 
 export function getUserPermissionLabel(user: Pick<SystemUser, "role" | "rights">): string {
+  if (user.role === "it_admin") return "Account administration only"
   const preset = getDepartmentPermissionPreset(user.rights)
   if (preset) return preset.label
   if (user.rights.length > 0) return "Custom permissions"

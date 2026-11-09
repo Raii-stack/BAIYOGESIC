@@ -130,8 +130,8 @@ export default function RightsModal({
   )
   const matchedPreset = getDepartmentPermissionPreset(selectedRights)
   const nextRole: UserRole =
-    user.role === "superadmin"
-      ? "superadmin"
+    user.role === "superadmin" || user.role === "it_admin"
+      ? user.role
       : canAssignAdmin && matchedPreset?.level === "Manager"
         ? "admin"
         : "employee"

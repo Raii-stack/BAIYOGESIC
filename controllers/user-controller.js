@@ -2,13 +2,14 @@ const bcrypt = require('bcrypt');
 const { requirePool } = require('../db');
 const { invalidateUserCache } = require('../middleware/auth');
 const { asyncHandler } = require('../middleware/error-handler');
-const { isSuperAdminRole, isAdminOrSuperAdmin } = require('../middleware/permissions');
+const { peopleScope, assertPerson, assertDepartment, assertAccount, canAssignRole } = require('../lib/people-access');
+const { isAdminOrSuperAdmin, isSuperAdminRole } = require('../middleware/permissions');
 const { rejectionEmailMailer, approvalEmailMailer } = require('../lib/password-reset-email');
 
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const VALID_ROLES = new Set(['superadmin', 'admin', 'employee']);
+const VALID_ROLES = new Set(['superadmin', 'it_admin', 'admin', 'employee']);
 const DEFAULT_EMPLOYEE_RIGHTS = ['customers.access', 'products.access', 'hr.access', 'sales.access'];
 
 function requestError(message, statusCode) {
@@ -47,7 +48,7 @@ const latestJobJoin = `
   LEFT JOIN LATERAL (
     SELECT jobcode, deptcode
     FROM public.jobhistory jh
-    WHERE jh.empno = u.empno AND jh.is_deleted = false
+    WHERE jh.empno = u.empno AND (e.is_deleted OR NOT jh.is_deleted) AND jh.effdate <= CURRENT_DATE
     ORDER BY effdate DESC, jobcode DESC
     LIMIT 1
   ) lj ON true
@@ -102,24 +103,19 @@ const listUsers = asyncHandler(async (req, res) => {
   const roleFilter = typeof req.query.role === 'string' ? req.query.role.trim().toLowerCase() : 'all';
   const statusFilter = typeof req.query.status === 'string' ? req.query.status.trim().toLowerCase() : 'all';
 
-  if (!['all', 'superadmin', 'admin', 'employee'].includes(roleFilter)) {
+  if (!['all', 'superadmin', 'it_admin', 'admin', 'employee'].includes(roleFilter)) {
     throw requestError('Invalid role filter', 400);
   }
   if (!['all', 'active', 'blocked', 'pending', 'disabled', 'rejected'].includes(statusFilter)) {
     throw requestError('Invalid status filter', 400);
   }
 
-  const requesterIsSuperAdmin = isSuperAdminRole(req.user && req.user.role);
   const values = [];
   const filters = [];
-  if (!isAdminOrSuperAdmin(req.user?.role)) {
+  if (!isAdminOrSuperAdmin(req.user?.role) && req.user?.role !== 'it_admin') {
     filters.push("u.role = 'employee' AND u.status = 'pending' AND u.is_blocked = false");
   }
-
-  // Per Student Guide §3.8: Superadmin accounts are hidden from Admin view
-  if (!requesterIsSuperAdmin) {
-    filters.push(`u.role <> 'superadmin'`);
-  }
+  filters.push(peopleScope(req.user, 'u.empno', true));
 
   if (search) {
     values.push(`%${search}%`);
@@ -186,7 +182,7 @@ const listUsers = asyncHandler(async (req, res) => {
   });
 });
 
-const listUserOptions = asyncHandler(async (_req, res) => {
+const listUserOptions = asyncHandler(async (req, res) => {
   const pool = requirePool();
   const [employeesResult, rightsResult] = await pool.query(
     `SELECT e.empno,
@@ -234,9 +230,9 @@ const createUser = asyncHandler(async (req, res) => {
 
   const role = typeof body.role === 'string' ? body.role.trim().toLowerCase() : 'employee';
   if (!VALID_ROLES.has(role)) {
-    throw requestError('Role must be superadmin, admin, or employee', 400);
+    throw requestError('Invalid account role', 400);
   }
-  if (!requesterIsSuperAdmin && role !== 'employee') {
+  if (!canAssignRole(req.user, role)) {
     throw requestError('Admins can only create Employee accounts', 403);
   }
 
@@ -389,16 +385,17 @@ const updateUser = asyncHandler(async (req, res) => {
     if (!existing) {
       throw requestError('User account not found', 404);
     }
+    await assertAccount(client, req.user, userId, existing);
 
-    if (!requesterIsSuperAdmin && existing.role !== 'employee') {
+    if (!canAssignRole(req.user, existing.role)) {
       throw requestError('Admins can only edit Employee accounts', 403);
     }
 
     const nextRole = body.role !== undefined ? String(body.role).trim().toLowerCase() : existing.role;
     if (!VALID_ROLES.has(nextRole)) {
-      throw requestError('Role must be superadmin, admin, or employee', 400);
+      throw requestError('Invalid account role', 400);
     }
-    if (!requesterIsSuperAdmin && nextRole !== 'employee') {
+    if (!canAssignRole(req.user, nextRole)) {
       throw requestError('Admins can only assign the Employee role', 403);
     }
     if (String(req.user.sub) === String(userId) && nextRole !== existing.role) {
@@ -488,7 +485,7 @@ const updateUser = asyncHandler(async (req, res) => {
          FROM public.app_right r
          WHERE $3::text[] IS NULL OR r.right_code = ANY($3::text[])
          RETURNING right_code`,
-        [userId, actor, nextRole === 'employee' ? DEFAULT_EMPLOYEE_RIGHTS : null]
+        [userId, actor, nextRole === 'it_admin' ? [] : nextRole === 'employee' ? DEFAULT_EMPLOYEE_RIGHTS : null]
       );
       await client.query(
         `INSERT INTO public.audit_log
@@ -529,8 +526,9 @@ function registrationDecision(approve) {
       if (!existing) {
         throw requestError('User account not found', 404);
       }
+      await assertAccount(client, req.user, userId, existing);
 
-      if (!requesterIsSuperAdmin && existing.role !== 'employee') {
+      if (!canAssignRole(req.user, existing.role)) {
         throw requestError('You can only accept or reject Employee accounts', 403);
       }
 
@@ -591,8 +589,9 @@ const reReviewUser = asyncHandler(async (req, res) => {
     if (!existing) {
       throw requestError('User account not found', 404);
     }
+    await assertAccount(client, req.user, userId, existing);
 
-    if (!requesterIsSuperAdmin && existing.role !== 'employee') {
+    if (!canAssignRole(req.user, existing.role)) {
       throw requestError('You can only re-review Employee accounts', 403);
     }
 
@@ -713,8 +712,9 @@ const setBlockStatus = asyncHandler(async (req, res) => {
     if (!existing) {
       throw requestError('User account not found', 404);
     }
+    await assertAccount(client, req.user, userId, existing);
 
-    if (!requesterIsSuperAdmin && existing.role !== 'employee') {
+    if (!canAssignRole(req.user, existing.role)) {
       throw requestError('Admins can only block or unblock Employee accounts', 403);
     }
 
@@ -734,7 +734,7 @@ const setBlockStatus = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { user: updated } });
 });
 
-const registrationNotifications = asyncHandler(async (_req, res) => {
+const registrationNotifications = asyncHandler(async (req, res) => {
   const result = await requirePool().query(
     `SELECT u.user_id AS "userId", u.email, u.created_at AS "createdAt",
             COALESCE(NULLIF(TRIM(concat_ws(' ', e.firstname, e.lastname)), ''), 'New employee') AS name,
@@ -781,8 +781,9 @@ const updateUserRights = asyncHandler(async (req, res) => {
     if (!existing) {
       throw requestError('User account not found', 404);
     }
+    await assertAccount(client, req.user, userId, existing);
 
-    if (!requesterIsSuperAdmin && existing.role !== 'employee') {
+    if (!canAssignRole(req.user, existing.role)) {
       throw requestError('Admins can only manage rights for Employee accounts', 403);
     }
     if (String(req.user.sub) === String(userId)) {
@@ -793,9 +794,9 @@ const updateUserRights = asyncHandler(async (req, res) => {
       ? existing.role
       : String(req.body.role).trim().toLowerCase();
     if (!VALID_ROLES.has(requestedRole)) {
-      throw requestError('Role must be superadmin, admin, or employee', 400);
+      throw requestError('Invalid account role', 400);
     }
-    if (!requesterIsSuperAdmin && requestedRole !== 'employee') {
+    if (!canAssignRole(req.user, requestedRole)) {
       throw requestError('Admins can only assign the Employee role', 403);
     }
 
@@ -804,6 +805,8 @@ const updateUserRights = asyncHandler(async (req, res) => {
       [userId]
     );
     const existingRights = existingRightsResult.rows.map((row) => row.right_code);
+
+    if (requestedRole === 'it_admin' && requestedRights.length > 0) throw requestError('IT Admin has fixed account-only access', 400);
 
     if (requestedRights.length > 0) {
       const validResult = await client.query(

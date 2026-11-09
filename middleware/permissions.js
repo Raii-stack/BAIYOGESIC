@@ -11,6 +11,7 @@ const MODULE_ALIASES = {
 };
 
 const PERMISSIONS = {
+  it_admin: { Users: new Set(['view', 'edit', 'approve']) },
   superadmin: {
     CRM: new Set(['view', 'edit', 'delete']),
     Inventory: new Set(['view', 'edit', 'delete']),

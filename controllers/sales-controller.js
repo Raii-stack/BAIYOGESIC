@@ -1,3 +1,4 @@
+const { peopleScope, assertPerson } = require('../lib/people-access');
 const { requirePool } = require('../db');
 const {
   roundCurrency,
@@ -298,7 +299,7 @@ const listSales = asyncHandler(async (req, res) => {
   });
 });
 
-const getSalesCatalog = asyncHandler(async (_req, res) => {
+const getSalesCatalog = asyncHandler(async (req, res) => {
   const pool = requirePool();
   // Single roundtrip multi-statement query prevents pool exhaustion and latency spikes
   const [customersResult, employeesResult, productsResult, pricesResult] = await pool.query(
@@ -312,13 +313,13 @@ const getSalesCatalog = asyncHandler(async (_req, res) => {
      LEFT JOIN LATERAL (
        SELECT jobcode, deptcode
        FROM public.jobhistory jh
-       WHERE jh.empno = e.empno AND jh.is_deleted = false
+       WHERE jh.empno = e.empno AND jh.is_deleted = false AND jh.effdate <= CURRENT_DATE
        ORDER BY jh.effdate DESC
        LIMIT 1
      ) jh ON true
      LEFT JOIN public.job j ON j.jobcode = jh.jobcode
      LEFT JOIN public.department d ON d.deptcode = jh.deptcode
-     WHERE e.is_deleted = false AND e.sepdate IS NULL
+     WHERE e.is_deleted = false AND e.sepdate IS NULL AND ${peopleScope(req.user, 'e.empno')}
      ORDER BY e.lastname ASC, e.firstname ASC, e.empno ASC;
      SELECT p.prodcode, p.description, p.unit, p.is_deleted, p.stamp,
             price.unitprice, price.effdate::text AS effdate
@@ -456,7 +457,7 @@ const createSale = asyncHandler(async (req, res) => {
         });
       }
 
-      const employeeCheck = await client.query(
+            const employeeCheck = await client.query(
         'SELECT empno, firstname, lastname, is_deleted, sepdate FROM public.employee WHERE empno = $1',
         [empno]
       );

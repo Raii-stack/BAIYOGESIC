@@ -1,32 +1,12 @@
-import type { AvailableEmployee, SystemUser, UserRole } from "../types/user"
+import type {
+  AvailableEmployee,
+  SystemUser,
+  UserCreateInput,
+  UserPagination,
+  UserRole,
+  UserUpdateInput,
+} from "../types/user"
 import { apiFailure } from "./api-errors"
-
-export type UserPagination = {
-  page: number
-  limit: number
-  total: number
-  totalPages: number
-}
-
-export type UserCreateInput = {
-  empno?: string
-  firstName: string
-  lastName: string
-  email: string
-  role: UserRole
-  password: string
-  mustChangePassword?: boolean
-  rights?: string[]
-}
-
-export type UserUpdateInput = {
-  firstName: string
-  lastName: string
-  email: string
-  role: UserRole
-  password?: string
-  mustChangePassword?: boolean
-}
 
 type ApiResponse<T> = {
   success: boolean
@@ -36,7 +16,12 @@ type ApiResponse<T> = {
 
 const apiBase = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "")
 
-async function request<T>(path: string, method = "GET", body?: object, signal?: AbortSignal): Promise<T> {
+async function request<T>(
+  path: string,
+  method = "GET",
+  body?: object,
+  signal?: AbortSignal,
+): Promise<T> {
   let response: Response
   try {
     response = await fetch(`${apiBase}/api/users${path}`, {
@@ -56,6 +41,7 @@ async function request<T>(path: string, method = "GET", body?: object, signal?: 
     throw apiFailure(response.status, result)
   }
   if (method !== "GET") window.dispatchEvent(new Event("hope:notifications-changed"))
+  if (method !== "GET") window.dispatchEvent(new Event("hope:authorization-changed"))
   return result.data
 }
 
@@ -65,9 +51,11 @@ export function normalizeUserRow(raw: Partial<SystemUser> & { userId: string; em
   const fullName = (raw.name || `${firstName} ${lastName}`).trim() || raw.email
   const normalizedRole = String(raw.role || "").trim().toLowerCase()
   const role: UserRole =
-    normalizedRole === "superadmin" || normalizedRole === "admin" || normalizedRole === "administrator"
-      ? (normalizedRole === "administrator" ? "superadmin" : normalizedRole as UserRole)
-      : "employee"
+    normalizedRole === "it_admin"
+      ? "it_admin"
+      : normalizedRole === "superadmin" || normalizedRole === "admin" || normalizedRole === "administrator"
+        ? (normalizedRole === "administrator" ? "superadmin" : normalizedRole as UserRole)
+        : "employee"
   const rawStatus = String(raw.status || "active").trim().toLowerCase()
   const status: "active" | "pending" | "disabled" =
     rawStatus === "disabled" || rawStatus === "rejected"
@@ -176,4 +164,3 @@ export const userApi = {
     return normalizeUserRow(data.user)
   },
 }
-

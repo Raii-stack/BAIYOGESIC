@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { redactPeople } = require('../lib/people-access');
 const { requirePool } = require('../db');
 
 // shortcut: 15s process-local cache, switch to shared cache if multi-instance instant revocation is needed
@@ -99,6 +100,15 @@ async function requireActiveUser(req, res, next) {
       role: user.role,
       rights: Array.isArray(user.rights) ? user.rights : undefined
     };
+    const path = req.originalUrl?.split('?')[0] || '';
+    if (user.role === 'it_admin' && !/^\/api\/(users(?:\/|$)|auth\/(?:activity|registration-notifications)$|me\/(?:preferences|notifications(?:\/.*)?)$)/.test(path)) {
+      return res.status(403).json({ success: false, error: { message: 'IT Admin is limited to account administration', statusCode: 403 } });
+    }
+    if (/^\/api\/(employees|departments|jobs|users|reports)(?:\/|$)/.test(path) || path === '/api/sales/catalog') {
+      const json = res.json.bind(res);
+      res.json = (body) => json(redactPeople(body, req.user));
+    }
+    if (typeof res.set === 'function') res.set('Cache-Control', 'no-store');
     next();
   } catch (error) {
     next(error);

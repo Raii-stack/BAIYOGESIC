@@ -18,7 +18,33 @@ const apiLimiter = rateLimit({
   }
 });
 
+// Dedicated strict rate limiter for sensitive unauthenticated credential routes ([S2-DSO-05])
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  skip: (req) => {
+    // In test environment, skip rate limiting unless specifically testing auth rate limiting
+    if (process.env.NODE_ENV === 'test') {
+      if (req.headers['x-bypass-rate-limit'] === 'true') return true;
+      if (!req.headers['x-test-auth-limiter']) return true;
+    }
+    return false;
+  },
+  handler: (_req, res) => {
+    return res.status(429).json({
+      success: false,
+      error: {
+        message: 'Too many authentication attempts, please try again later.',
+        statusCode: 429
+      }
+    });
+  }
+});
+
 // Background activity has its own budget so a shared office IP keeps its business API allowance.
 const activityLimiter = rateLimit({ windowMs: 60 * 1000, max: 300, standardHeaders: true, legacyHeaders: false });
 
-module.exports = { apiLimiter, activityLimiter };
+module.exports = { apiLimiter, authLimiter, activityLimiter };

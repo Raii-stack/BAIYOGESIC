@@ -87,6 +87,23 @@ describe('Security Headers & Cookie Hardening ([S2-DSO-03])', () => {
       expect(res.headers['access-control-allow-origin']).toBe(origin);
       expect(res.headers['access-control-allow-credentials']).toBe('true');
     });
+
+    it('rejects arbitrary third-party vercel.app domains ([S4-DSO-01])', async () => {
+      const maliciousOrigin = 'https://malicious-attacker.vercel.app';
+      const res = await request(app)
+        .get('/api/health')
+        .set('Origin', maliciousOrigin);
+      expect(res.headers['access-control-allow-origin']).toBeUndefined();
+    });
+
+    it('allows legitimate project team vercel preview deployments', async () => {
+      const validPreviewOrigin = 'https://baiyogesic-preview-pr-123.vercel.app';
+      const res = await request(app)
+        .get('/api/health')
+        .set('Origin', validPreviewOrigin);
+      expect(res.headers['access-control-allow-origin']).toBe(validPreviewOrigin);
+      expect(res.headers['access-control-allow-credentials']).toBe('true');
+    });
   });
 
   describe('Authentication Cookie Hardening', () => {

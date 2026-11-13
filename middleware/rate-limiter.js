@@ -26,7 +26,12 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   validate: { xForwardedForHeader: false },
   skip: (req) => {
-    return process.env.NODE_ENV === 'test' && req.headers['x-bypass-rate-limit'] === 'true';
+    // In test environment, skip rate limiting unless specifically testing auth rate limiting
+    if (process.env.NODE_ENV === 'test') {
+      if (req.headers['x-bypass-rate-limit'] === 'true') return true;
+      if (!req.headers['x-test-auth-limiter']) return true;
+    }
+    return false;
   },
   handler: (_req, res) => {
     return res.status(429).json({

@@ -40,6 +40,7 @@ describe('Dedicated Authentication Rate Limiting ([S2-DSO-05])', () => {
       const res = await request(app)
         .post('/api/auth/login')
         .set('X-Forwarded-For', testIp)
+        .set('x-test-auth-limiter', 'true')
         .send({ email: `user${i}@hope.corp`, password: 'WrongPassword123!' });
 
       expect(res.status).not.toBe(429);
@@ -51,6 +52,7 @@ describe('Dedicated Authentication Rate Limiting ([S2-DSO-05])', () => {
     const resBlocked = await request(app)
       .post('/api/auth/login')
       .set('X-Forwarded-For', testIp)
+      .set('x-test-auth-limiter', 'true')
       .send({ email: 'user11@hope.corp', password: 'WrongPassword123!' });
 
     expect(resBlocked.status).toBe(429);
@@ -89,6 +91,7 @@ describe('Dedicated Authentication Rate Limiting ([S2-DSO-05])', () => {
       const res = await request(app)
         .post('/api/auth/forgot-password')
         .set('X-Forwarded-For', testIp)
+        .set('x-test-auth-limiter', 'true')
         .send({ email: `forgot${i}@hope.corp` });
 
       expect(res.status).not.toBe(429);
@@ -98,6 +101,7 @@ describe('Dedicated Authentication Rate Limiting ([S2-DSO-05])', () => {
     const resBlocked = await request(app)
       .post('/api/auth/register')
       .set('X-Forwarded-For', testIp)
+      .set('x-test-auth-limiter', 'true')
       .send({ email: 'blocked@hope.corp' });
 
     expect(resBlocked.status).toBe(429);

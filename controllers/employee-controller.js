@@ -115,6 +115,27 @@ const listOptions = asyncHandler(async (_req, res) => {
   res.json({ success: true, data: { departments: departments.rows, jobs: jobs.rows } });
 });
 
+async function recordSalaryViewAudit(empno, user) {
+  try {
+    const actor = user?.email || user?.username || "admin";
+    const stamp = "VIEW " + (user?.username || user?.email || "admin");
+    await requirePool().query(
+      `INSERT INTO public.audit_log
+         (table_name, action, record_key, new_values, action_by, action_at)
+       VALUES
+         ('employee', 'VIEW_SALARY', $1, $2::jsonb, $3, CURRENT_TIMESTAMP)`,
+      [
+        empno,
+        JSON.stringify({ empno, accessed_at: new Date().toISOString(), stamp }),
+        actor
+      ]
+    );
+  } catch (err) {
+    // Non-blocking: audit failure must not crash or prevent legitimate data retrieval
+    console.error('Failed to record salary view audit:', err.message || err);
+  }
+}
+
 const getEmployee = asyncHandler(async (req, res) => {
   await assertPerson(requirePool(), req.user, req.params.empno);
   const record = await requirePool().query(`SELECT ${employeeSelect(canViewSalary(req.user), req.user)} FROM public.employee e ${latestJob} WHERE e.empno = $1`, [req.params.empno]);
@@ -125,7 +146,10 @@ const getEmployee = asyncHandler(async (req, res) => {
     LEFT JOIN public.job j ON j.jobcode = h.jobcode
     LEFT JOIN public.department d ON d.deptcode = h.deptcode
     WHERE h.empno = $1 AND h.is_deleted = $2 AND ${peopleScope(req.user, 'h.empno')} ORDER BY h.effdate DESC, h.jobcode DESC`, [req.params.empno, record.rows[0].is_deleted]);
-  res.json({ success: true, data: { employee: record.rows[0], history: history.rows } });
+  if (Boolean(req.user && canViewSalary(req.user))) {
+      recordSalaryViewAudit(req.params.empno, req.user);
+    }
+    res.json({ success: true, data: { employee: record.rows[0], history: history.rows } });
 });
 
 const getJobHistory = asyncHandler(async (req, res) => {
@@ -151,6 +175,10 @@ const getJobHistory = asyncHandler(async (req, res) => {
      ORDER BY effdate DESC, h.jobcode DESC`,
     [empno, employeeResult.rows[0].is_deleted]
   );
+
+  if (salaryAllowed) {
+    recordSalaryViewAudit(empno, req.user);
+  }
 
   res.json({
     success: true,

@@ -9,6 +9,8 @@ const SENSITIVE_KEYS = new Set([
   'password',
   'currentpassword',
   'newpassword',
+  'password_hash',
+  'token_hash',
   'token',
   'verificationcode',
   'access_token',
@@ -17,19 +19,51 @@ const SENSITIVE_KEYS = new Set([
   'cookie',
   'ssn',
   'tin',
-  'salary'
+  'salary',
+  'birthdate',
+  'sepdate'
 ]);
 
-function sanitize(obj) {
+const SENSITIVE_QUERY_PARAMS = new Set([
+  'token',
+  'key',
+  'secret',
+  'password'
+]);
+
+function redactUrlQuery(url) {
+  if (!url || typeof url !== 'string') return url;
+  const questionIdx = url.indexOf('?');
+  if (questionIdx === -1) return url;
+
+  const basePath = url.slice(0, questionIdx);
+  const queryString = url.slice(questionIdx + 1);
+  if (!queryString) return url;
+
+  const params = new URLSearchParams(queryString);
+  for (const [key] of Array.from(params.entries())) {
+    if (SENSITIVE_QUERY_PARAMS.has(key.toLowerCase())) {
+      params.set(key, '[REDACTED]');
+    }
+  }
+
+  return `${basePath}?${params.toString()}`;
+}
+
+function sanitize(obj, seen = new WeakSet()) {
   if (!obj || typeof obj !== 'object') return obj;
-  if (Array.isArray(obj)) return obj.map(sanitize);
+  if (seen.has(obj)) return '[CIRCULAR]';
+  seen.add(obj);
+
+  if (Array.isArray(obj)) return obj.map((item) => sanitize(item, seen));
 
   const clean = {};
   for (const [key, value] of Object.entries(obj)) {
-    if (SENSITIVE_KEYS.has(key.toLowerCase())) {
+    const keyLower = String(key).toLowerCase();
+    if (SENSITIVE_KEYS.has(keyLower)) {
       clean[key] = '[REDACTED]';
     } else if (typeof value === 'object' && value !== null) {
-      clean[key] = sanitize(value);
+      clean[key] = sanitize(value, seen);
     } else {
       clean[key] = value;
     }
@@ -55,8 +89,9 @@ function requestLogger(req, res, next) {
     const status = res.statusCode;
     const timestamp = new Date().toISOString();
 
+    const sanitizedUrl = redactUrlQuery(req.originalUrl || req.url);
     const level = status >= 500 ? 'ERROR' : status >= 400 ? 'WARN' : 'INFO';
-    const logLine = `[${level}] ${timestamp} ${req.method} ${req.originalUrl || req.url} ${status} ${duration} - ip: ${ip} user: ${user}`;
+    const logLine = `[${level}] ${timestamp} ${req.method} ${sanitizedUrl} ${status} ${duration} - ip: ${ip} user: ${user}`;
 
     if (level === 'ERROR') {
       console.error(logLine);
@@ -70,4 +105,4 @@ function requestLogger(req, res, next) {
   next();
 }
 
-module.exports = { requestLogger, sanitize };
+module.exports = { requestLogger, sanitize, redactUrlQuery };

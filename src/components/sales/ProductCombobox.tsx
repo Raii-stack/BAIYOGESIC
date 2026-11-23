@@ -45,7 +45,7 @@ export default function ProductCombobox({
   disabledCodes,
   inListCodes,
   clearOnSelect = false,
-  listboxClassName = "z-20",
+  listboxClassName = "z-30",
   inputRef,
 }: ProductComboboxProps) {
   const listboxId = useId()
@@ -218,16 +218,15 @@ export default function ProductCombobox({
                     isDisabled ? "cursor-not-allowed opacity-50" : ""
                   }`}
                 >
-                  <span className="min-w-0">
-                    <span className="workspace-option-label block">
-                      {product.code} — {product.description}
-                    </span>
-                    <span className="workspace-option-meta mt-0.5 block tabular-nums">
-                      {currency.format(effectivePrice)} / {product.unit}
-                    </span>
+                  <span className="workspace-option-label">
+                    {product.code} — {product.description}
                   </span>
-                  <span className="workspace-option-meta shrink-0 font-mono">
-                    {isDisabled ? "Added" : isInList ? "In list · +1" : product.unit}
+                  <span className="workspace-option-meta shrink-0 tabular-nums">
+                    {isDisabled
+                      ? "Added"
+                      : isInList
+                        ? `${currency.format(effectivePrice)} · In list · +1`
+                        : `${currency.format(effectivePrice)} / ${product.unit}`}
                   </span>
                 </button>
               )

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
+import ConfirmSaleModal from "../components/sales/ConfirmSaleModal"
 import CustomerCombobox from "../components/sales/CustomerCombobox"
 import EmployeeCombobox from "../components/sales/EmployeeCombobox"
 import ProductCombobox from "../components/sales/ProductCombobox"
@@ -62,10 +63,11 @@ export default function CreateSalePage() {
   )
   const [customerId, setCustomerId] = useState("")
   const [employeeId, setEmployeeId] = useState("")
-  const [lines, setLines] = useState<DraftLineItem[]>([{ id: "line-1", productCode: "", quantity: "1", unitPrice: 0 }])
+  const [lines, setLines] = useState<DraftLineItem[]>([])
   const [lineFeedback, setLineFeedback] = useState("")
   const [pendingFocusLineId, setPendingFocusLineId] = useState<string | null>(null)
-  const productInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
+  const productSelectRefs = useRef<Record<string, HTMLSelectElement | null>>({})
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [formError, setFormError] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
@@ -82,23 +84,18 @@ export default function CreateSalePage() {
         setProductOptions(catalog.products)
         if (catalog.products.length > 0) {
           setLines((current) =>
-            current.map((line, index) => {
-              const targetCode =
-                catalog.products.some((p) => p.code === line.productCode)
-                  ? line.productCode
-                  : index === 0
-                    ? catalog.products[0].code
-                    : line.productCode
-              return {
-                ...line,
-                productCode: targetCode,
-                unitPrice: resolveProductPrice(
-                  catalog.products,
-                  targetCode,
-                  salesDate,
-                ),
-              }
-            }),
+            current.map((line) =>
+              line.productCode && catalog.products.some((p) => p.code === line.productCode)
+                ? {
+                    ...line,
+                    unitPrice: resolveProductPrice(
+                      catalog.products,
+                      line.productCode,
+                      salesDate,
+                    ),
+                  }
+                : line,
+            ),
           )
         }
       })
@@ -118,7 +115,7 @@ export default function CreateSalePage() {
 
   useEffect(() => {
     if (!pendingFocusLineId) return
-    productInputRefs.current[pendingFocusLineId]?.focus()
+    productSelectRefs.current[pendingFocusLineId]?.focus()
     setPendingFocusLineId(null)
   }, [pendingFocusLineId, lines])
 
@@ -168,6 +165,10 @@ export default function CreateSalePage() {
   const handleProductChange = (lineId: string, productCode: string) => {
     setFormError("")
     setLineFeedback("")
+    if (!productCode) {
+      setLines((current) => current.filter((line) => line.id !== lineId))
+      return
+    }
     const localPrice = resolveProductPrice(productOptions, productCode, salesDate)
     setLines((current) =>
       current.map((line) =>
@@ -254,9 +255,8 @@ export default function CreateSalePage() {
 
   const removeLineItem = (lineId: string) => {
     setFormError("")
-    setLines((current) =>
-      current.length > 1 ? current.filter((line) => line.id !== lineId) : current,
-    )
+    setLineFeedback("")
+    setLines((current) => current.filter((line) => line.id !== lineId))
   }
 
   const { subtotal, tax, totalAmount } = useMemo(() => {
@@ -275,7 +275,7 @@ export default function CreateSalePage() {
     }
   }, [lines])
 
-  const submit = async (event: FormEvent) => {
+  const submit = (event: FormEvent) => {
     event.preventDefault()
     setFormError("")
     if (catalogLoading || catalogError) return
@@ -309,6 +309,11 @@ export default function CreateSalePage() {
       }
     }
 
+    setConfirmOpen(true)
+  }
+
+  const confirmCreateSale = async () => {
+    setFormError("")
     setSubmitting(true)
     try {
       const created = await salesApi.create({
@@ -323,6 +328,7 @@ export default function CreateSalePage() {
       })
 
       setTransactionNo(created.transactionNo)
+      setConfirmOpen(false)
       notifyToast(`Sales order ${created.transactionNo} created.`, "success")
       navigate("/sales?view=transactions&page=1")
     } catch (error) {
@@ -336,6 +342,23 @@ export default function CreateSalePage() {
       setSubmitting(false)
     }
   }
+
+  const selectedCustomer = customerOptions.find((entry) => entry.id === customerId)
+  const selectedEmployee = employeeOptions.find((entry) => entry.id === employeeId)
+  const confirmLines = lines.map((line) => {
+    const product = productOptions.find((entry) => entry.code === line.productCode)
+    const qty = Number(line.quantity)
+    const validQty = Number.isFinite(qty) && qty > 0 ? qty : 0
+    return {
+      id: line.id,
+      productCode: line.productCode,
+      description: product?.description ?? line.productCode,
+      unit: product?.unit ?? "pc",
+      quantity: validQty,
+      unitPrice: line.unitPrice,
+      subtotal: getLineSubtotal(validQty, line.unitPrice),
+    }
+  })
 
   return (
     <DashboardLayout
@@ -453,7 +476,7 @@ export default function CreateSalePage() {
                 )}
               </div>
 
-              <div className="workspace-panel overflow-visible">
+              <div className="workspace-panel workspace-form-panel">
                 <table role="table" className="workspace-table">
                   <thead>
                     <tr className="border-b border-slate-300 bg-slate-100">
@@ -492,20 +515,28 @@ export default function CreateSalePage() {
                       return (
                         <tr key={line.id}>
                           <td data-label="Product">
-                            <ProductCombobox
-                              ariaLabel={`Product ${index + 1}`}
-                              products={productOptions}
-                              selectedProductCode={line.productCode}
-                              salesDate={salesDate}
-                              disabledCodes={otherUsedCodes}
-                              placeholder="Search product code or name"
-                              inputRef={(el) => {
-                                productInputRefs.current[line.id] = el
+                            <select
+                              ref={(el) => {
+                                productSelectRefs.current[line.id] = el
                               }}
-                              onSelect={(code) =>
-                                handleProductChange(line.id, code)
+                              aria-label={`Product ${index + 1}`}
+                              value={line.productCode}
+                              onChange={(event) =>
+                                handleProductChange(line.id, event.target.value)
                               }
-                            />
+                              className="workspace-control"
+                            >
+                              <option value="">{line.productCode ? "Remove product" : "Select product"}</option>
+                              {productOptions.map((product) => (
+                                <option
+                                  key={product.code}
+                                  value={product.code}
+                                  disabled={otherUsedCodes.has(product.code)}
+                                >
+                                  {product.code} — {product.description}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                           <td data-label="Quantity" className="w-36">
                             <input
@@ -532,13 +563,13 @@ export default function CreateSalePage() {
                           <td data-label="Actions" className="workspace-table-actions bg-white">
                             <button
                               type="button"
-                              disabled={lines.length <= 1}
+                              disabled={submitting}
                               onClick={() => removeLineItem(line.id)}
                               aria-label={`Remove line item ${index + 1}`}
-                              title="Remove line item"
-                              className="workspace-icon-action workspace-icon-action--danger disabled:opacity-40"
+                              title="Remove item"
+                              className="workspace-icon-action workspace-icon-action--danger"
                             >
-                              <DashboardIcon name="archive" className="h-4 w-4" />
+                              <DashboardIcon name="close" className="h-4 w-4" />
                             </button>
                           </td>
                         </tr>
@@ -546,6 +577,11 @@ export default function CreateSalePage() {
                     })}
                   </tbody>
                 </table>
+                {lines.length === 0 && (
+                  <p className="px-5 py-8 text-center text-sm text-slate-500">
+                    No items added yet. Search for a product above or click Add item below.
+                  </p>
+                )}
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-[11px] border-t border-slate-200 bg-slate-50/70 px-4 py-3">
                   <button
                     type="button"
@@ -554,10 +590,10 @@ export default function CreateSalePage() {
                     className="workspace-secondary-action"
                   >
                     <DashboardIcon name="plus" className="h-4 w-4" />
-                    Add another item
+                    {lines.length === 0 ? "Add item" : "Add another item"}
                   </button>
                   <span className="text-xs text-slate-500">
-                    Use Quick add above or add a blank row to search inline.
+                    Use Quick add above to search, or choose a product from the dropdown.
                   </span>
                 </div>
               </div>
@@ -611,6 +647,29 @@ export default function CreateSalePage() {
               </button>
             </div>
           </form>
+
+          <ConfirmSaleModal
+            open={confirmOpen}
+            transactionNo={transactionNo}
+            salesDate={salesDate}
+            customerName={selectedCustomer?.company ?? ""}
+            customerCode={selectedCustomer?.id ?? customerId}
+            paymentTerm={selectedCustomer?.paymentTerm}
+            employeeName={selectedEmployee?.fullName ?? ""}
+            employeeCode={selectedEmployee?.id ?? employeeId}
+            lines={confirmLines}
+            subtotal={subtotal}
+            tax={tax}
+            totalAmount={totalAmount}
+            submitting={submitting}
+            error={formError}
+            onClose={() => {
+              if (!submitting) setConfirmOpen(false)
+            }}
+            onConfirm={() => {
+              void confirmCreateSale()
+            }}
+          />
         </div>
       </main>
     </DashboardLayout>

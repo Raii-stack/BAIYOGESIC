@@ -76,8 +76,8 @@ test("shows a failed sales request without demo records and supports retry", asy
 test("records the selected payment method through the API before updating the balance", async () => {
   const user = userEvent.setup()
   const errors = vi.spyOn(console, "error").mockImplementation(() => {})
-  const sale = (payments: object[]) => ({
-    transno: "T-001",
+  const sale = (transno: string, payments: object[]) => ({
+    transno,
     salesdate: "2026-10-01",
     custno: "C-001",
     custname: "Acme Corporation",
@@ -99,28 +99,34 @@ test("records the selected payment method through the API before updating the ba
     if (url.pathname === "/api/auth/session") return new Response(JSON.stringify({ success: true, data: { user: {
       userId: "1", email: "preview@hope.inc", role: "superadmin", status: "active", mustChangePassword: false,
     } } }), { headers: { "Content-Type": "application/json" } })
-    if (url.pathname === "/api/sales" && init?.method === "GET") return new Response(JSON.stringify({ success: true, data: { sales: [sale(existingPayments)], pagination: { page: 1, limit: 200, total: 1, totalPages: 1 } } }), { headers: { "Content-Type": "application/json" } })
+    if (url.pathname === "/api/sales" && init?.method === "GET") return new Response(JSON.stringify({ success: true, data: { sales: [sale("T-001", existingPayments), sale("T-002", [{ orno: "OR-20001", paydate: "2026-10-02", amount: 234.5, payment_method: "Cash" }])], pagination: { page: 1, limit: 200, total: 2, totalPages: 1 } } }), { headers: { "Content-Type": "application/json" } })
     if (url.pathname === "/api/sales/T-001/payments" && init?.method === "POST") {
       const body = JSON.parse(String(init.body))
       expect(body).toEqual(expect.objectContaining({ amount: 10, payment_method: "Bank Transfer" }))
-      return new Response(JSON.stringify({ success: true, data: { sale: sale([...existingPayments, { orno: "OR-10009", paydate: body.paydate, amount: body.amount, payment_method: body.payment_method }]) } }), { status: 201, headers: { "Content-Type": "application/json" } })
+      return new Response(JSON.stringify({ success: true, data: { sale: sale("T-001", [...existingPayments, { orno: "OR-10009", paydate: body.paydate, amount: body.amount, payment_method: body.payment_method }]) } }), { status: 201, headers: { "Content-Type": "application/json" } })
     }
     throw new Error(`Unexpected request ${url.pathname}`)
   })
   vi.stubGlobal("fetch", fetchMock)
   render(<MemoryRouter initialEntries={["/sales?view=transactions&page=1&search=T-001"]}><AuthProvider><SalesManagementPage /></AuthProvider></MemoryRouter>)
-  await user.click(await screen.findByRole("button", { name: "Details for T-001", exact: true }))
-  const details = within(screen.getByRole("dialog", { name: /Sale Details/ }))
-  await user.click(details.getByRole("button", { name: "Record Payment", exact: true }))
+  expect(await screen.findByRole("button", { name: "Record payment for T-002", exact: true })).toBeDisabled()
+  await user.click(screen.getByRole("button", { name: "Record payment for T-001", exact: true }))
   const payment = within(screen.getByRole("dialog", { name: "Record Payment", exact: true }))
+  expect(payment.getByText("Sales order T-001")).toBeInTheDocument()
   await user.clear(payment.getByRole("spinbutton"))
   await user.type(payment.getByRole("spinbutton"), "10")
   await user.selectOptions(payment.getByRole("combobox", { name: "Payment method" }), "Bank Transfer")
   await user.click(payment.getByRole("button", { name: "Save Payment", exact: true }))
-  expect(await details.findByText("$24.50", { exact: true })).toBeInTheDocument()
-  expect(details.getByText("Bank Transfer")).toBeInTheDocument()
+  expect(await screen.findByText("$24.50", { exact: true })).toBeInTheDocument()
   expect(screen.queryByRole("dialog", { name: "Record Payment", exact: true })).not.toBeInTheDocument()
+  expect(screen.queryByRole("dialog", { name: /Sale Details/ })).not.toBeInTheDocument()
   expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith("/api/sales/T-001/payments") && init?.method === "POST")).toBe(true)
+
+  await user.click(screen.getByRole("button", { name: "Details for T-001", exact: true }))
+  const details = within(screen.getByRole("dialog", { name: /Sale Details/ }))
+  expect(details.queryByRole("button", { name: "Record Payment", exact: true })).not.toBeInTheDocument()
+  expect(details.getByText("Bank Transfer")).toBeInTheDocument()
+  expect(details.getByText("$24.50", { exact: true })).toBeInTheDocument()
   expect(errors).not.toHaveBeenCalled()
 })
 
@@ -213,19 +219,39 @@ test("CreateSalePage calculates line totals with price-as-of-date lookup and sub
   await user.click(screen.getByRole("option", { name: /Employee Record 02/i }))
   expect(salesperson).toHaveValue("Employee Record 02")
 
-  // Update quantity to 0 and verify validation error
+  // No items are selected by default.
+  expect(screen.getByText(/No items added yet/i)).toBeInTheDocument()
+  expect(screen.queryByLabelText("Product 1")).not.toBeInTheDocument()
+
+  // Submitting with zero items shows validation and does not open confirmation.
+  await user.click(screen.getByRole("button", { name: "Save sale" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent(/Add at least one line item/i)
+  expect(screen.queryByRole("dialog", { name: "Confirm sales order" })).not.toBeInTheDocument()
+
+  // Add item and select P-001, then update quantity to 0 and verify validation error
+  await user.click(screen.getByRole("button", { name: "Add item" }))
+  await user.selectOptions(screen.getByRole("combobox", { name: "Product 1" }), "P-001")
   const qtyInput = screen.getByLabelText("Quantity 1")
   await user.clear(qtyInput)
   await user.type(qtyInput, "0")
   await user.click(screen.getByRole("button", { name: "Save sale" }))
   expect(await screen.findByRole("alert")).toHaveTextContent(/Quantity must be greater than zero/i)
+  expect(screen.queryByRole("dialog", { name: "Confirm sales order" })).not.toBeInTheDocument()
 
-  // Set quantity to 4 (P-001 @ $13.75 = $55.00) and submit
+  // Set quantity to 4 (P-001 @ $13.75 = $55.00), open confirmation modal, and confirm
   await user.clear(qtyInput)
   await user.type(qtyInput, "4")
   expect(screen.getAllByText("$55.00").length).toBeGreaterThan(0)
 
   await user.click(screen.getByRole("button", { name: "Save sale" }))
+  const confirmDialog = within(screen.getByRole("dialog", { name: "Confirm sales order" }))
+  expect(confirmDialog.getByText("Northstar Office Group")).toBeInTheDocument()
+  expect(confirmDialog.getByText("Employee Record 02")).toBeInTheDocument()
+  expect(confirmDialog.getByText("P-001")).toBeInTheDocument()
+  expect(confirmDialog.getByText("Industrial Widget A")).toBeInTheDocument()
+  expect(confirmDialog.getAllByText("$55.00").length).toBeGreaterThan(0)
+
+  await user.click(confirmDialog.getByRole("button", { name: "Confirm & save sale" }))
   expect(await screen.findByText("Sales list destination")).toBeInTheDocument()
 })
 
@@ -478,36 +504,56 @@ test("CreateSalePage supports quick-add product search, incrementing quantities,
   )
 
   expect(await screen.findByRole("heading", { name: "Create sale" })).toBeInTheDocument()
+  expect(screen.getByText(/No items added yet/i)).toBeInTheDocument()
   const customerInput = screen.getByPlaceholderText("Search by customer name or ID")
   await user.click(customerInput)
   await user.click(screen.getByRole("option", { name: /Northstar Office Group/i }))
 
-  // Line 1 defaults to P-001; quick-add P-002 by searching description
+  // Quick-add P-001 and P-002 by searching, then increment P-002
   const quickSearch = screen.getByRole("combobox", { name: /Search and add product/i })
+  await user.type(quickSearch, "Widget")
+  await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: /P-001 — Industrial Widget A/i }))
   await user.type(quickSearch, "Copper")
-  await user.click(screen.getByRole("option", { name: /P-002 — Copper Valve B/i }))
-  expect(screen.getByRole("combobox", { name: "Product 2" })).toHaveValue("P-002 — Copper Valve B")
+  await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: /P-002 — Copper Valve B/i }))
+  expect(screen.getByRole("combobox", { name: "Product 2" })).toHaveValue("P-002")
   expect(screen.getByText(/Added Copper Valve B \(P-002\)\./)).toBeInTheDocument()
 
-  // Selecting an already-added product in quick-add increments its quantity instead of duplicating
   await user.type(quickSearch, "P-002")
-  expect(screen.getByRole("option", { name: /P-002 — Copper Valve B/i })).toHaveTextContent("In list · +1")
-  await user.click(screen.getByRole("option", { name: /P-002 — Copper Valve B/i }))
+  const quickOption = within(screen.getByRole("listbox")).getByRole("option", { name: /P-002 — Copper Valve B/i })
+  expect(quickOption).toHaveTextContent("In list · +1")
+  await user.click(quickOption)
   expect(screen.getByLabelText("Quantity 2")).toHaveValue(2)
   expect(screen.getByText(/Increased Copper Valve B \(P-002\) quantity to 2\./)).toBeInTheDocument()
 
-  // Bottom button adds a blank row and focuses its inline search combobox, disabling already-used products
+  // Clicking X removes P-001 from the list; clearing the product dropdown removes the remaining item too
+  await user.click(screen.getByRole("button", { name: "Remove line item 1" }))
+  expect(screen.getByRole("combobox", { name: "Product 1" })).toHaveValue("P-002")
+  expect(screen.queryByRole("combobox", { name: "Product 2" })).not.toBeInTheDocument()
+  await user.selectOptions(screen.getByRole("combobox", { name: "Product 1" }), "")
+  expect(screen.getByText(/No items added yet/i)).toBeInTheDocument()
+
+  // Re-add P-001 and P-002 (qty 2) via Quick add, then add P-003 via bottom button dropdown
+  await user.type(quickSearch, "P-001")
+  await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: /P-001 — Industrial Widget A/i }))
+  await user.type(quickSearch, "P-002")
+  await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: /P-002 — Copper Valve B/i }))
+  await user.type(quickSearch, "P-002")
+  await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: /P-002 — Copper Valve B/i }))
+
   await user.click(screen.getByRole("button", { name: "Add another item" }))
-  const product3Input = screen.getByRole("combobox", { name: "Product 3" })
-  expect(product3Input).toHaveFocus()
-  await user.click(product3Input)
-  expect(screen.getByRole("option", { name: /P-001 — Industrial Widget A/i })).toBeDisabled()
-  expect(screen.getByRole("option", { name: /P-002 — Copper Valve B/i })).toBeDisabled()
-  await user.type(product3Input, "Gasket")
-  await user.click(screen.getByRole("option", { name: /P-003 — Steel Gasket C/i }))
-  expect(product3Input).toHaveValue("P-003 — Steel Gasket C")
+  const product3Select = screen.getByRole("combobox", { name: "Product 3" })
+  expect(product3Select).toHaveFocus()
+  expect(within(product3Select).getByRole("option", { name: /P-001 — Industrial Widget A/i })).toBeDisabled()
+  expect(within(product3Select).getByRole("option", { name: /P-002 — Copper Valve B/i })).toBeDisabled()
+  await user.selectOptions(product3Select, "P-003")
+  expect(product3Select).toHaveValue("P-003")
 
   await user.click(screen.getByRole("button", { name: "Save sale" }))
+  const confirmDialog = within(screen.getByRole("dialog", { name: "Confirm sales order" }))
+  expect(confirmDialog.getByText("Industrial Widget A")).toBeInTheDocument()
+  expect(confirmDialog.getByText("Copper Valve B")).toBeInTheDocument()
+  expect(confirmDialog.getByText("Steel Gasket C")).toBeInTheDocument()
+  await user.click(confirmDialog.getByRole("button", { name: "Confirm & save sale" }))
   expect(await screen.findByText("Sales list destination")).toBeInTheDocument()
   expect(submittedLines).toEqual([
     { prodcode: "P-001", quantity: 1, unitprice: 10 },

@@ -85,3 +85,21 @@
 **Verification:** The UI consistency spec passed all 10 tests after the mock was added.
 
 **Screenshot/log:** No screenshot was retained; Playwright cleared the failed-run artifacts after the passing rerun. The earlier failure message is recorded in the S1-TST-06 report.
+
+## BUG-005: Missing fallback Supabase environment variables in test setup causes module import failure in auth-routes and db-config tests
+**Severity:** Medium | **Status:** Resolved | **Found by:** Prince Nelson J. Aguinaldo Jr. (Test Engineer) | **Tests:** `routes/auth-routes.test.js`, `lib/db-config.test.js`
+
+**Environment:** local API test runner (`npm test`), Node.js 24.22.3, macOS
+
+**Steps to Reproduce:**
+1. Clone repository to an environment without a populated `.env` file.
+2. Run `npx vitest run routes/auth-routes.test.js lib/db-config.test.js`.
+
+**Expected:** All unit tests pass using mock database configuration.
+
+**Actual:** Test runner caught unhandled error during module import:
+`Error: SUPABASE_URL and SUPABASE_KEY must be configured` at `db.js:32:9`.
+
+**Fix:** Add safe fallback mock credentials (`https://mock-test.supabase.co` and `mock-test-key`) in `src/test-setup.js` when `process.env.SUPABASE_URL` and `process.env.SUPABASE_KEY` are not already defined by the execution environment.
+
+**Verification:** `routes/auth-routes.test.js` and `lib/db-config.test.js` pass with 100% success rate without requiring local secret files.

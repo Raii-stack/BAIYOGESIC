@@ -297,3 +297,70 @@ test("explains why a customer with active sales cannot be archived", async () =>
   expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
   expect(archiveTrigger).toHaveFocus()
 })
+
+test("restricts action buttons for view-only employee role", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: { ...admin, role: "employee", rights: ["customers.access"] } })
+    if (url.pathname === "/api/customers") return success({ customers: [customer(1)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  }))
+
+  render(<MemoryRouter><AuthProvider><CustomerManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Customer 1")
+
+  expect(screen.queryByRole("button", { name: "Add customer" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Edit Customer 1" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Archive Customer 1" })).not.toBeInTheDocument()
+})
+
+test("displays conflict error alert when customer creation fails with HTTP 409", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: admin })
+    if (url.pathname === "/api/customers" && init?.method === "GET") {
+      return success({ customers: [customer(1)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    }
+    if (url.pathname === "/api/customers" && init?.method === "POST") {
+      return new Response(JSON.stringify({ success: false, error: { message: "A customer with that name already exists" } }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" }
+      })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><CustomerManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Customer 1")
+
+  await user.click(screen.getByRole("button", { name: "Add customer" }))
+  const dialog = screen.getByRole("dialog", { name: "Customer Details" })
+  await user.type(within(dialog).getByRole("textbox", { name: /Customer Name/ }), "Existing Customer")
+  await user.type(within(dialog).getByRole("textbox", { name: /Address/ }), "100 Market St")
+  await user.selectOptions(within(dialog).getByRole("combobox", { name: /Payment Terms/ }), "30D")
+  await user.click(within(dialog).getByRole("button", { name: "Create customer" }))
+
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent("already exists")
+})
+
+test("displays error state when customer fetching fails with HTTP 500", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: admin })
+    if (url.pathname === "/api/customers") {
+      return new Response(JSON.stringify({ success: false, error: { message: "Database connection failed" } }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" }
+      })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  }))
+
+  render(<MemoryRouter><AuthProvider><CustomerManagementPage /></AuthProvider></MemoryRouter>)
+  const alert = await screen.findByRole("alert")
+  expect(alert).toHaveTextContent("The service is temporarily unavailable. Please try again.")
+  expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument()
+})
+

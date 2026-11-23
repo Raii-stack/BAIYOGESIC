@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react"
 
 import type { PriceHistoryEntry, Product } from "../../types/product"
+import { classifyPriceHistory, getTodayIsoDate } from "../../lib/price-history"
 import { productApi } from "../../lib/product-api"
 import { DashboardIcon } from "../dashboard/DashboardComponents"
 import TableSkeleton from "../common/TableSkeleton"
@@ -28,8 +29,9 @@ export default function PriceHistoryModal({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [showAddForm, setShowAddForm] = useState(false)
-  const [newDate, setNewDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [newDate, setNewDate] = useState(() => getTodayIsoDate())
   const [newPrice, setNewPrice] = useState("")
+  const [recentlyAddedDate, setRecentlyAddedDate] = useState<string | null>(null)
   const [formError, setFormError] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
@@ -39,12 +41,14 @@ export default function PriceHistoryModal({
     if (!open || !productCode) {
       setEntries([])
       setShowAddForm(false)
+      setRecentlyAddedDate(null)
       setFormError("")
       setNewPrice("")
       return
     }
 
     const controller = new AbortController()
+    setRecentlyAddedDate(null)
     setLoading(true)
     setError("")
 
@@ -76,12 +80,8 @@ export default function PriceHistoryModal({
 
   if (!open || !product) return null
 
-  const today = new Date().toISOString().slice(0, 10)
-  // The active price is the latest effective price with effectiveDate <= today
-  const sortedEligible = [...entries]
-    .filter((e) => e.effectiveDate <= today)
-    .sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))
-  const activeDate = sortedEligible[0]?.effectiveDate
+  const today = getTodayIsoDate()
+  const { items, currentEntry, upcomingEntry } = classifyPriceHistory(entries, today, recentlyAddedDate)
 
   const handleAddPrice = async (event: FormEvent) => {
     event.preventDefault()
@@ -103,6 +103,7 @@ export default function PriceHistoryModal({
         effdate: newDate,
         price: parsedPrice,
       })
+      setRecentlyAddedDate(newDate)
       setNewPrice("")
       setShowAddForm(false)
       const updated = await productApi.priceHistory(product.code)
@@ -118,8 +119,8 @@ export default function PriceHistoryModal({
   const headings = [
     "Effective Date",
     "Unit Price",
+    "Pricing",
     ...(canViewAudit ? ["Status", "Stamp"] : []),
-    "Actions",
   ]
 
   return (
@@ -174,7 +175,7 @@ export default function PriceHistoryModal({
                   <button
                     type="button"
                     onClick={() => {
-                      setNewDate(new Date().toISOString().slice(0, 10))
+                      setNewDate(getTodayIsoDate())
                       setNewPrice("")
                       setFormError("")
                       setShowAddForm(true)
@@ -208,6 +209,7 @@ export default function PriceHistoryModal({
                       </span>
                       <input
                         type="date"
+                        min={today}
                         value={newDate}
                         disabled={submitting}
                         onChange={(e) => setNewDate(e.target.value)}
@@ -274,39 +276,93 @@ export default function PriceHistoryModal({
             <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-700">
               {error}
             </div>
-          ) : entries.length === 0 ? (
+          ) : items.length === 0 ? (
             <div className="rounded-lg border border-slate-200 p-8 text-center text-sm text-slate-500">
               No price history recorded.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-lg border border-slate-200">
-              <table className="w-full text-left text-xs">
-                <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                  <tr>
-                    <th className="px-4 py-3">Effective Date</th>
-                    <th className="px-4 py-3 text-right">Unit Price</th>
-                    {canViewAudit && (
-                      <>
-                        <th className="px-4 py-3">Status</th>
-                        <th className="px-4 py-3">Stamp</th>
-                      </>
-                    )}
-                    <th className="px-4 py-3 text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {entries.map((entry) => {
-                    const isActive = entry.effectiveDate === activeDate
-                    return (
+            <div className="space-y-3">
+              {(currentEntry || upcomingEntry) && (
+                <div className="space-y-2">
+                  {currentEntry && (
+                    <p className="rounded-lg border border-emerald-200 bg-emerald-50/80 px-3.5 py-2.5 text-xs font-medium text-emerald-900">
+                      Following now: {currency.format(currentEntry.price)} (effective {currentEntry.effectiveDate})
+                    </p>
+                  )}
+                  {upcomingEntry && (
+                    <p className="rounded-lg border border-sky-200 bg-sky-50/80 px-3.5 py-2.5 text-xs font-medium text-sky-900">
+                      New scheduled price: {currency.format(upcomingEntry.price)} (starts {upcomingEntry.effectiveDate})
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                    <tr>
+                      <th className="px-4 py-3">Effective Date</th>
+                      <th className="px-4 py-3 text-right">Unit Price</th>
+                      <th className="px-4 py-3">Pricing</th>
+                      {canViewAudit && (
+                        <>
+                          <th className="px-4 py-3">Status</th>
+                          <th className="px-4 py-3">Stamp</th>
+                        </>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {items.map((entry) => (
                       <tr
                         key={entry.effectiveDate}
-                        className={isActive ? "bg-emerald-50/60 font-medium" : "hover:bg-slate-50"}
+                        className={
+                          entry.isCurrent
+                            ? "bg-emerald-50/75 border-l-4 border-l-emerald-600 font-medium"
+                            : entry.isUpcoming
+                              ? "bg-sky-50/75 border-l-4 border-l-sky-500"
+                              : "text-slate-500 hover:bg-slate-50"
+                        }
                       >
-                        <td className="px-4 py-3 font-mono text-slate-700">
+                        <td className={`px-4 py-3 font-mono ${entry.tier === "previous" ? "text-slate-500" : "text-slate-700"}`}>
                           {entry.effectiveDate}
                         </td>
-                        <td className="px-4 py-3 text-right tabular-nums font-bold text-slate-900">
+                        <td className={`px-4 py-3 text-right tabular-nums font-bold ${entry.tier === "previous" ? "text-slate-500" : "text-slate-900"}`}>
                           {currency.format(entry.price)}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {entry.isCurrent && (
+                              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                                Current
+                              </span>
+                            )}
+                            {entry.isNew && (
+                              <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-800">
+                                New
+                              </span>
+                            )}
+                            {entry.isUpcoming && (
+                              <span className="inline-flex items-center rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-bold text-sky-800">
+                                Upcoming
+                              </span>
+                            )}
+                            {entry.isCurrent && entry.isNewest && items.length > 1 && !entry.isNew && (
+                              <span className="inline-flex items-center rounded-full bg-slate-200/80 px-2 py-0.5 text-[10px] font-semibold text-slate-700">
+                                Latest
+                              </span>
+                            )}
+                            {entry.tier === "previous" && (
+                              <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                                Previous
+                              </span>
+                            )}
+                            {entry.isCurrent && (
+                              <span className="text-[11px] font-medium text-emerald-700">Following now</span>
+                            )}
+                            {entry.isUpcoming && (
+                              <span className="text-[11px] font-medium text-sky-700">Scheduled</span>
+                            )}
+                          </div>
                         </td>
                         {canViewAudit && (
                           <>
@@ -314,8 +370,8 @@ export default function PriceHistoryModal({
                               <span
                                 className={`inline-flex rounded px-2 py-0.5 text-[10px] font-semibold ${
                                   entry.status === "Inactive"
-                                    ? "bg-slate-100 text-slate-600"
-                                    : "bg-emerald-100 text-emerald-800"
+                                    ? "bg-slate-100 text-slate-500"
+                                    : "bg-slate-100 text-slate-700"
                                 }`}
                               >
                                 {entry.status || "Active"}
@@ -326,20 +382,11 @@ export default function PriceHistoryModal({
                             </td>
                           </>
                         )}
-                        <td className="px-4 py-3 text-center">
-                          {isActive ? (
-                            <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                              Current
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-400">—</span>
-                          )}
-                        </td>
                       </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>

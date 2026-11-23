@@ -373,3 +373,58 @@ test("hides Status and Stamp in PriceHistoryModal for standard user", async () =
   expect(screen.queryByRole("columnheader", { name: "Stamp" })).not.toBeInTheDocument()
   expect(screen.queryByRole("button", { name: "+ Add Price" })).not.toBeInTheDocument()
 })
+
+test("distinguishes new upcoming, current following, and previous prices in expanded history and modal", async () => {
+  let prices = [
+    { effdate: "2099-12-01", unitprice: "15.00", stamp: "ADD admin 2099-12-01" },
+    { effdate: "2025-10-01", unitprice: "12.50", stamp: "ADD admin 2025-10-01" },
+    { effdate: "2025-01-01", unitprice: "10.00", stamp: "ADD admin 2025-01-01" },
+  ]
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: admin })
+    if (url.pathname === "/api/products" && init?.method === "GET") {
+      return success({ products: [product(1)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    }
+    if (url.pathname === "/api/products/PX0001/prices" && init?.method === "GET") {
+      return success({ prices })
+    }
+    if (url.pathname === "/api/products/PX0001/price-history" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body))
+      prices = [{ effdate: body.effdate, unitprice: String(body.price), stamp: "ADD admin new" }, ...prices]
+      return success({ price: { effdate: body.effdate, unitprice: body.price } })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><InventoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Product 1")
+
+  await user.click(screen.getByRole("button", { name: "Show price history for PX0001" }))
+  const expansion = await screen.findByText("Currently following")
+  const historyPanel = expansion.closest(".workspace-history") as HTMLElement
+  expect(within(historyPanel).getByText("Currently following")).toBeInTheDocument()
+  expect(within(historyPanel).getByText("New upcoming price")).toBeInTheDocument()
+  expect(within(historyPanel).getByText("Following now")).toBeInTheDocument()
+  expect(within(historyPanel).getByText("Upcoming")).toBeInTheDocument()
+  expect(within(historyPanel).getByText("New")).toBeInTheDocument()
+  expect(within(historyPanel).getByText("Previous")).toBeInTheDocument()
+
+  await user.click(within(historyPanel).getByRole("button", { name: "Manage prices" }))
+  const modal = await screen.findByRole("dialog", { name: /Price History/i })
+  expect(within(modal).getByText(/Following now: \$12\.50 \(effective 2025-10-01\)/)).toBeInTheDocument()
+  expect(within(modal).getByText(/New scheduled price: \$15\.00 \(starts 2099-12-01\)/)).toBeInTheDocument()
+  expect(within(modal).getByText("Current")).toBeInTheDocument()
+  expect(within(modal).getByText("Upcoming")).toBeInTheDocument()
+  expect(within(modal).getByText("Previous")).toBeInTheDocument()
+
+  await user.click(within(modal).getByRole("button", { name: "Add Price" }))
+  await user.type(within(modal).getByPlaceholderText("0.00"), "14.25")
+  await user.click(within(modal).getByRole("button", { name: "Save Price" }))
+
+  expect(await within(modal).findByText("$14.25")).toBeInTheDocument()
+  expect(within(modal).getByText(/Following now: \$14\.25/)).toBeInTheDocument()
+  expect(within(modal).getAllByText("New").length).toBeGreaterThanOrEqual(1)
+})

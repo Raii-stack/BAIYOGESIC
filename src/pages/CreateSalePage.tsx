@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router"
 import { useAuth } from "../components/auth/AuthProvider"
 import CustomerCombobox from "../components/sales/CustomerCombobox"
 import EmployeeCombobox from "../components/sales/EmployeeCombobox"
+import ProductCombobox from "../components/sales/ProductCombobox"
 import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import DashboardLayout from "../layouts/DashboardLayout"
 import {
@@ -62,6 +63,9 @@ export default function CreateSalePage() {
   const [customerId, setCustomerId] = useState("")
   const [employeeId, setEmployeeId] = useState("")
   const [lines, setLines] = useState<DraftLineItem[]>([{ id: "line-1", productCode: "", quantity: "1", unitPrice: 0 }])
+  const [lineFeedback, setLineFeedback] = useState("")
+  const [pendingFocusLineId, setPendingFocusLineId] = useState<string | null>(null)
+  const productInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
   const [formError, setFormError] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
@@ -112,6 +116,38 @@ export default function CreateSalePage() {
     }
   }, [catalogError, catalogLoading, employeeOptions, user?.empno])
 
+  useEffect(() => {
+    if (!pendingFocusLineId) return
+    productInputRefs.current[pendingFocusLineId]?.focus()
+    setPendingFocusLineId(null)
+  }, [pendingFocusLineId, lines])
+
+  const usedProductCodes = useMemo(
+    () => new Set(lines.map((line) => line.productCode).filter(Boolean)),
+    [lines],
+  )
+
+  const refreshLinePrice = (
+    lineId: string,
+    productCode: string,
+    targetDate: string,
+  ) => {
+    if (!productCode) return
+    salesApi
+      .lookupPrice(productCode, targetDate)
+      .then((lookup) => {
+        if (!lookup) return
+        setLines((current) =>
+          current.map((entry) =>
+            entry.id === lineId && entry.productCode === productCode
+              ? { ...entry, unitPrice: lookup.unitPrice }
+              : entry,
+          ),
+        )
+      })
+      .catch(() => {})
+  }
+
   const handleSalesDateChange = (nextDate: string) => {
     setSalesDate(nextDate)
     setFormError("")
@@ -125,25 +161,13 @@ export default function CreateSalePage() {
     )
 
     lines.forEach((line) => {
-      if (!line.productCode) return
-      salesApi
-        .lookupPrice(line.productCode, nextDate)
-        .then((lookup) => {
-          if (!lookup) return
-          setLines((current) =>
-            current.map((entry) =>
-              entry.id === line.id
-                ? { ...entry, unitPrice: lookup.unitPrice }
-                : entry,
-            ),
-          )
-        })
-        .catch(() => {})
+      if (line.productCode) refreshLinePrice(line.id, line.productCode, nextDate)
     })
   }
 
   const handleProductChange = (lineId: string, productCode: string) => {
     setFormError("")
+    setLineFeedback("")
     const localPrice = resolveProductPrice(productOptions, productCode, salesDate)
     setLines((current) =>
       current.map((line) =>
@@ -153,21 +177,54 @@ export default function CreateSalePage() {
       ),
     )
 
-    if (productCode) {
-      salesApi
-        .lookupPrice(productCode, salesDate)
-        .then((lookup) => {
-          if (!lookup) return
-          setLines((current) =>
-            current.map((line) =>
-              line.id === lineId
-                ? { ...line, unitPrice: lookup.unitPrice }
-                : line,
-            ),
-          )
-        })
-        .catch(() => {})
+    refreshLinePrice(lineId, productCode, salesDate)
+  }
+
+  const handleQuickAddProduct = (productCode: string) => {
+    const product = productOptions.find((entry) => entry.code === productCode)
+    if (!product) return
+    setFormError("")
+
+    const existing = lines.find((line) => line.productCode === productCode)
+    if (existing) {
+      const currentQty = Number(existing.quantity)
+      const nextQty =
+        (Number.isFinite(currentQty) && currentQty > 0 ? currentQty : 0) + 1
+      setLines((current) =>
+        current.map((line) =>
+          line.id === existing.id
+            ? { ...line, quantity: String(nextQty) }
+            : line,
+        ),
+      )
+      setLineFeedback(
+        `Increased ${product.description} (${product.code}) quantity to ${nextQty}.`,
+      )
+      return
     }
+
+    const localPrice = resolveProductPrice(productOptions, productCode, salesDate)
+    const emptyLine = lines.find((line) => !line.productCode)
+    if (emptyLine) {
+      setLines((current) =>
+        current.map((line) =>
+          line.id === emptyLine.id
+            ? { ...line, productCode, quantity: "1", unitPrice: localPrice }
+            : line,
+        ),
+      )
+      refreshLinePrice(emptyLine.id, productCode, salesDate)
+      setLineFeedback(`Added ${product.description} (${product.code}).`)
+      return
+    }
+
+    const newId = `line-${Date.now()}-${lines.length + 1}`
+    setLines((current) => [
+      ...current,
+      { id: newId, productCode, quantity: "1", unitPrice: localPrice },
+    ])
+    refreshLinePrice(newId, productCode, salesDate)
+    setLineFeedback(`Added ${product.description} (${product.code}).`)
   }
 
   const handleQuantityChange = (lineId: string, quantity: string) => {
@@ -181,22 +238,18 @@ export default function CreateSalePage() {
 
   const addLineItem = () => {
     setFormError("")
-    const usedCodes = new Set(lines.map((line) => line.productCode))
-    const nextProduct =
-      productOptions.find((product) => !usedCodes.has(product.code)) ||
-      productOptions[0]
-    const nextCode = nextProduct?.code ?? ""
+    setLineFeedback("")
+    const newId = `line-${Date.now()}-${lines.length + 1}`
     setLines((current) => [
       ...current,
       {
-        id: `line-${Date.now()}-${current.length + 1}`,
-        productCode: nextCode,
+        id: newId,
+        productCode: "",
         quantity: "1",
-        unitPrice: nextCode
-          ? resolveProductPrice(productOptions, nextCode, salesDate)
-          : 0,
+        unitPrice: 0,
       },
     ])
+    setPendingFocusLineId(newId)
   }
 
   const removeLineItem = (lineId: string) => {
@@ -371,28 +424,48 @@ export default function CreateSalePage() {
                     Unit prices are automatically looked up from price history as of {salesDate}.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={addLineItem}
-                  className="workspace-secondary-action"
-                >
-                  Add line item
-                </button>
+                <span className="workspace-badge workspace-badge--neutral">
+                  {lines.length} {lines.length === 1 ? "item" : "items"}
+                </span>
               </div>
 
-              <div className="workspace-panel workspace-table-scroll">
-                <table role="table" className="workspace-table min-w-[680px]">
+              <div className="mb-4">
+                <ProductCombobox
+                  label="Search and add product"
+                  helperBadge="Quick add"
+                  placeholder="Search by product code, description, or unit to add…"
+                  products={productOptions}
+                  selectedProductCode=""
+                  salesDate={salesDate}
+                  inListCodes={usedProductCodes}
+                  clearOnSelect
+                  listboxClassName="z-30"
+                  onSelect={handleQuickAddProduct}
+                />
+                {lineFeedback && (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="mt-2 text-xs font-medium text-emerald-700"
+                  >
+                    {lineFeedback}
+                  </p>
+                )}
+              </div>
+
+              <div className="workspace-panel overflow-visible">
+                <table role="table" className="workspace-table">
                   <thead>
                     <tr className="border-b border-slate-300 bg-slate-100">
-                      <th scope="col">Product</th>
-                      <th scope="col">Quantity</th>
-                      <th scope="col" className="text-right">
+                      <th scope="col" className="first:rounded-tl-[11px] last:rounded-tr-[11px]">Product</th>
+                      <th scope="col" className="first:rounded-tl-[11px] last:rounded-tr-[11px]">Quantity</th>
+                      <th scope="col" className="text-right first:rounded-tl-[11px] last:rounded-tr-[11px]">
                         Unit price
                       </th>
-                      <th scope="col" className="text-right">
+                      <th scope="col" className="text-right first:rounded-tl-[11px] last:rounded-tr-[11px]">
                         Line subtotal
                       </th>
-                      <th scope="col" className="workspace-table-actions">
+                      <th scope="col" className="workspace-table-actions first:rounded-tl-[11px] last:rounded-tr-[11px]">
                         Actions
                       </th>
                     </tr>
@@ -408,25 +481,31 @@ export default function CreateSalePage() {
                         validQty,
                         line.unitPrice,
                       )
+                      const otherUsedCodes = new Set(
+                        lines
+                          .filter(
+                            (other) => other.id !== line.id && other.productCode,
+                          )
+                          .map((other) => other.productCode),
+                      )
 
                       return (
                         <tr key={line.id}>
                           <td data-label="Product">
-                            <select
-                              aria-label={`Product ${index + 1}`}
-                              value={line.productCode}
-                              onChange={(event) =>
-                                handleProductChange(line.id, event.target.value)
+                            <ProductCombobox
+                              ariaLabel={`Product ${index + 1}`}
+                              products={productOptions}
+                              selectedProductCode={line.productCode}
+                              salesDate={salesDate}
+                              disabledCodes={otherUsedCodes}
+                              placeholder="Search product code or name"
+                              inputRef={(el) => {
+                                productInputRefs.current[line.id] = el
+                              }}
+                              onSelect={(code) =>
+                                handleProductChange(line.id, code)
                               }
-                              className="workspace-control"
-                            >
-                              <option value="">Select product</option>
-                              {productOptions.map((product) => (
-                                <option key={product.code} value={product.code}>
-                                  {product.code} — {product.description}
-                                </option>
-                              ))}
-                            </select>
+                            />
                           </td>
                           <td data-label="Quantity" className="w-36">
                             <input
@@ -467,6 +546,20 @@ export default function CreateSalePage() {
                     })}
                   </tbody>
                 </table>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-[11px] border-t border-slate-200 bg-slate-50/70 px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={addLineItem}
+                    disabled={catalogLoading || !productOptions.length}
+                    className="workspace-secondary-action"
+                  >
+                    <DashboardIcon name="plus" className="h-4 w-4" />
+                    Add another item
+                  </button>
+                  <span className="text-xs text-slate-500">
+                    Use Quick add above or add a blank row to search inline.
+                  </span>
+                </div>
               </div>
 
               {formError && (

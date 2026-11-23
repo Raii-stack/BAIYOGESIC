@@ -185,6 +185,12 @@ input.workspace-control[type="date"]:disabled::-webkit-calendar-picker-indicator
 .workspace-table tbody > tr { background: #fff; transition: background 150ms; }
 .workspace-table tbody > tr.is-muted { background: #fafafa; }
 .workspace-table tbody > tr.is-expanded, .workspace-table tbody > tr:hover { background: #f6f6f6; }
+.workspace-table tbody > tr.is-current-price { background: #ecfdf5; }
+.workspace-table tbody > tr.is-current-price:hover { background: #d1fae5; }
+.workspace-table tbody > tr.is-current-price > td:first-child { box-shadow: inset 3px 0 0 #059669; }
+.workspace-table tbody > tr.is-upcoming-price { background: #f0f9ff; }
+.workspace-table tbody > tr.is-upcoming-price:hover { background: #e0f2fe; }
+.workspace-table tbody > tr.is-upcoming-price > td:first-child { box-shadow: inset 3px 0 0 #0284c7; }
 .workspace-table tbody > tr:last-child > td { border-bottom: 0; }
 .workspace-table .workspace-table-actions { position: sticky; right: 0; z-index: 1; border-left: 1px solid #ededed; background: inherit; }
 .workspace-table th.workspace-table-actions { background: #f7f7f7; }

@@ -394,3 +394,124 @@ test("restores an archived sales order via the API", async () => {
 
   expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith("/api/sales/SO-202610-0003/restore"))).toBe(true)
 })
+
+test("CreateSalePage supports quick-add product search, incrementing quantities, and adding focused rows from the bottom", async () => {
+  const user = userEvent.setup()
+  let submittedLines: unknown = null
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.endsWith("/api/sales") && init?.method === "POST") {
+      const body = JSON.parse(String(init.body || "{}"))
+      submittedLines = body.lines
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            sale: {
+              transno: "SO-202610-0100",
+              custno: body.custno,
+              empno: body.empno,
+              salesdate: body.salesdate,
+              status: "Active",
+              lines: body.lines,
+              payments: [],
+            },
+          },
+        }),
+        { status: 201, headers: { "Content-Type": "application/json" } },
+      )
+    }
+    if (url.includes("/api/sales/catalog")) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: {
+            customers: [{ custno: "C0001", custname: "Northstar Office Group", payterm: "30D" }],
+            employees: [{ empno: "00001", firstname: "Employee", lastname: "Record 01" }],
+            products: [
+              { prodcode: "P-001", description: "Industrial Widget A", unit: "pc", unitprice: 10, priceHistory: [] },
+              { prodcode: "P-002", description: "Copper Valve B", unit: "ea", unitprice: 25, priceHistory: [] },
+              { prodcode: "P-003", description: "Steel Gasket C", unit: "pkg", unitprice: 15, priceHistory: [] },
+            ],
+          },
+        }),
+        { headers: { "Content-Type": "application/json" } },
+      )
+    }
+    if (url.includes("/api/sales/price-lookup")) {
+      const parsed = new URL(url, "http://localhost")
+      const prodcode = parsed.searchParams.get("prodcode")
+      const price = prodcode === "P-002" ? 25 : prodcode === "P-003" ? 15 : 10
+      return new Response(
+        JSON.stringify({ success: true, data: { unitPrice: price, effectiveDate: "2026-10-01" } }),
+        { headers: { "Content-Type": "application/json" } },
+      )
+    }
+    return new Response(
+      JSON.stringify({
+        success: true,
+        data: {
+          user: {
+            userId: "1",
+            empno: "00001",
+            email: "preview@hope.inc",
+            role: "superadmin",
+            status: "active",
+            mustChangePassword: false,
+          },
+        },
+      }),
+      { headers: { "Content-Type": "application/json" } },
+    )
+  })
+  vi.stubGlobal("fetch", fetchMock)
+
+  render(
+    <MemoryRouter initialEntries={["/sales/new?view=create"]}>
+      <AuthProvider>
+        <Routes>
+          <Route path="/sales/new" element={<CreateSalePage />} />
+          <Route path="/sales" element={<div>Sales list destination</div>} />
+        </Routes>
+      </AuthProvider>
+    </MemoryRouter>,
+  )
+
+  expect(await screen.findByRole("heading", { name: "Create sale" })).toBeInTheDocument()
+  const customerInput = screen.getByPlaceholderText("Search by customer name or ID")
+  await user.click(customerInput)
+  await user.click(screen.getByRole("option", { name: /Northstar Office Group/i }))
+
+  // Line 1 defaults to P-001; quick-add P-002 by searching description
+  const quickSearch = screen.getByRole("combobox", { name: /Search and add product/i })
+  await user.type(quickSearch, "Copper")
+  await user.click(screen.getByRole("option", { name: /P-002 — Copper Valve B/i }))
+  expect(screen.getByRole("combobox", { name: "Product 2" })).toHaveValue("P-002 — Copper Valve B")
+  expect(screen.getByText(/Added Copper Valve B \(P-002\)\./)).toBeInTheDocument()
+
+  // Selecting an already-added product in quick-add increments its quantity instead of duplicating
+  await user.type(quickSearch, "P-002")
+  expect(screen.getByRole("option", { name: /P-002 — Copper Valve B/i })).toHaveTextContent("In list · +1")
+  await user.click(screen.getByRole("option", { name: /P-002 — Copper Valve B/i }))
+  expect(screen.getByLabelText("Quantity 2")).toHaveValue(2)
+  expect(screen.getByText(/Increased Copper Valve B \(P-002\) quantity to 2\./)).toBeInTheDocument()
+
+  // Bottom button adds a blank row and focuses its inline search combobox, disabling already-used products
+  await user.click(screen.getByRole("button", { name: "Add another item" }))
+  const product3Input = screen.getByRole("combobox", { name: "Product 3" })
+  expect(product3Input).toHaveFocus()
+  await user.click(product3Input)
+  expect(screen.getByRole("option", { name: /P-001 — Industrial Widget A/i })).toBeDisabled()
+  expect(screen.getByRole("option", { name: /P-002 — Copper Valve B/i })).toBeDisabled()
+  await user.type(product3Input, "Gasket")
+  await user.click(screen.getByRole("option", { name: /P-003 — Steel Gasket C/i }))
+  expect(product3Input).toHaveValue("P-003 — Steel Gasket C")
+
+  await user.click(screen.getByRole("button", { name: "Save sale" }))
+  expect(await screen.findByText("Sales list destination")).toBeInTheDocument()
+  expect(submittedLines).toEqual([
+    { prodcode: "P-001", quantity: 1, unitprice: 10 },
+    { prodcode: "P-002", quantity: 2, unitprice: 25 },
+    { prodcode: "P-003", quantity: 1, unitprice: 15 },
+  ])
+})

@@ -569,7 +569,7 @@ export default function CreateSalePage() {
                               title="Remove item"
                               className="workspace-icon-action workspace-icon-action--danger"
                             >
-                              <DashboardIcon name="close" className="h-4 w-4" />
+                              <DashboardIcon name="archive" className="h-4 w-4" />
                             </button>
                           </td>
                         </tr>

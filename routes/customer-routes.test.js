@@ -99,4 +99,65 @@ describe('routes/customer-routes ([S2-DEV-02a])', () => {
       .send({ custname: 'Beta', address: '2 Oak', payterm: '90D' });
     expect(invalidCreate.status).toBe(400);
   });
+
+  test('enforces granular per-right permissions (customers.add, customers.edit, customers.delete) on write routes', async () => {
+    const app = makeApp();
+    const empCookie = authCookie(employeeId, 'employee');
+
+    // 1. User with customers.edit only: PUT succeeds (200), DELETE and restore return 403
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ user_id: employeeId, empno: '00002', email: 'emp@hope.inc', role: 'employee', status: 'active', is_blocked: false, must_change_password: false, rights: ['customers.access', 'customers.edit'] }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ user_id: employeeId, empno: '00002', email: 'emp@hope.inc', role: 'employee', status: 'active', is_blocked: false, must_change_password: false, rights: ['customers.access', 'customers.edit'] }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ user_id: employeeId, empno: '00002', email: 'emp@hope.inc', role: 'employee', status: 'active', is_blocked: false, must_change_password: false, rights: ['customers.access', 'customers.edit'] }],
+      });
+
+    client.query.mockImplementation(async (sql) => {
+      if (typeof sql === 'string' && sql.includes('UPDATE public.customer')) {
+        return { rows: [{ custno: 'C0001', custname: 'Acme Updated', address: '1 Main', payterm: '30D', is_deleted: false }] };
+      }
+      return { rows: [] };
+    });
+
+    const editOk = await request(app)
+      .put('/api/customers/C0001')
+      .set('Cookie', empCookie)
+      .send({ custname: 'Acme Updated', address: '1 Main', payterm: '30D' });
+    expect(editOk.status).toBe(200);
+
+    const deleteDenied = await request(app).delete('/api/customers/C0001').set('Cookie', empCookie);
+    expect(deleteDenied.status).toBe(403);
+
+    const restoreDenied = await request(app).post('/api/customers/C0001/restore').set('Cookie', empCookie);
+    expect(restoreDenied.status).toBe(403);
+
+    // 2. User with customers.delete only: PUT returns 403, DELETE returns 409 when active sales exist, and 200 when unreferenced
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ user_id: employeeId, empno: '00002', email: 'emp@hope.inc', role: 'employee', status: 'active', is_blocked: false, must_change_password: false, rights: ['customers.access', 'customers.delete'] }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ user_id: employeeId, empno: '00002', email: 'emp@hope.inc', role: 'employee', status: 'active', is_blocked: false, must_change_password: false, rights: ['customers.access', 'customers.delete'] }],
+      });
+
+    const editDenied = await request(app)
+      .put('/api/customers/C0001')
+      .set('Cookie', empCookie)
+      .send({ custname: 'Acme Updated', address: '1 Main', payterm: '30D' });
+    expect(editDenied.status).toBe(403);
+
+    client.query.mockImplementation(async (sql) => {
+      if (typeof sql === 'string' && sql.includes('FOR UPDATE')) return { rows: [{ custno: 'C0001' }] };
+      if (typeof sql === 'string' && sql.includes('FROM public.sales')) return { rows: [{ 1: 1 }] };
+      return { rows: [] };
+    });
+
+    const deleteConflict = await request(app).delete('/api/customers/C0001').set('Cookie', empCookie);
+    expect(deleteConflict.status).toBe(409);
+    expect(deleteConflict.body.error.message).toMatch(/active sales records/i);
+  });
 });

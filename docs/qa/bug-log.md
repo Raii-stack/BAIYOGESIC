@@ -103,3 +103,11 @@
 **Fix:** Add safe fallback mock credentials (`https://mock-test.supabase.co` and `mock-test-key`) in `src/test-setup.js` when `process.env.SUPABASE_URL` and `process.env.SUPABASE_KEY` are not already defined by the execution environment.
 
 **Verification:** `routes/auth-routes.test.js` and `lib/db-config.test.js` pass with 100% success rate without requiring local secret files.
+
+---
+
+# Sprint 2 Regression Log
+
+**Regression Date:** 2026-11-26 | **Tester:** @princenelson | **Suite:** `npm test`, `npm run test:unit`, `npm run lint`, `npm run verify:migrations`, `npm run build`
+
+No new Sprint 2 defects were discovered during full regression testing across auth, session, RBAC, CRM, and Inventory suites. `BUG-005` remains verified and resolved (`routes/auth-routes.test.js` and `lib/db-config.test.js` pass without a local `.env` secret file). See [S2-TST-05-06-test-report.md](S2-TST-05-06-test-report.md) for the full Sprint 2 QA Sign-off report.

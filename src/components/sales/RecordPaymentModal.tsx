@@ -7,6 +7,7 @@ import { DashboardIcon } from "../dashboard/DashboardComponents"
 type RecordPaymentModalProps = {
   open: boolean
   payment: SalePayment | null
+  transactionNo?: string
   balance: number
   onClose: () => void
   onSave: (payment: SalePayment) => Promise<void>
@@ -17,6 +18,7 @@ const paymentMethods: PaymentMethod[] = ["Cash", "Bank Transfer", "Check", "Card
 export default function RecordPaymentModal({
   open,
   payment,
+  transactionNo,
   balance,
   onClose,
   onSave,
@@ -110,6 +112,11 @@ export default function RecordPaymentModal({
             >
               {payment ? "Edit Payment" : "Record Payment"}
             </h2>
+            {transactionNo && (
+              <p className="mt-1 font-mono text-xs text-slate-500">
+                Sales order {transactionNo}
+              </p>
+            )}
           </div>
           <button
             type="button"

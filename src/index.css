@@ -19,8 +19,8 @@ html[data-workspace-motion="off"] .workspace-feedback, html[data-workspace-motio
 
 :root { --workspace-control-height: 40px; }
 
-html:has(.erp-workspace, .hope-landing), .erp-workspace > aside :is(nav, [role="listbox"]), .workspace-scrollbar { scrollbar-width: none; }
-html:has(.erp-workspace, .hope-landing)::-webkit-scrollbar, .erp-workspace > aside :is(nav, [role="listbox"])::-webkit-scrollbar, .workspace-scrollbar::-webkit-scrollbar { display: none; }
+html:has(.erp-workspace, .hope-landing), .erp-workspace > aside :is(nav, [role="listbox"]), .workspace-scrollbar, .workspace-picker, select.workspace-control::picker(select) { scrollbar-width: none; }
+html:has(.erp-workspace, .hope-landing)::-webkit-scrollbar, .erp-workspace > aside :is(nav, [role="listbox"])::-webkit-scrollbar, .workspace-scrollbar::-webkit-scrollbar, .workspace-picker::-webkit-scrollbar { display: none; }
 .workspace-table-scroll, .overflow-x-auto:has(> table) { scrollbar-width: none; }
 .workspace-table-scroll::-webkit-scrollbar, .overflow-x-auto:has(> table)::-webkit-scrollbar { display: none; }
 
@@ -185,6 +185,12 @@ input.workspace-control[type="date"]:disabled::-webkit-calendar-picker-indicator
 .workspace-table tbody > tr { background: #fff; transition: background 150ms; }
 .workspace-table tbody > tr.is-muted { background: #fafafa; }
 .workspace-table tbody > tr.is-expanded, .workspace-table tbody > tr:hover { background: #f6f6f6; }
+.workspace-table tbody > tr.is-current-price { background: #ecfdf5; }
+.workspace-table tbody > tr.is-current-price:hover { background: #d1fae5; }
+.workspace-table tbody > tr.is-current-price > td:first-child { box-shadow: inset 3px 0 0 #059669; }
+.workspace-table tbody > tr.is-upcoming-price { background: #f0f9ff; }
+.workspace-table tbody > tr.is-upcoming-price:hover { background: #e0f2fe; }
+.workspace-table tbody > tr.is-upcoming-price > td:first-child { box-shadow: inset 3px 0 0 #0284c7; }
 .workspace-table tbody > tr:last-child > td { border-bottom: 0; }
 .workspace-table .workspace-table-actions { position: sticky; right: 0; z-index: 1; border-left: 1px solid #ededed; background: inherit; }
 .workspace-table th.workspace-table-actions { background: #f7f7f7; }
@@ -222,7 +228,7 @@ input.workspace-control[type="date"]:disabled::-webkit-calendar-picker-indicator
 .workspace-icon-action--danger { color: #b91c1c; }
 .workspace-icon-action--danger:hover { background: #fee2e2; color: #991b1b; }
 .workspace-icon-action:focus-visible, .workspace-text-action:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
-.workspace-icon-action:disabled, .workspace-text-action:disabled { cursor: wait; opacity: 0.5; }
+.workspace-icon-action:disabled, .workspace-text-action:disabled { cursor: not-allowed; opacity: 0.5; }
 .workspace-text-action { display: inline-flex; min-height: var(--workspace-control-height); align-items: center; border-radius: 8px; padding: 8px; font-size: 13px; line-height: 20px; font-weight: 500; transition: background 150ms; }
 .workspace-text-action:hover { background: #f0f0f0; }
 .workspace-history { border-top: 1px solid #dedede; background: #f7f7f7; padding: 20px; }

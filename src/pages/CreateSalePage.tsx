@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react"
 import { Link, useNavigate } from "react-router"
 
 import { useAuth } from "../components/auth/AuthProvider"
+import ConfirmSaleModal from "../components/sales/ConfirmSaleModal"
 import CustomerCombobox from "../components/sales/CustomerCombobox"
 import EmployeeCombobox from "../components/sales/EmployeeCombobox"
+import ProductCombobox from "../components/sales/ProductCombobox"
 import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import DashboardLayout from "../layouts/DashboardLayout"
 import {
@@ -61,7 +63,11 @@ export default function CreateSalePage() {
   )
   const [customerId, setCustomerId] = useState("")
   const [employeeId, setEmployeeId] = useState("")
-  const [lines, setLines] = useState<DraftLineItem[]>([{ id: "line-1", productCode: "", quantity: "1", unitPrice: 0 }])
+  const [lines, setLines] = useState<DraftLineItem[]>([])
+  const [lineFeedback, setLineFeedback] = useState("")
+  const [pendingFocusLineId, setPendingFocusLineId] = useState<string | null>(null)
+  const productSelectRefs = useRef<Record<string, HTMLSelectElement | null>>({})
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const [formError, setFormError] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
@@ -78,23 +84,18 @@ export default function CreateSalePage() {
         setProductOptions(catalog.products)
         if (catalog.products.length > 0) {
           setLines((current) =>
-            current.map((line, index) => {
-              const targetCode =
-                catalog.products.some((p) => p.code === line.productCode)
-                  ? line.productCode
-                  : index === 0
-                    ? catalog.products[0].code
-                    : line.productCode
-              return {
-                ...line,
-                productCode: targetCode,
-                unitPrice: resolveProductPrice(
-                  catalog.products,
-                  targetCode,
-                  salesDate,
-                ),
-              }
-            }),
+            current.map((line) =>
+              line.productCode && catalog.products.some((p) => p.code === line.productCode)
+                ? {
+                    ...line,
+                    unitPrice: resolveProductPrice(
+                      catalog.products,
+                      line.productCode,
+                      salesDate,
+                    ),
+                  }
+                : line,
+            ),
           )
         }
       })
@@ -112,6 +113,38 @@ export default function CreateSalePage() {
     }
   }, [catalogError, catalogLoading, employeeOptions, user?.empno])
 
+  useEffect(() => {
+    if (!pendingFocusLineId) return
+    productSelectRefs.current[pendingFocusLineId]?.focus()
+    setPendingFocusLineId(null)
+  }, [pendingFocusLineId, lines])
+
+  const usedProductCodes = useMemo(
+    () => new Set(lines.map((line) => line.productCode).filter(Boolean)),
+    [lines],
+  )
+
+  const refreshLinePrice = (
+    lineId: string,
+    productCode: string,
+    targetDate: string,
+  ) => {
+    if (!productCode) return
+    salesApi
+      .lookupPrice(productCode, targetDate)
+      .then((lookup) => {
+        if (!lookup) return
+        setLines((current) =>
+          current.map((entry) =>
+            entry.id === lineId && entry.productCode === productCode
+              ? { ...entry, unitPrice: lookup.unitPrice }
+              : entry,
+          ),
+        )
+      })
+      .catch(() => {})
+  }
+
   const handleSalesDateChange = (nextDate: string) => {
     setSalesDate(nextDate)
     setFormError("")
@@ -125,25 +158,17 @@ export default function CreateSalePage() {
     )
 
     lines.forEach((line) => {
-      if (!line.productCode) return
-      salesApi
-        .lookupPrice(line.productCode, nextDate)
-        .then((lookup) => {
-          if (!lookup) return
-          setLines((current) =>
-            current.map((entry) =>
-              entry.id === line.id
-                ? { ...entry, unitPrice: lookup.unitPrice }
-                : entry,
-            ),
-          )
-        })
-        .catch(() => {})
+      if (line.productCode) refreshLinePrice(line.id, line.productCode, nextDate)
     })
   }
 
   const handleProductChange = (lineId: string, productCode: string) => {
     setFormError("")
+    setLineFeedback("")
+    if (!productCode) {
+      setLines((current) => current.filter((line) => line.id !== lineId))
+      return
+    }
     const localPrice = resolveProductPrice(productOptions, productCode, salesDate)
     setLines((current) =>
       current.map((line) =>
@@ -153,21 +178,54 @@ export default function CreateSalePage() {
       ),
     )
 
-    if (productCode) {
-      salesApi
-        .lookupPrice(productCode, salesDate)
-        .then((lookup) => {
-          if (!lookup) return
-          setLines((current) =>
-            current.map((line) =>
-              line.id === lineId
-                ? { ...line, unitPrice: lookup.unitPrice }
-                : line,
-            ),
-          )
-        })
-        .catch(() => {})
+    refreshLinePrice(lineId, productCode, salesDate)
+  }
+
+  const handleQuickAddProduct = (productCode: string) => {
+    const product = productOptions.find((entry) => entry.code === productCode)
+    if (!product) return
+    setFormError("")
+
+    const existing = lines.find((line) => line.productCode === productCode)
+    if (existing) {
+      const currentQty = Number(existing.quantity)
+      const nextQty =
+        (Number.isFinite(currentQty) && currentQty > 0 ? currentQty : 0) + 1
+      setLines((current) =>
+        current.map((line) =>
+          line.id === existing.id
+            ? { ...line, quantity: String(nextQty) }
+            : line,
+        ),
+      )
+      setLineFeedback(
+        `Increased ${product.description} (${product.code}) quantity to ${nextQty}.`,
+      )
+      return
     }
+
+    const localPrice = resolveProductPrice(productOptions, productCode, salesDate)
+    const emptyLine = lines.find((line) => !line.productCode)
+    if (emptyLine) {
+      setLines((current) =>
+        current.map((line) =>
+          line.id === emptyLine.id
+            ? { ...line, productCode, quantity: "1", unitPrice: localPrice }
+            : line,
+        ),
+      )
+      refreshLinePrice(emptyLine.id, productCode, salesDate)
+      setLineFeedback(`Added ${product.description} (${product.code}).`)
+      return
+    }
+
+    const newId = `line-${Date.now()}-${lines.length + 1}`
+    setLines((current) => [
+      ...current,
+      { id: newId, productCode, quantity: "1", unitPrice: localPrice },
+    ])
+    refreshLinePrice(newId, productCode, salesDate)
+    setLineFeedback(`Added ${product.description} (${product.code}).`)
   }
 
   const handleQuantityChange = (lineId: string, quantity: string) => {
@@ -181,29 +239,24 @@ export default function CreateSalePage() {
 
   const addLineItem = () => {
     setFormError("")
-    const usedCodes = new Set(lines.map((line) => line.productCode))
-    const nextProduct =
-      productOptions.find((product) => !usedCodes.has(product.code)) ||
-      productOptions[0]
-    const nextCode = nextProduct?.code ?? ""
+    setLineFeedback("")
+    const newId = `line-${Date.now()}-${lines.length + 1}`
     setLines((current) => [
       ...current,
       {
-        id: `line-${Date.now()}-${current.length + 1}`,
-        productCode: nextCode,
+        id: newId,
+        productCode: "",
         quantity: "1",
-        unitPrice: nextCode
-          ? resolveProductPrice(productOptions, nextCode, salesDate)
-          : 0,
+        unitPrice: 0,
       },
     ])
+    setPendingFocusLineId(newId)
   }
 
   const removeLineItem = (lineId: string) => {
     setFormError("")
-    setLines((current) =>
-      current.length > 1 ? current.filter((line) => line.id !== lineId) : current,
-    )
+    setLineFeedback("")
+    setLines((current) => current.filter((line) => line.id !== lineId))
   }
 
   const { subtotal, tax, totalAmount } = useMemo(() => {
@@ -222,7 +275,7 @@ export default function CreateSalePage() {
     }
   }, [lines])
 
-  const submit = async (event: FormEvent) => {
+  const submit = (event: FormEvent) => {
     event.preventDefault()
     setFormError("")
     if (catalogLoading || catalogError) return
@@ -256,6 +309,11 @@ export default function CreateSalePage() {
       }
     }
 
+    setConfirmOpen(true)
+  }
+
+  const confirmCreateSale = async () => {
+    setFormError("")
     setSubmitting(true)
     try {
       const created = await salesApi.create({
@@ -270,6 +328,7 @@ export default function CreateSalePage() {
       })
 
       setTransactionNo(created.transactionNo)
+      setConfirmOpen(false)
       notifyToast(`Sales order ${created.transactionNo} created.`, "success")
       navigate("/sales?view=transactions&page=1")
     } catch (error) {
@@ -283,6 +342,23 @@ export default function CreateSalePage() {
       setSubmitting(false)
     }
   }
+
+  const selectedCustomer = customerOptions.find((entry) => entry.id === customerId)
+  const selectedEmployee = employeeOptions.find((entry) => entry.id === employeeId)
+  const confirmLines = lines.map((line) => {
+    const product = productOptions.find((entry) => entry.code === line.productCode)
+    const qty = Number(line.quantity)
+    const validQty = Number.isFinite(qty) && qty > 0 ? qty : 0
+    return {
+      id: line.id,
+      productCode: line.productCode,
+      description: product?.description ?? line.productCode,
+      unit: product?.unit ?? "pc",
+      quantity: validQty,
+      unitPrice: line.unitPrice,
+      subtotal: getLineSubtotal(validQty, line.unitPrice),
+    }
+  })
 
   return (
     <DashboardLayout
@@ -371,28 +447,48 @@ export default function CreateSalePage() {
                     Unit prices are automatically looked up from price history as of {salesDate}.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={addLineItem}
-                  className="workspace-secondary-action"
-                >
-                  Add line item
-                </button>
+                <span className="workspace-badge workspace-badge--neutral">
+                  {lines.length} {lines.length === 1 ? "item" : "items"}
+                </span>
               </div>
 
-              <div className="workspace-panel workspace-table-scroll">
-                <table role="table" className="workspace-table min-w-[680px]">
+              <div className="mb-4">
+                <ProductCombobox
+                  label="Search and add product"
+                  helperBadge="Quick add"
+                  placeholder="Search by product code, description, or unit to add…"
+                  products={productOptions}
+                  selectedProductCode=""
+                  salesDate={salesDate}
+                  inListCodes={usedProductCodes}
+                  clearOnSelect
+                  listboxClassName="z-30"
+                  onSelect={handleQuickAddProduct}
+                />
+                {lineFeedback && (
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="mt-2 text-xs font-medium text-emerald-700"
+                  >
+                    {lineFeedback}
+                  </p>
+                )}
+              </div>
+
+              <div className="workspace-panel workspace-form-panel">
+                <table role="table" className="workspace-table">
                   <thead>
                     <tr className="border-b border-slate-300 bg-slate-100">
-                      <th scope="col">Product</th>
-                      <th scope="col">Quantity</th>
-                      <th scope="col" className="text-right">
+                      <th scope="col" className="first:rounded-tl-[11px] last:rounded-tr-[11px]">Product</th>
+                      <th scope="col" className="first:rounded-tl-[11px] last:rounded-tr-[11px]">Quantity</th>
+                      <th scope="col" className="text-right first:rounded-tl-[11px] last:rounded-tr-[11px]">
                         Unit price
                       </th>
-                      <th scope="col" className="text-right">
+                      <th scope="col" className="text-right first:rounded-tl-[11px] last:rounded-tr-[11px]">
                         Line subtotal
                       </th>
-                      <th scope="col" className="workspace-table-actions">
+                      <th scope="col" className="workspace-table-actions first:rounded-tl-[11px] last:rounded-tr-[11px]">
                         Actions
                       </th>
                     </tr>
@@ -408,11 +504,21 @@ export default function CreateSalePage() {
                         validQty,
                         line.unitPrice,
                       )
+                      const otherUsedCodes = new Set(
+                        lines
+                          .filter(
+                            (other) => other.id !== line.id && other.productCode,
+                          )
+                          .map((other) => other.productCode),
+                      )
 
                       return (
                         <tr key={line.id}>
                           <td data-label="Product">
                             <select
+                              ref={(el) => {
+                                productSelectRefs.current[line.id] = el
+                              }}
                               aria-label={`Product ${index + 1}`}
                               value={line.productCode}
                               onChange={(event) =>
@@ -420,9 +526,13 @@ export default function CreateSalePage() {
                               }
                               className="workspace-control"
                             >
-                              <option value="">Select product</option>
+                              <option value="">{line.productCode ? "Remove product" : "Select product"}</option>
                               {productOptions.map((product) => (
-                                <option key={product.code} value={product.code}>
+                                <option
+                                  key={product.code}
+                                  value={product.code}
+                                  disabled={otherUsedCodes.has(product.code)}
+                                >
                                   {product.code} — {product.description}
                                 </option>
                               ))}
@@ -453,11 +563,11 @@ export default function CreateSalePage() {
                           <td data-label="Actions" className="workspace-table-actions bg-white">
                             <button
                               type="button"
-                              disabled={lines.length <= 1}
+                              disabled={submitting}
                               onClick={() => removeLineItem(line.id)}
                               aria-label={`Remove line item ${index + 1}`}
-                              title="Remove line item"
-                              className="workspace-icon-action workspace-icon-action--danger disabled:opacity-40"
+                              title="Remove item"
+                              className="workspace-icon-action workspace-icon-action--danger"
                             >
                               <DashboardIcon name="archive" className="h-4 w-4" />
                             </button>
@@ -467,6 +577,25 @@ export default function CreateSalePage() {
                     })}
                   </tbody>
                 </table>
+                {lines.length === 0 && (
+                  <p className="px-5 py-8 text-center text-sm text-slate-500">
+                    No items added yet. Search for a product above or click Add item below.
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-[11px] border-t border-slate-200 bg-slate-50/70 px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={addLineItem}
+                    disabled={catalogLoading || !productOptions.length}
+                    className="workspace-secondary-action"
+                  >
+                    <DashboardIcon name="plus" className="h-4 w-4" />
+                    {lines.length === 0 ? "Add item" : "Add another item"}
+                  </button>
+                  <span className="text-xs text-slate-500">
+                    Use Quick add above to search, or choose a product from the dropdown.
+                  </span>
+                </div>
               </div>
 
               {formError && (
@@ -518,6 +647,29 @@ export default function CreateSalePage() {
               </button>
             </div>
           </form>
+
+          <ConfirmSaleModal
+            open={confirmOpen}
+            transactionNo={transactionNo}
+            salesDate={salesDate}
+            customerName={selectedCustomer?.company ?? ""}
+            customerCode={selectedCustomer?.id ?? customerId}
+            paymentTerm={selectedCustomer?.paymentTerm}
+            employeeName={selectedEmployee?.fullName ?? ""}
+            employeeCode={selectedEmployee?.id ?? employeeId}
+            lines={confirmLines}
+            subtotal={subtotal}
+            tax={tax}
+            totalAmount={totalAmount}
+            submitting={submitting}
+            error={formError}
+            onClose={() => {
+              if (!submitting) setConfirmOpen(false)
+            }}
+            onConfirm={() => {
+              void confirmCreateSale()
+            }}
+          />
         </div>
       </main>
     </DashboardLayout>

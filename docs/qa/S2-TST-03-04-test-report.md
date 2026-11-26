@@ -74,4 +74,4 @@ npm test
 
 ## 5. Defect Summary
 
-No new defects were discovered during S2-TST-03 & S2-TST-04 test execution. Existing sprint defects remain tracked in [bug-log.md](file:///c:/Users/Prince%20Aguinaldo/OneDrive/Documents/GitHub/BAIYOGESIC/docs/qa/bug-log.md).
+No new defects were discovered during S2-TST-03 & S2-TST-04 test execution. Existing sprint defects remain tracked in [bug-log.md](bug-log.md).

@@ -54,4 +54,4 @@ This report documents automated test coverage for Sprint 3 HR Master Data and Em
 
 ## 5. Defect Summary
 
-No new defects were discovered during S3-TST-01 & S3-TST-02 execution. Existing defect tracking remains in [bug-log.md](file:///c:/Users/Prince%20Aguinaldo/OneDrive/Documents/GitHub/BAIYOGESIC/docs/qa/bug-log.md).
+No new defects were discovered during S3-TST-01 & S3-TST-02 execution. Existing defect tracking remains in [bug-log.md](bug-log.md).

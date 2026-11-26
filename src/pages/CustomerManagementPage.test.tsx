@@ -364,3 +364,85 @@ test("displays error state when customer fetching fails with HTTP 500", async ()
   expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument()
 })
 
+test("enforces granular per-right permissions (customers.add, customers.edit, customers.delete)", async () => {
+  const rows = [customer(1), { ...customer(2), is_deleted: true }]
+  const makeFetch = (rights: string[]) => vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: { ...admin, role: "employee", rights } })
+    if (url.pathname === "/api/customers") return success({ customers: rows, pagination: { page: 1, limit: 10, total: 2, totalPages: 1 } })
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+
+  // 1. customers.add only: shows Add customer, hides Edit/Archive/Restore and audit columns
+  vi.stubGlobal("fetch", makeFetch(["customers.access", "customers.add"]))
+  const { unmount: unmountAdd } = render(<MemoryRouter><AuthProvider><CustomerManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Customer 1")
+  expect(screen.getByRole("button", { name: "Add customer" })).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Edit Customer 1" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Archive Customer 1" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Restore Customer 2" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("columnheader", { name: "Status" })).not.toBeInTheDocument()
+  unmountAdd()
+
+  // 2. customers.edit only: shows Edit, hides Add customer/Archive/Restore and audit columns
+  vi.stubGlobal("fetch", makeFetch(["customers.access", "customers.edit"]))
+  const { unmount: unmountEdit } = render(<MemoryRouter><AuthProvider><CustomerManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Customer 1")
+  expect(screen.queryByRole("button", { name: "Add customer" })).not.toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Edit Customer 1" })).toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Archive Customer 1" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Restore Customer 2" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("columnheader", { name: "Status" })).not.toBeInTheDocument()
+  unmountEdit()
+
+  // 3. customers.delete only: shows Archive/Restore and audit columns, hides Add customer/Edit
+  vi.stubGlobal("fetch", makeFetch(["customers.access", "customers.delete"]))
+  render(<MemoryRouter><AuthProvider><CustomerManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Customer 1")
+  expect(screen.queryByRole("button", { name: "Add customer" })).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: "Edit Customer 1" })).not.toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Archive Customer 1" })).toBeInTheDocument()
+  expect(screen.getByRole("button", { name: "Restore Customer 2" })).toBeInTheDocument()
+  expect(screen.getByRole("columnheader", { name: "Status" })).toBeInTheDocument()
+})
+
+test("keeps customer active on HTTP 409/403 archive failure and validates boundary input lengths", async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return success({ user: admin })
+    if (url.pathname === "/api/customers" && (!init?.method || init.method === "GET")) {
+      return success({ customers: [customer(1)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    }
+    if (url.pathname === "/api/customers/CUS-1" && init?.method === "DELETE") {
+      return new Response(JSON.stringify({ success: false, error: { message: "Insufficient permissions", statusCode: 403 } }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+    throw new Error(`Unexpected request: ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><CustomerManagementPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Customer 1")
+
+  // Boundary validation on CustomerPanel (name > 20 chars, address > 50 chars)
+  await user.click(screen.getByRole("button", { name: "Add customer" }))
+  const dialog = screen.getByRole("dialog", { name: "Customer Details" })
+  fireEvent.change(within(dialog).getByRole("textbox", { name: /Customer Name/ }), { target: { value: "A".repeat(21) } })
+  fireEvent.change(within(dialog).getByRole("textbox", { name: /Address/ }), { target: { value: "B".repeat(51) } })
+  await user.click(within(dialog).getByRole("button", { name: "Create customer" }))
+  expect(within(dialog).getByText("Customer Name must be 20 characters or fewer.")).toBeInTheDocument()
+  expect(within(dialog).getByText("Address must be 50 characters or fewer.")).toBeInTheDocument()
+  expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes("/api/customers") && init?.method === "POST")).toBe(false)
+  await user.keyboard("{Escape}")
+
+  // HTTP 403 on archive keeps customer Active and surfaces error alert
+  await user.click(screen.getByRole("button", { name: "Archive Customer 1" }))
+  await user.click(screen.getByRole("button", { name: "Yes, Archive Record" }))
+  expect(await screen.findByRole("alert")).toHaveTextContent("You do not have permission to do that.")
+  await user.click(screen.getByRole("button", { name: "Cancel" }))
+  expect(within(screen.getByRole("row", { name: /Customer 1 / })).getByText("Active")).toBeInTheDocument()
+})
+

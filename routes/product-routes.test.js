@@ -117,4 +117,68 @@ describe('routes/product-routes ([S2-DEV-07a])', () => {
     expect(auditCall).toBeDefined();
     expect(auditCall[1][2]).toContain('PRICE_UPDATE');
   });
+
+  test('enforces granular per-right permissions (products.edit, products.delete) and 409 active sales guard', async () => {
+    const app = makeApp();
+    const empCookie = authCookie(employeeId, 'employee');
+
+    // 1. User with products.edit only: PUT succeeds (200), DELETE and restore return 403
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ user_id: employeeId, empno: '00002', email: 'emp@hope.inc', role: 'employee', status: 'active', is_blocked: false, must_change_password: false, rights: ['products.access', 'products.edit'] }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ user_id: employeeId, empno: '00002', email: 'emp@hope.inc', role: 'employee', status: 'active', is_blocked: false, must_change_password: false, rights: ['products.access', 'products.edit'] }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ user_id: employeeId, empno: '00002', email: 'emp@hope.inc', role: 'employee', status: 'active', is_blocked: false, must_change_password: false, rights: ['products.access', 'products.edit'] }],
+      });
+
+    client.query.mockImplementation(async (sql) => {
+      if (typeof sql === 'string' && sql.includes('UPDATE public.product')) {
+        return { rows: [{ prodcode: 'P1001', description: 'Updated Balm', unit: 'pc', is_deleted: false }] };
+      }
+      if (typeof sql === 'string' && sql.includes('SELECT unitprice')) {
+        return { rows: [{ unitprice: '20.00', effdate: '2026-01-15' }] };
+      }
+      return { rows: [] };
+    });
+
+    const editOk = await request(app)
+      .put('/api/products/P1001')
+      .set('Cookie', empCookie)
+      .send({ description: 'Updated Balm', unit: 'pc', unitprice: 20 });
+    expect(editOk.status).toBe(200);
+
+    const deleteDenied = await request(app).delete('/api/products/P1001').set('Cookie', empCookie);
+    expect(deleteDenied.status).toBe(403);
+
+    const restoreDenied = await request(app).post('/api/products/P1001/restore').set('Cookie', empCookie);
+    expect(restoreDenied.status).toBe(403);
+
+    // 2. User with products.delete only: POST/PUT return 403, DELETE returns 409 when active salesdetail rows exist
+    pool.query
+      .mockResolvedValueOnce({
+        rows: [{ user_id: employeeId, empno: '00002', email: 'emp@hope.inc', role: 'employee', status: 'active', is_blocked: false, must_change_password: false, rights: ['products.access', 'products.delete'] }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ user_id: employeeId, empno: '00002', email: 'emp@hope.inc', role: 'employee', status: 'active', is_blocked: false, must_change_password: false, rights: ['products.access', 'products.delete'] }],
+      });
+
+    const createDenied = await request(app)
+      .post('/api/products')
+      .set('Cookie', empCookie)
+      .send({ description: 'Blocked Balm', unit: 'pc', unitprice: 15 });
+    expect(createDenied.status).toBe(403);
+
+    client.query.mockImplementation(async (sql) => {
+      if (typeof sql === 'string' && sql.includes('FOR UPDATE')) return { rows: [{ prodcode: 'P1001' }] };
+      if (typeof sql === 'string' && sql.includes('FROM public.salesdetail')) return { rows: [{ 1: 1 }] };
+      return { rows: [] };
+    });
+
+    const deleteConflict = await request(app).delete('/api/products/P1001').set('Cookie', empCookie);
+    expect(deleteConflict.status).toBe(409);
+    expect(deleteConflict.body.error.message).toMatch(/active sales records/i);
+  });
 });

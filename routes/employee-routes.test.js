@@ -294,4 +294,57 @@ describe('routes/employee-routes ([S3-DEV-06])', () => {
     expect(created.status).toBe(201);
     expect(created.body.data.empno).toBe('00012');
   });
+
+  test('redacts salary on GET /api/employees for standard employees and exposes unredacted salary for admin and superadmin', async () => {
+    const app = makeApp();
+    const superadminId = '33333333-3333-4333-8333-333333333333';
+
+    pool.query.mockImplementation(async (sql, params) => {
+      if (typeof sql === 'string' && sql.includes('SELECT count(*)::integer AS total')) {
+        return { rows: [{ total: 1 }] };
+      }
+      if (typeof sql === 'string' && sql.includes('FROM public.employee e')) {
+        const redacted = sql.includes('NULL::numeric AS salary');
+        return {
+          rows: [{
+            empno: '00001',
+            firstname: 'Jane',
+            lastname: 'Doe',
+            email: 'jane@hope.inc',
+            hiredate: '2022-01-01',
+            is_deleted: false,
+            jobcode: 'DEV',
+            deptcode: 'IT',
+            effdate: '2026-01-01',
+            jobdesc: 'Developer',
+            deptname: 'Information Tech',
+            salary: redacted ? null : '75000.00',
+          }],
+        };
+      }
+      if (typeof sql === 'string' && sql.includes('FROM public.app_user')) {
+        const sub = params?.[0];
+        if (sub === adminId) {
+          return { rows: [{ user_id: adminId, empno: '00001', email: 'admin@hope.inc', role: 'admin', status: 'active', is_blocked: false, must_change_password: false, rights: [] }] };
+        }
+        if (sub === superadminId) {
+          return { rows: [{ user_id: superadminId, empno: '00000', email: 'super@hope.inc', role: 'superadmin', status: 'active', is_blocked: false, must_change_password: false, rights: [] }] };
+        }
+        return { rows: [{ user_id: employeeId, empno: '00002', email: 'emp@hope.inc', role: 'employee', status: 'active', is_blocked: false, must_change_password: false, rights: ['hr.access'] }] };
+      }
+      return { rows: [] };
+    });
+
+    const empRes = await request(app).get('/api/employees').set('Cookie', authCookie(employeeId, 'employee'));
+    expect(empRes.status).toBe(200);
+    expect(empRes.body.data.employees[0].salary).toBeNull();
+
+    const adminRes = await request(app).get('/api/employees').set('Cookie', authCookie(adminId, 'admin'));
+    expect(adminRes.status).toBe(200);
+    expect(adminRes.body.data.employees[0].salary).toBe('75000.00');
+
+    const superRes = await request(app).get('/api/employees').set('Cookie', authCookie(superadminId, 'superadmin'));
+    expect(superRes.status).toBe(200);
+    expect(superRes.body.data.employees[0].salary).toBe('75000.00');
+  });
 });

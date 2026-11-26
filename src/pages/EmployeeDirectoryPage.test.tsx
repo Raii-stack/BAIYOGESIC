@@ -416,3 +416,41 @@ test("creates and updates jobs and departments from their respective directory t
   await user.click(within(deptDialog).getByRole("button", { name: "Create department" }))
   expect(await screen.findByText("Operations")).toBeInTheDocument()
 })
+
+test("renders multi-entry job history sorted by effdate DESC and masks salary for hr.history.view employees", async () => {
+  const historyEntries = [
+    { empno: "00001", jobcode: "LEAD", deptcode: "IT", effdate: "2026-01-01", jobdesc: "Tech Lead", deptname: "Information Tech", salary: null, stamp: "UPDATE admin" },
+    { empno: "00001", jobcode: "SDEV", deptcode: "IT", effdate: "2024-06-01", jobdesc: "Senior Developer", deptname: "Information Tech", salary: null, stamp: "UPDATE admin" },
+    { empno: "00001", jobcode: "DEV", deptcode: "IT", effdate: "2022-01-01", jobdesc: "Developer", deptname: "Information Tech", salary: null, stamp: "ADD admin" },
+  ]
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return response({ user: { ...auth("employee"), rights: ["hr.access", "hr.history.view"] } })
+    if (url.pathname === "/api/employees/options") return response({ departments: [{ code: "IT", name: "Information Tech" }], jobs: [{ code: "DEV", name: "Developer" }] })
+    if (url.pathname === "/api/employees") return response({ employees: [row(1, null)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees/00001") return response({ employee: row(1, null), history: historyEntries })
+    throw new Error(`Unexpected request ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><EmployeeDirectoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Person1 Example")
+
+  // Standard employee with hr.history.view can expand job history, but salary remains masked
+  await user.click(screen.getByRole("button", { name: "Show job history for Person1 Example" }))
+  const timeline = await screen.findByRole("list", { name: "Job history timeline" })
+  const items = within(timeline).getAllByRole("listitem")
+  expect(items).toHaveLength(3)
+  expect(items[0]).toHaveTextContent("Tech Lead")
+  expect(items[0]).toHaveTextContent("2026-01-01")
+  expect(items[0]).toHaveTextContent("Current")
+  expect(items[1]).toHaveTextContent("Senior Developer")
+  expect(items[1]).toHaveTextContent("2024-06-01")
+  expect(items[2]).toHaveTextContent("Developer")
+  expect(items[2]).toHaveTextContent("2022-01-01")
+
+  expect(within(timeline).getAllByLabelText("Salary hidden due to permissions")).toHaveLength(3)
+  expect(within(timeline).queryByText(/\$/)).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: /Hide salary|Show salary/i })).not.toBeInTheDocument()
+})

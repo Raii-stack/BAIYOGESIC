@@ -52,9 +52,11 @@ if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
   allowedOrigins.add(`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`);
 }
 
+const teamPreviewPattern = /^https:\/\/baiyogesic-[a-z0-9-]+\.vercel\.app$/;
+
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.has(origin) || /\.vercel\.app$/.test(origin)) {
+    if (!origin || allowedOrigins.has(origin) || teamPreviewPattern.test(origin)) {
       return callback(null, true);
     }
     return callback(null, false);

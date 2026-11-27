@@ -302,3 +302,155 @@ test("shows a clear archive error when a department or job has active job-histor
   await user.click(screen.getByRole("button", { name: "Archive department" }))
   expect(await screen.findByRole("alert")).toHaveTextContent("Cannot archive department while active job-history records exist.")
 })
+
+test("filters employees by job title, clears empty filters, and creates an employee with conflict handling", async () => {
+  let employees = [row(1)]
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return response({ user: auth("administrator") })
+    if (url.pathname === "/api/employees/options") {
+      return response({
+        departments: [{ code: "IT", name: "Information Tech" }],
+        jobs: [{ code: "DEV", name: "Developer" }, { code: "QA", name: "QA Engineer" }],
+      })
+    }
+    if (url.pathname === "/api/employees" && (!init?.method || init.method === "GET")) {
+      const job = url.searchParams.get("job")
+      const filtered = job === "QA" ? [] : employees
+      return response({ employees: filtered, pagination: { page: 1, limit: 10, total: filtered.length, totalPages: filtered.length ? 1 : 0 } })
+    }
+    if (url.pathname === "/api/employees" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body))
+      if (body.email === "dup@example.com") {
+        return new Response(JSON.stringify({ success: false, error: { message: "That employee email or job-history entry already exists" } }), {
+          status: 409,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      employees = [...employees, { ...row(2), firstname: body.firstname, lastname: body.lastname, email: body.email }]
+      return new Response(JSON.stringify({ success: true, data: { empno: "00002" } }), { status: 201, headers: { "Content-Type": "application/json" } })
+    }
+    throw new Error(`Unexpected request ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><EmployeeDirectoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Person1 Example")
+
+  // Filter by job title and verify empty state + clear filter
+  await user.selectOptions(screen.getByRole("combobox", { name: "Job title" }), "QA")
+  expect(await screen.findByText("No employees found")).toBeInTheDocument()
+  expect(fetchMock.mock.calls.some(([input]) => String(input).includes("job=QA"))).toBe(true)
+  await user.selectOptions(screen.getByRole("combobox", { name: "Job title" }), "")
+  expect(await screen.findByText("Person1 Example")).toBeInTheDocument()
+
+  // Create employee with 409 duplicate email error, then succeed
+  await user.click(screen.getByRole("button", { name: "Add employee" }))
+  const dialog = screen.getByRole("dialog", { name: "Add employee" })
+  await user.type(within(dialog).getByRole("textbox", { name: "First name" }), "Jane")
+  await user.type(within(dialog).getByRole("textbox", { name: "Last name" }), "Doe")
+  await user.type(within(dialog).getByRole("textbox", { name: "Work email" }), "dup@example.com")
+  fireEvent.change(within(dialog).getByLabelText("Hire date"), { target: { value: "2026-01-15" } })
+  await user.selectOptions(within(dialog).getByRole("combobox", { name: "Department" }), "IT")
+  await user.selectOptions(within(dialog).getByRole("combobox", { name: "Job title" }), "DEV")
+  await user.type(within(dialog).getByRole("spinbutton", { name: "Salary" }), "42000")
+  await user.click(within(dialog).getByRole("button", { name: "Create employee" }))
+
+  expect(await within(dialog).findByRole("alert")).toHaveTextContent("already exists")
+
+  const emailInput = within(dialog).getByRole("textbox", { name: "Work email" })
+  await user.clear(emailInput)
+  await user.type(emailInput, "jane.doe@example.com")
+  await user.click(within(dialog).getByRole("button", { name: "Create employee" }))
+
+  expect(await screen.findByText("Jane Doe")).toBeInTheDocument()
+  expect(screen.getByRole("status")).toHaveTextContent("Employee added successfully.")
+})
+
+test("creates and updates jobs and departments from their respective directory tabs", async () => {
+  let jobs = [{ jobcode: "DEV", jobdesc: "Developer", is_deleted: false, stamp: "ADD admin" }]
+  let departments = [{ deptcode: "IT", deptname: "Information Tech", is_deleted: false, stamp: "ADD admin" }]
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return response({ user: auth("administrator") })
+    if (url.pathname === "/api/employees/options") return response({ departments: [{ code: "IT", name: "Information Tech" }], jobs: [{ code: "DEV", name: "Developer" }] })
+    if (url.pathname === "/api/employees" && (!init?.method || init.method === "GET")) return response({ employees: [row(1)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees/jobs" && (!init?.method || init.method === "GET")) return response({ jobs, pagination: { page: 1, limit: 10, total: jobs.length, totalPages: 1 } })
+    if (url.pathname === "/api/employees/jobs" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body))
+      jobs = [...jobs, { jobcode: body.jobcode, jobdesc: body.jobdesc, is_deleted: false, stamp: "ADD admin" }]
+      return new Response(JSON.stringify({ success: true, data: { job: jobs[1] } }), { status: 201, headers: { "Content-Type": "application/json" } })
+    }
+    if (url.pathname === "/api/employees/departments" && (!init?.method || init.method === "GET")) return response({ departments, pagination: { page: 1, limit: 10, total: departments.length, totalPages: 1 } })
+    if (url.pathname === "/api/employees/departments" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body))
+      departments = [...departments, { deptcode: body.deptcode, deptname: body.deptname, is_deleted: false, stamp: "ADD admin" }]
+      return new Response(JSON.stringify({ success: true, data: { department: departments[1] } }), { status: 201, headers: { "Content-Type": "application/json" } })
+    }
+    throw new Error(`Unexpected request ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><EmployeeDirectoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Person1 Example")
+
+  // Create job in Jobs tab
+  await user.click(screen.getByRole("tab", { name: "Jobs" }))
+  await screen.findByText("Developer")
+  await user.click(screen.getByRole("button", { name: "Add job" }))
+  const jobDialog = screen.getByRole("dialog", { name: "Add job" })
+  await user.type(within(jobDialog).getByRole("textbox", { name: "Job code" }), "QA")
+  await user.type(within(jobDialog).getByRole("textbox", { name: "Description" }), "QA Analyst")
+  await user.click(within(jobDialog).getByRole("button", { name: "Create job" }))
+  expect(await screen.findByText("QA Analyst")).toBeInTheDocument()
+
+  // Create department in Departments tab
+  await user.click(screen.getByRole("tab", { name: "Departments" }))
+  await screen.findByText("Information Tech")
+  await user.click(screen.getByRole("button", { name: "Add department" }))
+  const deptDialog = screen.getByRole("dialog", { name: "Add department" })
+  await user.type(within(deptDialog).getByRole("textbox", { name: "Department code" }), "OPS")
+  await user.type(within(deptDialog).getByRole("textbox", { name: "Department name" }), "Operations")
+  await user.click(within(deptDialog).getByRole("button", { name: "Create department" }))
+  expect(await screen.findByText("Operations")).toBeInTheDocument()
+})
+
+test("renders multi-entry job history sorted by effdate DESC and masks salary for hr.history.view employees", async () => {
+  const historyEntries = [
+    { empno: "00001", jobcode: "LEAD", deptcode: "IT", effdate: "2026-01-01", jobdesc: "Tech Lead", deptname: "Information Tech", salary: null, stamp: "UPDATE admin" },
+    { empno: "00001", jobcode: "SDEV", deptcode: "IT", effdate: "2024-06-01", jobdesc: "Senior Developer", deptname: "Information Tech", salary: null, stamp: "UPDATE admin" },
+    { empno: "00001", jobcode: "DEV", deptcode: "IT", effdate: "2022-01-01", jobdesc: "Developer", deptname: "Information Tech", salary: null, stamp: "ADD admin" },
+  ]
+  const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+    const url = new URL(String(input), "http://localhost")
+    if (url.pathname === "/api/auth/session") return response({ user: { ...auth("employee"), rights: ["hr.access", "hr.history.view"] } })
+    if (url.pathname === "/api/employees/options") return response({ departments: [{ code: "IT", name: "Information Tech" }], jobs: [{ code: "DEV", name: "Developer" }] })
+    if (url.pathname === "/api/employees") return response({ employees: [row(1, null)], pagination: { page: 1, limit: 10, total: 1, totalPages: 1 } })
+    if (url.pathname === "/api/employees/00001") return response({ employee: row(1, null), history: historyEntries })
+    throw new Error(`Unexpected request ${url.pathname}`)
+  })
+  vi.stubGlobal("fetch", fetchMock)
+  const user = userEvent.setup()
+
+  render(<MemoryRouter><AuthProvider><EmployeeDirectoryPage /></AuthProvider></MemoryRouter>)
+  await screen.findByText("Person1 Example")
+
+  // Standard employee with hr.history.view can expand job history, but salary remains masked
+  await user.click(screen.getByRole("button", { name: "Show job history for Person1 Example" }))
+  const timeline = await screen.findByRole("list", { name: "Job history timeline" })
+  const items = within(timeline).getAllByRole("listitem")
+  expect(items).toHaveLength(3)
+  expect(items[0]).toHaveTextContent("Tech Lead")
+  expect(items[0]).toHaveTextContent("2026-01-01")
+  expect(items[0]).toHaveTextContent("Current")
+  expect(items[1]).toHaveTextContent("Senior Developer")
+  expect(items[1]).toHaveTextContent("2024-06-01")
+  expect(items[2]).toHaveTextContent("Developer")
+  expect(items[2]).toHaveTextContent("2022-01-01")
+
+  expect(within(timeline).getAllByLabelText("Salary hidden due to permissions")).toHaveLength(3)
+  expect(within(timeline).queryByText(/\$/)).not.toBeInTheDocument()
+  expect(screen.queryByRole("button", { name: /Hide salary|Show salary/i })).not.toBeInTheDocument()
+})

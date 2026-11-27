@@ -4,11 +4,13 @@ import { Link, useSearchParams } from "react-router"
 import { useAuth } from "../components/auth/AuthProvider"
 import { DashboardIcon } from "../components/dashboard/DashboardComponents"
 import ArchiveSaleModal from "../components/sales/ArchiveSaleModal"
+import RecordPaymentModal from "../components/sales/RecordPaymentModal"
 import SaleDetailsModal from "../components/sales/SaleDetailsModal"
 import SalesTable from "../components/sales/SalesTable"
 import usePageQuery from "../hooks/usePageQuery"
 import DashboardLayout from "../layouts/DashboardLayout"
 import { getSalesPermissions } from "../lib/rbac"
+import { getSaleBalance } from "../lib/sales"
 import { salesApi, type SalePagination } from "../lib/sales-api"
 import useDebouncedValue from "../hooks/useDebouncedValue"
 import { notifyToast } from "../lib/toast"
@@ -41,6 +43,7 @@ export default function SalesManagementPage() {
   const searchPending = query.trim() !== debouncedQuery
   const [page, setPage] = usePageQuery()
   const [selectedSale, setSelectedSale] = useState<SaleTransaction | null>(null)
+  const [paymentSale, setPaymentSale] = useState<SaleTransaction | null>(null)
   const [saleToArchive, setSaleToArchive] = useState<SaleTransaction | null>(null)
   const [archiveError, setArchiveError] = useState("")
   const [archiving, setArchiving] = useState(false)
@@ -173,7 +176,9 @@ export default function SalesManagementPage() {
         sale.transactionNo === transactionNo ? updated : sale,
       ),
     )
-    setSelectedSale(updated)
+    setSelectedSale((current) =>
+      current?.transactionNo === transactionNo ? updated : current,
+    )
     notifyToast(notice, "success")
     return updated
   }
@@ -249,6 +254,7 @@ export default function SalesManagementPage() {
               error={Boolean(loadError)}
               onPageChange={setPage}
               onDetails={setSelectedSale}
+              onRecordPayment={setPaymentSale}
               onDelete={(transactionNo) => {
                 const sale = transactions.find((s) => s.transactionNo === transactionNo)
                 setArchiveError("")
@@ -269,6 +275,7 @@ export default function SalesManagementPage() {
               }}
               onRestore={handleRestoreSale}
               canViewDetails={canViewDetails}
+              canRecordPayment={canAddDetail}
               canDelete={canDeleteSale}
               canRestore={canRestoreSale}
               showAdminAudit={canViewAudit}
@@ -286,10 +293,24 @@ export default function SalesManagementPage() {
             }
           }}
           onPaymentsChange={updatePayments}
-          canAdd={canAddDetail}
           canEdit={canEditDetail}
           canDelete={canDeleteDetail}
           showAdminAudit={canViewAudit}
+        />
+
+        <RecordPaymentModal
+          open={Boolean(paymentSale)}
+          payment={null}
+          transactionNo={paymentSale?.transactionNo}
+          balance={paymentSale ? getSaleBalance(paymentSale) : 0}
+          onClose={() => setPaymentSale(null)}
+          onSave={async (payment) => {
+            if (!paymentSale) return
+            await updatePayments(paymentSale.transactionNo, [
+              ...paymentSale.payments,
+              payment,
+            ])
+          }}
         />
 
         <ArchiveSaleModal

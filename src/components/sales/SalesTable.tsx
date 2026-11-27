@@ -22,9 +22,11 @@ export default function SalesTable({
   error = false,
   onPageChange,
   onDetails,
+  onRecordPayment,
   onDelete,
   onRestore,
   canViewDetails = true,
+  canRecordPayment = false,
   canDelete = true,
   canRestore = true,
   showAdminAudit = false,
@@ -36,14 +38,16 @@ export default function SalesTable({
   error?: boolean
   onPageChange: (page: number) => void
   onDetails: (sale: SaleTransaction) => void
+  onRecordPayment?: (sale: SaleTransaction) => void
   onDelete: (transactionNo: string) => void
   onRestore: (transactionNo: string) => void
   canViewDetails?: boolean
+  canRecordPayment?: boolean
   canDelete?: boolean
   canRestore?: boolean
   showAdminAudit?: boolean
 }) {
-  const showActions = canViewDetails || canDelete || canRestore
+  const showActions = canViewDetails || canRecordPayment || canDelete || canRestore
   return (
     <div className="workspace-panel">
       <div className="workspace-table-header">
@@ -84,6 +88,7 @@ export default function SalesTable({
             {loading ? <TableSkeletonRows headings={["Transaction", "Sales date", "Customer", "Employee", "Total", "Balance", ...(showAdminAudit ? ["Status", "Last change"] : []), ...(showActions ? ["Actions"] : [])]} /> : sales.map((sale) => {
               const inactive = sale.status === "Inactive"
               const paymentStatus = getPaymentStatus(sale)
+              const balance = getSaleBalance(sale)
 
               return (
                 <tr
@@ -116,7 +121,7 @@ export default function SalesTable({
                     {currency.format(getSaleTotal(sale))}
                   </td>
                   <td data-label="Balance" className="whitespace-nowrap text-right text-[13px] font-semibold tabular-nums text-neutral-900">
-                    <span>{currency.format(getSaleBalance(sale))}</span>
+                    <span>{currency.format(balance)}</span>
                     <span className="ml-2 inline-block align-middle">
                       <PaymentStatusBadge status={paymentStatus} />
                     </span>
@@ -151,6 +156,18 @@ export default function SalesTable({
                           ) : null
                         ) : (
                           <>
+                            {canRecordPayment && onRecordPayment && (
+                              <button
+                                type="button"
+                                disabled={balance <= 0}
+                                onClick={() => onRecordPayment(sale)}
+                                aria-label={`Record payment for ${sale.transactionNo}`}
+                                title={balance <= 0 ? "Fully paid" : "Record payment"}
+                                className="workspace-icon-action workspace-icon-action--success disabled:opacity-40"
+                              >
+                                <DashboardIcon name="creditCard" className="h-4 w-4" />
+                              </button>
+                            )}
                             {canViewDetails && (
                               <button
                                 type="button"

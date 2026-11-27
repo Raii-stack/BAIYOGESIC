@@ -15,7 +15,6 @@ export default function SaleDetailsModal({
   sale,
   onClose,
   onPaymentsChange,
-  canAdd = true,
   canEdit = true,
   canDelete = true,
   showAdminAudit = false,
@@ -23,7 +22,6 @@ export default function SaleDetailsModal({
   sale: SaleTransaction | null
   onClose: () => void
   onPaymentsChange: (transactionNo: string, payments: SalePayment[]) => Promise<SaleTransaction>
-  canAdd?: boolean
   canEdit?: boolean
   canDelete?: boolean
   showAdminAudit?: boolean
@@ -204,20 +202,6 @@ export default function SaleDetailsModal({
                   Payment history
                 </h3>
               </div>
-              {canAdd && (
-                <button
-                  type="button"
-                  disabled={balance <= 0}
-                  onClick={() => {
-                    setEditingPayment(null)
-                    setPaymentModalOpen(true)
-                  }}
-                  className="workspace-primary-action"
-                >
-                  <DashboardIcon name="plus" className="h-4 w-4" />
-                  Record Payment
-                </button>
-              )}
             </div>
 
             <div className="workspace-panel workspace-table-scroll">

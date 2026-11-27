@@ -5,6 +5,7 @@ import { DashboardIcon } from "../dashboard/DashboardComponents"
 import RecordEmptyState from "../common/RecordEmptyState"
 import SortableColumnHeader from "../common/SortableColumnHeader"
 import { productApi, type ProductPagination, type ProductSortBy } from "../../lib/product-api"
+import { classifyPriceHistory } from "../../lib/price-history"
 import { PAGE_SIZE_OPTIONS, type PageSize, type SortOrder } from "../../lib/table-sorting"
 import type { PriceHistoryEntry, Product } from "../../types/product"
 
@@ -28,6 +29,8 @@ function PriceHistory({ product, canViewAudit, onViewPrices }: { product: Produc
     return () => controller.abort()
   }, [code, retry])
 
+  const { items, currentEntry, upcomingEntry } = classifyPriceHistory(entries)
+
   return (
     <div id={`price-history-${code}`} className="workspace-history">
       <div className="grid gap-5 lg:grid-cols-[minmax(180px,0.45fr)_minmax(320px,1fr)]">
@@ -35,15 +38,55 @@ function PriceHistory({ product, canViewAudit, onViewPrices }: { product: Produc
           <p className="text-sm font-semibold text-neutral-700">Price history</p>
           <p className="mt-2 font-mono text-sm font-semibold text-neutral-900">{code}</p>
           <p className="mt-1 text-xs leading-5 text-slate-500">Recorded effective prices for this product.</p>
+          {!loading && !error && items.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {currentEntry && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 text-xs text-emerald-900">
+                  <p className="font-semibold">Currently following</p>
+                  <p className="mt-0.5 tabular-nums">{currency.format(currentEntry.price)} · since {currentEntry.effectiveDate}</p>
+                </div>
+              )}
+              {upcomingEntry && (
+                <div className="rounded-lg border border-sky-200 bg-sky-50/80 px-3 py-2 text-xs text-sky-900">
+                  <p className="font-semibold">New upcoming price</p>
+                  <p className="mt-0.5 tabular-nums">{currency.format(upcomingEntry.price)} · starts {upcomingEntry.effectiveDate}</p>
+                </div>
+              )}
+            </div>
+          )}
           {onViewPrices && <button type="button" onClick={() => onViewPrices(product)} className="workspace-secondary-action mt-3">Manage prices</button>}
         </div>
         <div className="workspace-panel" aria-busy={loading}>
-          {loading ? <TableSkeleton label="Loading price history" headings={["Effective date", "Unit price", ...(canViewAudit ? ["Last change"] : [])]} />
+          {loading ? <TableSkeleton label="Loading price history" headings={["Effective date", "Pricing", "Unit price", ...(canViewAudit ? ["Last change"] : [])]} />
             : error ? <div role="alert" className="flex items-center justify-between gap-3 p-4 text-sm text-red-700"><span>{error}</span><button type="button" onClick={() => setRetry((value) => value + 1)} className="font-semibold underline">Retry</button></div>
-              : entries.length === 0 ? <p className="p-4 text-sm text-slate-500">No price history recorded.</p>
+              : items.length === 0 ? <p className="p-4 text-sm text-slate-500">No price history recorded.</p>
                 : <table role="table" className="workspace-table">
-                  <thead><tr className="border-b border-slate-200 bg-white text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500"><th className="px-4 py-3">Effective date</th><th className="px-4 py-3 text-right">Unit price</th>{canViewAudit && <th className="px-4 py-3 sm:table-cell">Last change</th>}</tr></thead>
-                  <tbody>{entries.map((entry) => <tr key={entry.effectiveDate} className="border-b border-slate-100 last:border-0"><td data-label="Effective date" className="px-4 py-3 font-mono text-xs text-slate-600">{entry.effectiveDate}</td><td data-label="Unit price" className="px-4 py-3 text-right text-sm font-bold tabular-nums text-slate-900">{currency.format(entry.price)}</td>{canViewAudit && <td data-label="Last change" className="px-4 py-3 font-mono text-[11px] text-slate-500 sm:table-cell">{entry.stamp || "—"}</td>}</tr>)}</tbody>
+                  <thead><tr className="border-b border-slate-200 bg-white text-[10px] font-bold uppercase tracking-[0.12em] text-slate-500"><th className="px-4 py-3">Effective date</th><th className="px-4 py-3">Pricing</th><th className="px-4 py-3 text-right">Unit price</th>{canViewAudit && <th className="px-4 py-3 sm:table-cell">Last change</th>}</tr></thead>
+                  <tbody>{items.map((entry) => (
+                    <tr
+                      key={entry.effectiveDate}
+                      className={`border-b border-slate-100 last:border-0 ${
+                        entry.isCurrent ? "is-current-price" : entry.isUpcoming ? "is-upcoming-price" : ""
+                      }`}
+                    >
+                      <td data-label="Effective date" className={`px-4 py-3 font-mono text-xs ${entry.tier === "previous" ? "text-slate-500" : "text-slate-800"}`}>{entry.effectiveDate}</td>
+                      <td data-label="Pricing" className="px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {entry.isCurrent && <span className="workspace-badge bg-emerald-100 text-emerald-800">Current</span>}
+                          {entry.isNew && <span className="workspace-badge bg-blue-100 text-blue-800">New</span>}
+                          {entry.isUpcoming && <span className="workspace-badge bg-sky-100 text-sky-800">Upcoming</span>}
+                          {entry.isCurrent && entry.isNewest && items.length > 1 && !entry.isNew && (
+                            <span className="workspace-badge bg-slate-200/80 text-slate-700">Latest</span>
+                          )}
+                          {entry.tier === "previous" && <span className="workspace-badge bg-slate-100 text-slate-600">Previous</span>}
+                          {entry.isCurrent && <span className="text-[11px] font-medium text-emerald-700">Following now</span>}
+                          {entry.isUpcoming && <span className="text-[11px] font-medium text-sky-700">Scheduled</span>}
+                        </div>
+                      </td>
+                      <td data-label="Unit price" className={`px-4 py-3 text-right text-sm font-bold tabular-nums ${entry.tier === "previous" ? "text-slate-500" : "text-slate-900"}`}>{currency.format(entry.price)}</td>
+                      {canViewAudit && <td data-label="Last change" className="px-4 py-3 font-mono text-[11px] text-slate-500 sm:table-cell">{entry.stamp || "—"}</td>}
+                    </tr>
+                  ))}</tbody>
                 </table>}
         </div>
       </div>
